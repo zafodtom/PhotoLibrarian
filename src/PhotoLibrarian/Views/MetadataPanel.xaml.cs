@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using PhotoLibrarian.ViewModels;
@@ -48,7 +49,6 @@ public sealed partial class MetadataPanel : UserControl
         if (ViewModel is null) return;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         TagsList.ItemsSource = ViewModel.Tags;
-        NewTagBox.ItemsSource = ViewModel.AvailableTags;
         PeopleTagsList.ItemsSource = ViewModel.PeopleTags;
     }
 
@@ -295,33 +295,44 @@ public sealed partial class MetadataPanel : UserControl
     {
         if (ViewModel is null) return;
 
-        NewTagBox.ItemsSource = ViewModel.AvailableTags.Take(100).ToList();
-        NewTagBox.IsSuggestionListOpen = true;
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
         NewTagBox.Focus(FocusState.Programmatic);
     }
 
-    private void OnTagSuggestionTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    private void OnTagTextChanged(object sender, TextChangedEventArgs e)
     {
-        if (_suppressTagSuggestions || ViewModel is null ||
-            args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
-            return;
+        if (_suppressTagSuggestions || ViewModel is null) return;
 
-        var query = sender.Text?.Trim() ?? "";
-        sender.ItemsSource = string.IsNullOrEmpty(query)
-            ? ViewModel.AvailableTags.Take(50).ToList()
-            : ViewModel.AvailableTags
-                .Where(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .Take(50)
-                .ToList();
+        var query = NewTagBox.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(query))
+        {
+            HideTagSuggestions();
+            return;
+        }
+
+        var matches = ViewModel.AvailableTags
+            .Where(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Take(50)
+            .ToList();
+
+        if (matches.Count == 0)
+        {
+            HideTagSuggestions();
+            return;
+        }
+
+        ShowTagSuggestions(matches);
     }
 
-    private void OnTagSuggestionSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    private void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
     {
-        if (args.ChosenSuggestion is string chosen)
-            sender.Text = chosen;
+        if (e.ClickedItem is not string chosen) return;
+
+        _suppressTagSuggestions = true;
+        NewTagBox.Text = chosen;
+        _suppressTagSuggestions = false;
 
         AddCurrentTag();
-        CloseTagSuggestions();
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
@@ -331,6 +342,11 @@ public sealed partial class MetadataPanel : UserControl
             AddCurrentTag();
             e.Handled = true;
         }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            HideTagSuggestions();
+            e.Handled = true;
+        }
     }
 
     private void AddCurrentTag()
@@ -338,28 +354,31 @@ public sealed partial class MetadataPanel : UserControl
         if (ViewModel is null) return;
         var tag = NewTagBox.Text?.Trim();
         if (string.IsNullOrEmpty(tag)) return;
+
         ViewModel.AddTagCommand.Execute(tag);
-        CloseTagSuggestions(clearText: true);
+
+        _suppressTagSuggestions = true;
+        NewTagBox.Text = "";
+        _suppressTagSuggestions = false;
+        HideTagSuggestions();
     }
 
-    private void CloseTagSuggestions(bool clearText = false)
+    private void ShowTagSuggestions(IEnumerable<string> tags)
     {
-        _suppressTagSuggestions = true;
-
-        if (clearText)
-            NewTagBox.Text = "";
-
-        NewTagBox.IsSuggestionListOpen = false;
-
-        // AutoSuggestBox may reopen its popup at the end of QuerySubmitted.
-        // Move keyboard focus away on the next UI turn so the suggestion popup
-        // is closed by the control's own focus-loss behavior.
-        DispatcherQueue.TryEnqueue(() =>
+        var items = tags.ToList();
+        if (items.Count == 0)
         {
-            AddPeopleTagsButton.Focus(FocusState.Programmatic);
-            NewTagBox.IsSuggestionListOpen = false;
-            _suppressTagSuggestions = false;
-        });
+            HideTagSuggestions();
+            return;
+        }
+
+        TagSuggestionsList.ItemsSource = items;
+        FlyoutBase.ShowAttachedFlyout(NewTagBox);
+    }
+
+    private void HideTagSuggestions()
+    {
+        TagSuggestionsFlyout.Hide();
     }
 
     private void OnRemoveTagClick(object sender, RoutedEventArgs e)
