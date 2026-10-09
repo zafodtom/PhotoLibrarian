@@ -17,6 +17,8 @@ public sealed partial class FolderNavigationPanel : UserControl
     private readonly SemaphoreSlim _tagRefreshGate = new(1, 1);
     private bool _isRefreshingTagTree;
     private bool _isRefreshingPeopleTree;
+    private readonly HashSet<string> _selectedTagPaths =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public FolderNavigationPanel()
     {
@@ -292,24 +294,21 @@ public sealed partial class FolderNavigationPanel : UserControl
                 {
                     var expandedPaths = new HashSet<string>(
                         StringComparer.OrdinalIgnoreCase);
-                    var selectedPaths = new HashSet<string>(
-                        StringComparer.OrdinalIgnoreCase);
                     CollectTagTreeState(
                         TagsTree.RootNodes,
-                        expandedPaths,
-                        selectedPaths);
+                        expandedPaths);
 
-                    TagsTree.SelectedNodes.Clear();
                     TagsTree.RootNodes.Clear();
                     foreach (var tagNode in App.ViewModel.TagNav.RootTags)
                     {
-                        TagsTree.RootNodes.Add(BuildTagNode(tagNode));
+                        TagsTree.RootNodes.Add(BuildTagNode(
+                            tagNode,
+                            _selectedTagPaths));
                     }
 
                     RestoreTagTreeState(
                         TagsTree.RootNodes,
-                        expandedPaths,
-                        selectedPaths);
+                        expandedPaths);
                     completion.SetResult();
                 }
                 catch (Exception exception)
@@ -336,57 +335,81 @@ public sealed partial class FolderNavigationPanel : UserControl
 
     private void CollectTagTreeState(
         IList<TreeViewNode> nodes,
-        HashSet<string> expanded,
-        HashSet<string> selected)
+        HashSet<string> expanded)
     {
-        foreach (var n in nodes)
+        foreach (var node in nodes)
         {
-            if (n.Content is TagNodeWrapper w)
+            if (node.Content is TagNodeWrapper wrapper &&
+                node.IsExpanded)
             {
-                if (n.IsExpanded) expanded.Add(w.TagNode.FullPath);
-                if (TagsTree.SelectedNodes.Contains(n))
-                    selected.Add(w.TagNode.FullPath);
+                expanded.Add(wrapper.TagNode.FullPath);
             }
-            if (n.Children.Count > 0)
-                CollectTagTreeState(n.Children, expanded, selected);
+
+            if (node.Children.Count > 0)
+                CollectTagTreeState(node.Children, expanded);
         }
     }
 
     private void RestoreTagTreeState(
         IList<TreeViewNode> nodes,
-        HashSet<string> expanded,
-        HashSet<string> selected)
+        HashSet<string> expanded)
     {
-        foreach (var n in nodes)
+        foreach (var node in nodes)
         {
-            if (n.Content is TagNodeWrapper w)
+            if (node.Content is TagNodeWrapper wrapper &&
+                expanded.Contains(wrapper.TagNode.FullPath))
             {
-                if (expanded.Contains(w.TagNode.FullPath))
-                    n.IsExpanded = true;
-                if (selected.Contains(w.TagNode.FullPath))
-                    TagsTree.SelectedNodes.Add(n);
+                node.IsExpanded = true;
             }
-            if (n.Children.Count > 0)
-                RestoreTagTreeState(n.Children, expanded, selected);
+
+            if (node.Children.Count > 0)
+                RestoreTagTreeState(node.Children, expanded);
         }
     }
 
-    private static TreeViewNode BuildTagNode(TagNode tagNode)
+    private static TreeViewNode BuildTagNode(
+        TagNode tagNode,
+        ISet<string> selectedPaths)
     {
         var treeNode = new TreeViewNode
         {
-            Content = new TagNodeWrapper(tagNode),
-            // Tag children are already materialized here. Marking them as unrealized
-            // makes WinUI treat the node like a lazy-loading node and leads to awkward
-            // expand/collapse behaviour.
+            Content = new TagNodeWrapper(
+                tagNode,
+                selectedPaths.Contains(tagNode.FullPath)),
             HasUnrealizedChildren = false,
             IsExpanded = tagNode.IsRoot
         };
 
         foreach (var child in tagNode.Children)
-            treeNode.Children.Add(BuildTagNode(child));
+            treeNode.Children.Add(BuildTagNode(child, selectedPaths));
 
         return treeNode;
+    }
+
+    private void OnTagFilterCheckBoxClick(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_isRefreshingTagTree ||
+            sender is not CheckBox
+            {
+                Tag: TagNodeWrapper wrapper
+            } checkBox)
+        {
+            return;
+        }
+
+        var path = wrapper.TagNode.FullPath;
+        var isChecked = checkBox.IsChecked == true;
+        wrapper.IsSelected = isChecked;
+
+        if (isChecked)
+            _selectedTagPaths.Add(path);
+        else
+            _selectedTagPaths.Remove(path);
+
+        UpdateGridFromSelection();
+        e.Handled = true;
     }
 
     private async void OnManageTagCatalogClick(object sender, RoutedEventArgs e)
@@ -968,22 +991,6 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
     }
 
-    private void OnTagsItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
-    {
-        if (args.InvokedItem is TreeViewNode node)
-        {
-            if (sender.SelectedNodes.Contains(node))
-            {
-                sender.SelectedNodes.Remove(node);
-            }
-            else
-            {
-                sender.SelectedNodes.Add(node);
-            }
-            UpdateGridFromSelection();
-        }
-    }
-
     private void OnPeopleItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
     {
         if (args.InvokedItem is not TreeViewNode node) return;
@@ -1031,17 +1038,6 @@ public sealed partial class FolderNavigationPanel : UserControl
     private void OnDateSelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
     {
         DebugLog.WriteLine($"OnDateSelectionChanged: AddedItems={args.AddedItems.Count}, RemovedItems={args.RemovedItems.Count}, TotalSelected={sender.SelectedNodes.Count}");
-        UpdateGridFromSelection();
-    }
-
-    private void OnTagsSelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
-    {
-        if (_isRefreshingTagTree)
-        {
-            return;
-        }
-
-        DebugLog.WriteLine($"OnTagsSelectionChanged: AddedItems={args.AddedItems.Count}, RemovedItems={args.RemovedItems.Count}, TotalSelected={sender.SelectedNodes.Count}");
         UpdateGridFromSelection();
     }
 
@@ -1121,29 +1117,18 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
         }
 
-        // Collect selected tags
-        var selectedTags = new List<string>();
-        bool tagRootSelected = false;
-        bool untaggedSelected = false;
-        foreach (var node in TagsTree.SelectedNodes)
-        {
-            if (node.Content is TagNodeWrapper wrapper)
-            {
-                if (wrapper.TagNode.IsRoot)
-                {
-                    // Root "Tags" node - show all tagged images
-                    tagRootSelected = true;
-                }
-                else if (wrapper.TagNode.IsUntagged)
-                {
-                    untaggedSelected = true;
-                }
-                else
-                {
-                    selectedTags.Add(wrapper.TagNode.FullPath);
-                }
-            }
-        }
+        // Tag filtering uses an independent selection set rather than
+        // TreeView's hierarchical multiple-selection semantics.
+        bool tagRootSelected = _selectedTagPaths.Contains("");
+        bool untaggedSelected = _selectedTagPaths.Contains("__untagged__");
+        var selectedTags = _selectedTagPaths
+            .Where(path =>
+                !string.IsNullOrEmpty(path) &&
+                !string.Equals(
+                    path,
+                    "__untagged__",
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
         var selectedPeople = new List<long>();
         bool peopleRootSelected = false;
@@ -1367,19 +1352,22 @@ public sealed partial class FolderNavigationPanel : UserControl
     private class TagNodeWrapper
     {
         public TagNode TagNode { get; }
+        public bool IsSelected { get; set; }
 
-        public TagNodeWrapper(TagNode tagNode)
+        public TagNodeWrapper(
+            TagNode tagNode,
+            bool isSelected = false)
         {
             TagNode = tagNode;
+            IsSelected = isSelected;
         }
 
         public override string ToString()
         {
-            // Root node already has emoji in Name, others need the tag icon
             if (TagNode.IsRoot)
                 return $"{TagNode.Name} ({TagNode.Count})";
-            else
-                return $"🏷️ {TagNode.Name} ({TagNode.Count})";
+
+            return $"🏷️ {TagNode.Name} ({TagNode.Count})";
         }
     }
 }
