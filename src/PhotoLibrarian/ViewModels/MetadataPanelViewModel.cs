@@ -71,6 +71,38 @@ public partial class TagDisplayItem : ObservableObject
     }
 }
 
+public partial class AvailableTagItem : ObservableObject
+{
+    public string Tag { get; }
+
+    [ObservableProperty]
+    public partial bool IsSelectedInAlbum { get; set; }
+
+    public bool IsUsedInAlbum { get; }
+
+    public string SourceLabel =>
+        IsSelectedInAlbum && IsUsedInAlbum ? "Vybraný • použitý" :
+        IsSelectedInAlbum ? "Vybraný" :
+        IsUsedInAlbum ? "Použitý" : "";
+
+    public string PinGlyph => IsSelectedInAlbum ? "\uE77A" : "\uE718";
+
+    public AvailableTagItem(string tag, bool isSelectedInAlbum, bool isUsedInAlbum)
+    {
+        Tag = tag;
+        IsSelectedInAlbum = isSelectedInAlbum;
+        IsUsedInAlbum = isUsedInAlbum;
+    }
+
+    public void RefreshComputed()
+    {
+        OnPropertyChanged(nameof(SourceLabel));
+        OnPropertyChanged(nameof(PinGlyph));
+    }
+
+    public override string ToString() => Tag;
+}
+
 public partial class MetadataPanelViewModel : ObservableObject
 {
     // Currently-selected entries (1 or more)
@@ -117,7 +149,7 @@ public partial class MetadataPanelViewModel : ObservableObject
     public partial bool IsCaptionMixed { get; set; }
 
     public ObservableCollection<TagDisplayItem> Tags { get; } = [];
-    public ObservableCollection<string> AvailableTags { get; } = [];
+    public ObservableCollection<AvailableTagItem> AvailableTags { get; } = [];
     public ObservableCollection<PersonTagDisplayItem> PeopleTags { get; } = [];
 
     /// <summary>Date taken common to all selected entries; null if mixed or unset.</summary>
@@ -363,32 +395,40 @@ public partial class MetadataPanelViewModel : ObservableObject
     {
         AvailableTags.Clear();
 
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // Curated album vocabulary comes first.
         var catalog = AlbumService.LoadTagCatalog(App.CurrentAlbumPath);
-        foreach (var tag in catalog.SelectedTags
-                     .Where(tag => !string.IsNullOrWhiteSpace(tag))
-                     .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
-        {
-            if (seen.Add(tag))
-                AvailableTags.Add(tag);
-        }
+        var selected = catalog.SelectedTags
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Also include every tag that is already in use by photos in this album.
-        // This keeps imported/external metadata discoverable even when the tag
-        // is not part of the curated catalog yet.
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (_tagRepo != null)
         {
             var usedTags = await _tagRepo.GetAllTagsWithCountAsync();
-            foreach (var (tag, _) in usedTags
-                         .Where(x => !string.IsNullOrWhiteSpace(x.Tag))
-                         .OrderBy(x => x.Tag, StringComparer.OrdinalIgnoreCase))
-            {
-                if (seen.Add(tag))
-                    AvailableTags.Add(tag);
-            }
+            foreach (var (tag, _) in usedTags.Where(x => !string.IsNullOrWhiteSpace(x.Tag)))
+                used.Add(tag);
         }
+
+        foreach (var tag in selected
+                     .Union(used, StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
+        {
+            AvailableTags.Add(new AvailableTagItem(
+                tag,
+                selected.Contains(tag),
+                used.Contains(tag)));
+        }
+    }
+
+    public async Task ToggleAlbumTagSelectionAsync(AvailableTagItem item)
+    {
+        if (item.IsSelectedInAlbum)
+            AlbumService.RemoveSelectedTag(item.Tag);
+        else
+            AlbumService.AddSelectedTag(item.Tag);
+
+        item.IsSelectedInAlbum = !item.IsSelectedInAlbum;
+        item.RefreshComputed();
+        await ReloadAvailableTagsAsync();
     }
 
     [ObservableProperty]
