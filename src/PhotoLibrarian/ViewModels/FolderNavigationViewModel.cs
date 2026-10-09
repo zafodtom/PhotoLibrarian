@@ -218,10 +218,17 @@ public partial class FolderNavigationViewModel : ObservableObject
 
         using var conn = _db.CreateConnection();
 
-        // Remove images from this folder
+        // Album mode has exactly one root and stores image paths relative to it.
         using var delImages = conn.CreateCommand();
-        delImages.CommandText = "DELETE FROM images WHERE file_path LIKE $prefix || '%'";
-        delImages.Parameters.AddWithValue("$prefix", rootToRemove.Path);
+        if (App.HasActiveAlbum)
+        {
+            delImages.CommandText = "DELETE FROM images";
+        }
+        else
+        {
+            delImages.CommandText = "DELETE FROM images WHERE file_path LIKE $prefix || '%'";
+            delImages.Parameters.AddWithValue("$prefix", rootToRemove.Path);
+        }
         await delImages.ExecuteNonQueryAsync();
 
         // Remove watched folder
