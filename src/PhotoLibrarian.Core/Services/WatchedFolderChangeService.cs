@@ -155,7 +155,11 @@ public sealed class WatchedFolderChangeService : IDisposable
                     SyncFailed?.Invoke(this, ex);
                 }
             }
-            foreach (var directory in directories)
+            // Some Explorer operations arrive as create+delete instead of rename.
+            // Always index the new/existing side first so SHA-256 reconciliation can
+            // claim the old cache record before missing paths are deleted.
+            foreach (var directory in directories
+                         .OrderByDescending(Directory.Exists))
             {
                 try
                 {
@@ -180,23 +184,26 @@ public sealed class WatchedFolderChangeService : IDisposable
                 }
             }
 
-            foreach (var path in paths)
+            var resolvedPaths = paths
+                .SelectMany(ResolveImagePaths)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(File.Exists)
+                .ToList();
+
+            foreach (var imagePath in resolvedPaths)
             {
-                foreach (var imagePath in ResolveImagePaths(path))
+                try
                 {
-                    try
-                    {
-                        changed |= await ProcessFileAsync(imagePath, _shutdown.Token);
-                    }
-                    catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugLog.WriteLine($"Watched file sync failed for '{imagePath}': {ex}");
-                        SyncFailed?.Invoke(this, ex);
-                    }
+                    changed |= await ProcessFileAsync(imagePath, _shutdown.Token);
+                }
+                catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.WriteLine($"Watched file sync failed for '{imagePath}': {ex}");
+                    SyncFailed?.Invoke(this, ex);
                 }
             }
 
