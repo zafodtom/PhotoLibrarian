@@ -271,7 +271,7 @@ public sealed class FaceRepository : IFaceScanStore
         command.Parameters.AddWithValue("$imported", imported ? 1 : 0);
         command.Parameters.AddWithValue(
             "$sidecarPath",
-            (object?)sidecarPath ?? DBNull.Value);
+            (object?)AlbumPathStorage.ToStoragePathOrNull(sidecarPath) ?? DBNull.Value);
         command.Parameters.AddWithValue(
             "$sidecarSize",
             (object?)sidecarSize ?? DBNull.Value);
