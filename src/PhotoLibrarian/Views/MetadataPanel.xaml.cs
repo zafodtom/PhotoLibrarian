@@ -595,20 +595,12 @@ public sealed partial class MetadataPanel : UserControl
         }
 
         TagSuggestionsList.ItemsSource = items;
-        FlyoutBase.ShowAttachedFlyout(NewTagBox);
-
-        // A suggestion popup must never interrupt typing a new tag.
-        // Re-assert focus/caret after the flyout has opened.
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            NewTagBox.Focus(FocusState.Programmatic);
-            NewTagBox.SelectionStart = NewTagBox.Text?.Length ?? 0;
-        });
+        TagSuggestionsPanel.Visibility = Visibility.Visible;
     }
 
     private void HideTagSuggestions()
     {
-        TagSuggestionsFlyout.Hide();
+        TagSuggestionsPanel.Visibility = Visibility.Collapsed;
     }
 
     private void OnRemoveTagClick(object sender, RoutedEventArgs e)
