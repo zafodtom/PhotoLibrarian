@@ -311,7 +311,7 @@ public sealed partial class MetadataPanel : UserControl
         }
 
         var matches = ViewModel.AvailableTags
-            .Where(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
             .Take(50)
             .ToList();
 
@@ -326,13 +326,33 @@ public sealed partial class MetadataPanel : UserControl
 
     private void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not string chosen) return;
+        if (e.ClickedItem is not AvailableTagItem chosen) return;
 
         _suppressTagSuggestions = true;
-        NewTagBox.Text = chosen;
+        NewTagBox.Text = chosen.Tag;
         _suppressTagSuggestions = false;
 
         AddCurrentTag();
+    }
+
+    private async void OnToggleAlbumTagSelectionClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null ||
+            sender is not Button { Tag: AvailableTagItem item })
+            return;
+
+        await ViewModel.ToggleAlbumTagSelectionAsync(item);
+
+        // Keep the picker open and refresh its current contents after toggling.
+        var query = NewTagBox.Text?.Trim() ?? "";
+        var visible = string.IsNullOrEmpty(query)
+            ? ViewModel.AvailableTags.Take(100).ToList()
+            : ViewModel.AvailableTags
+                .Where(tag => tag.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Take(50)
+                .ToList();
+
+        ShowTagSuggestions(visible);
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
@@ -363,7 +383,7 @@ public sealed partial class MetadataPanel : UserControl
         HideTagSuggestions();
     }
 
-    private void ShowTagSuggestions(IEnumerable<string> tags)
+    private void ShowTagSuggestions(IEnumerable<AvailableTagItem> tags)
     {
         var items = tags.ToList();
         if (items.Count == 0)
