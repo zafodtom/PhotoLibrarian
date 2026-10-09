@@ -341,6 +341,9 @@ public sealed class TagRepository : IAutoTagStore
         if (oldPrefix.Length == 0 || newPrefix.Length == 0)
             return [];
 
+        if (newPrefix.StartsWith(oldPrefix + "/", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("A tag branch cannot be moved inside itself.");
+
         using var conn = _db.CreateConnection();
         using var transaction = conn.BeginTransaction();
 
