@@ -825,7 +825,16 @@ public sealed partial class FolderNavigationPanel : UserControl
             if (!configuredContainers.Add(container))
                 return;
 
+            container.CanDrag = true;
             container.AllowDrop = true;
+            container.DragStarting += (_, _) =>
+            {
+                if (container.Content is CatalogManagerRow row)
+                {
+                    draggedRow = row;
+                    ShowManagerStatus(null);
+                }
+            };
             container.DragOver += OnCatalogRowDragOver;
             container.Drop += OnCatalogRowDrop;
         };
