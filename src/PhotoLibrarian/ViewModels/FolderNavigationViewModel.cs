@@ -98,42 +98,76 @@ public partial class FolderNavigationViewModel : ObservableObject
         }
 
         DebugLog.WriteLine($"AddFolderAsync: User selected '{folder.Path}'");
+        await AddOrSelectFolderAsync(folder.Path);
+    }
 
-        // Insert into watched_folders
+    /// <summary>
+    /// Adds a folder without showing the picker and selects it as the active folder.
+    /// This is used by the --album command-line mode and can later become the entry
+    /// point for folder-contained album configuration.
+    /// </summary>
+    public async Task<FolderNode?> AddOrSelectFolderAsync(
+        string folderPath,
+        bool includeSubfolders = true)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath)) return null;
+
+        var normalizedPath = Path.GetFullPath(folderPath.Trim().Trim('"'))
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (!Directory.Exists(normalizedPath))
+        {
+            DebugLog.WriteLine($"AddOrSelectFolderAsync: Folder does not exist: '{normalizedPath}'");
+            _main.StatusText = $"Album folder not found: {normalizedPath}";
+            return null;
+        }
+
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT OR IGNORE INTO watched_folders (path, include_sub)
-            VALUES ($path, 1)
+            VALUES ($path, $includeSub)
             """;
-        cmd.Parameters.AddWithValue("$path", folder.Path);
+        cmd.Parameters.AddWithValue("$path", normalizedPath);
+        cmd.Parameters.AddWithValue("$includeSub", includeSubfolders ? 1 : 0);
         var rowsAffected = await cmd.ExecuteNonQueryAsync();
-        DebugLog.WriteLine($"AddFolderAsync: Inserted into DB (rows affected: {rowsAffected})");
 
         await LoadWatchedFoldersAsync();
 
-        // Start indexing in background
-        DebugLog.WriteLine($"AddFolderAsync: Starting background indexing for '{folder.Path}'");
-        _indexCts?.Cancel();
-        _indexCts = new CancellationTokenSource();
-        _ = Task.Run(async () =>
+        var node = RootFolders.FirstOrDefault(folder =>
+            string.Equals(folder.Path, normalizedPath, StringComparison.OrdinalIgnoreCase));
+        if (node is not null)
+            SelectedFolder = node;
+
+        if (rowsAffected > 0)
         {
-            try
+            DebugLog.WriteLine($"AddOrSelectFolderAsync: Starting background indexing for '{normalizedPath}'");
+            _indexCts?.Cancel();
+            _indexCts = new CancellationTokenSource();
+            _ = Task.Run(async () =>
             {
-                DebugLog.WriteLine($"AddFolderAsync [Background]: Calling IndexFolderAsync");
-                await _indexingService.IndexFolderAsync(folder.Path, true, _indexCts.Token);
-                DebugLog.WriteLine($"AddFolderAsync [Background]: IndexFolderAsync completed");
-                App.MainWindow?.DispatcherQueue.TryEnqueue(async () =>
+                try
                 {
-                    DebugLog.WriteLine($"AddFolderAsync [UI]: Calling RefreshAfterIndexAsync");
-                    await _main.RefreshAfterIndexAsync();
-                });
-            }
-            catch (Exception ex)
-            {
-                DebugLog.WriteLine($"AddFolderAsync [Background]: ERROR - {ex.Message}\n{ex.StackTrace}");
-            }
-        });
+                    await _indexingService.IndexFolderAsync(
+                        normalizedPath,
+                        includeSubfolders,
+                        _indexCts.Token);
+                    App.MainWindow?.DispatcherQueue.TryEnqueue(async () =>
+                    {
+                        await _main.RefreshAfterIndexAsync();
+                        if (node is not null)
+                            SelectedFolder = node;
+                    });
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.WriteLine(
+                        $"AddOrSelectFolderAsync [Background]: ERROR - {ex.Message}\n{ex.StackTrace}");
+                }
+            });
+        }
+
+        return node;
     }
 
     [RelayCommand]
