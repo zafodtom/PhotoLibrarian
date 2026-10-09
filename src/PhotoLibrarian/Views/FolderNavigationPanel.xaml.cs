@@ -406,7 +406,6 @@ public sealed partial class FolderNavigationPanel : UserControl
             AllowDrop = true
         };
 
-        var addGroupButton = new Button { Content = "Nová skupina", Padding = new Thickness(10, 5, 10, 5) };
         var addTagButton = new Button { Content = "Nový tag", Padding = new Thickness(10, 5, 10, 5) };
         var editButton = new Button { Content = "Upravit", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
         var removeButton = new Button { Content = "Odebrat z katalogu", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
@@ -416,14 +415,13 @@ public sealed partial class FolderNavigationPanel : UserControl
             Orientation = Orientation.Horizontal,
             Spacing = 8
         };
-        toolbar.Children.Add(addGroupButton);
         toolbar.Children.Add(addTagButton);
         toolbar.Children.Add(editButton);
         toolbar.Children.Add(removeButton);
 
         var hint = new TextBlock
         {
-            Text = "Skupiny jsou organizační uzly. Použitý tag zůstane po odebrání z katalogu zachovaný u fotografií. Přetažením položky na skupinu ji přesuneš dovnitř; přetažením na prázdné místo ji přesuneš do kořene.",
+            Text = "Každá položka je tag. Hierarchie vzniká cestou tagů. Použitý tag zůstane po odebrání z katalogu zachovaný u fotografií. Přetažením tagu na jiný tag ho přesuneš pod něj; zónou nahoře ho přesuneš do kořene.",
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.7
         };
@@ -538,8 +536,7 @@ public sealed partial class FolderNavigationPanel : UserControl
                 return;
             }
 
-            if (!target.Item.IsGroup ||
-                string.Equals(
+            if (string.Equals(
                     target.Item.Tag,
                     draggedRow.Item.Tag,
                     StringComparison.OrdinalIgnoreCase) ||
@@ -562,8 +559,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             args.Handled = true;
 
             if (draggedRow is null ||
-                sender is not ListViewItem { Content: CatalogManagerRow target } ||
-                !target.Item.IsGroup)
+                sender is not ListViewItem { Content: CatalogManagerRow target })
             {
                 return;
             }
@@ -605,58 +601,22 @@ public sealed partial class FolderNavigationPanel : UserControl
             removeButton.IsEnabled = hasSelection;
         };
 
-        addGroupButton.Click += async (_, _) =>
-        {
-            var nameBox = new TextBox
-            {
-                PlaceholderText = "Např. Oblečení nebo Oblečení/Typ"
-            };
-
-            var createDialog = new ContentDialog
-            {
-                Title = "Nová skupina tagů",
-                Content = nameBox,
-                PrimaryButtonText = "Vytvořit",
-                CloseButtonText = "Zrušit",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot
-            };
-
-            dialog.Hide();
-            var createGroupResult = await createDialog.ShowAsync();
-            _ = dialog.ShowAsync();
-            if (createGroupResult != ContentDialogResult.Primary)
-                return;
-
-            var group = nameBox.Text?.Trim().Trim('/');
-            if (string.IsNullOrWhiteSpace(group))
-                return;
-
-            var validation = metadata.ValidateCatalogPath(group);
-            if (validation is not null)
-            {
-                ShowManagerStatus(validation);
-                return;
-            }
-
-            AlbumService.AddGroup(group);
-            await metadata.ReloadAvailableTagsAsync();
-            await RefreshTagsTreeAsync();
-            ReloadRows();
-        };
-
         addTagButton.Click += async (_, _) =>
         {
-            var groups = AlbumService.GetGroups();
+            var parentTags = metadata.AvailableTags
+                .Select(item => item.Tag)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             var parentBox = new ComboBox
             {
-                Header = "Skupina",
+                Header = "Nadřazený tag",
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
-            parentBox.Items.Add("(bez skupiny)");
-            foreach (var group in groups)
-                parentBox.Items.Add(group);
+            parentBox.Items.Add("(kořen)");
+            foreach (var parentTag in parentTags)
+                parentBox.Items.Add(parentTag);
             parentBox.SelectedIndex = 0;
 
             var nameBox = new TextBox
@@ -715,10 +675,13 @@ public sealed partial class FolderNavigationPanel : UserControl
                 return;
 
             var item = row.Item;
-            var groups = AlbumService.GetGroups()
-                .Where(group =>
-                    !string.Equals(group, item.Tag, StringComparison.OrdinalIgnoreCase) &&
-                    !group.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+            var parentTags = metadata.AvailableTags
+                .Where(candidate =>
+                    !string.Equals(candidate.Tag, item.Tag, StringComparison.OrdinalIgnoreCase) &&
+                    !candidate.Tag.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+                .Select(candidate => candidate.Tag)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             var currentParent = "";
@@ -728,17 +691,17 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             var parentBox = new ComboBox
             {
-                Header = "Nadřazená skupina",
+                Header = "Nadřazený tag",
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
-            parentBox.Items.Add("(bez skupiny)");
-            foreach (var group in groups)
-                parentBox.Items.Add(group);
+            parentBox.Items.Add("(kořen)");
+            foreach (var parentTag in parentTags)
+                parentBox.Items.Add(parentTag);
 
             parentBox.SelectedIndex = 0;
-            for (var index = 0; index < groups.Count; index++)
+            for (var index = 0; index < parentTags.Count; index++)
             {
-                if (string.Equals(groups[index], currentParent, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(parentTags[index], currentParent, StringComparison.OrdinalIgnoreCase))
                 {
                     parentBox.SelectedIndex = index + 1;
                     break;
@@ -747,7 +710,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             var nameBox = new TextBox
             {
-                Header = item.IsGroup ? "Název skupiny" : "Název tagu",
+                Header = "Název tagu",
                 Text = item.Name
             };
 
@@ -757,7 +720,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             var editDialog = new ContentDialog
             {
-                Title = item.IsGroup ? "Upravit skupinu" : "Upravit tag",
+                Title = "Upravit tag",
                 Content = panel,
                 PrimaryButtonText = "Uložit",
                 CloseButtonText = "Zrušit",
@@ -810,7 +773,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             var item = row.Item;
             var confirm = new ContentDialog
             {
-                Title = item.IsGroup ? "Odebrat skupinu z katalogu?" : "Odebrat tag z katalogu?",
+                Title = "Odebrat tag z katalogu?",
                 Content = item.IsUsedInAlbum
                     ? "Položka je použitá u fotografií. Při odebrání z katalogu zůstanou tato přiřazení zachovaná."
                     : "Položka bude odebrána z katalogu alba.",
@@ -1392,7 +1355,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         public override string ToString()
         {
             var indent = new string(' ', Math.Max(0, Item.Depth) * 4);
-            var icon = Item.IsGroup ? "📁" : "🏷️";
+            var icon = "🏷️";
             var state = string.IsNullOrWhiteSpace(Item.SourceLabel)
                 ? ""
                 : $"  [{Item.SourceLabel}]";
