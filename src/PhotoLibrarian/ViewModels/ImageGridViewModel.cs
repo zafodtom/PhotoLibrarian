@@ -1326,10 +1326,20 @@ public partial class ImageGridViewModel : ObservableObject
     [RelayCommand]
     private void OpenViewer()
     {
-        if (SelectedImage is not null)
-        {
-            _main.ImageViewer.OpenImage(SelectedImage.Entry, Images.Select(i => i.Entry).ToList());
-        }
+        if (SelectedImage is null) return;
+
+        // Navigate in exactly the same order the user sees in the grid.
+        // GroupedImages is the rendered/sorted representation; Images is only the
+        // underlying working collection and can differ after sorting/grouping.
+        var visibleOrder = GroupedImages
+            .SelectMany(group => group.Items)
+            .Select(item => item.Entry)
+            .ToList();
+
+        if (visibleOrder.Count == 0)
+            visibleOrder = Images.Select(item => item.Entry).ToList();
+
+        _main.ImageViewer.OpenImage(SelectedImage.Entry, visibleOrder);
     }
 
     /// <summary>
