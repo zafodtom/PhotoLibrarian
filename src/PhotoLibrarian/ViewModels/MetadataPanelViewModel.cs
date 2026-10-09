@@ -362,14 +362,32 @@ public partial class MetadataPanelViewModel : ObservableObject
     public async Task ReloadAvailableTagsAsync()
     {
         AvailableTags.Clear();
-        if (_tagRepo == null) return;
 
-        var allTags = await _tagRepo.GetAllTagsWithCountAsync();
-        foreach (var (tag, _) in allTags
-                     .Where(x => !string.IsNullOrWhiteSpace(x.Tag))
-                     .OrderBy(x => x.Tag, StringComparer.OrdinalIgnoreCase))
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Curated album vocabulary comes first.
+        var catalog = AlbumService.LoadTagCatalog(App.CurrentAlbumPath);
+        foreach (var tag in catalog.SelectedTags
+                     .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                     .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
         {
-            AvailableTags.Add(tag);
+            if (seen.Add(tag))
+                AvailableTags.Add(tag);
+        }
+
+        // Also include every tag that is already in use by photos in this album.
+        // This keeps imported/external metadata discoverable even when the tag
+        // is not part of the curated catalog yet.
+        if (_tagRepo != null)
+        {
+            var usedTags = await _tagRepo.GetAllTagsWithCountAsync();
+            foreach (var (tag, _) in usedTags
+                         .Where(x => !string.IsNullOrWhiteSpace(x.Tag))
+                         .OrderBy(x => x.Tag, StringComparer.OrdinalIgnoreCase))
+            {
+                if (seen.Add(tag))
+                    AvailableTags.Add(tag);
+            }
         }
     }
 
@@ -572,6 +590,10 @@ public partial class MetadataPanelViewModel : ObservableObject
     {
         if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag)) return;
         var trimmed = tag.Trim();
+
+        // Anything the user actively adds becomes part of the album's curated
+        // vocabulary as well as being assigned to the selected photo(s).
+        AlbumService.AddSelectedTag(trimmed);
 
         // Update UI tag list
         var existing = Tags.FirstOrDefault(t => string.Equals(t.Tag, trimmed, StringComparison.OrdinalIgnoreCase));
