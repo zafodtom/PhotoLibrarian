@@ -349,13 +349,15 @@ public sealed partial class MetadataPanel : UserControl
         if (clearText)
             NewTagBox.Text = "";
 
-        NewTagBox.ItemsSource = null;
         NewTagBox.IsSuggestionListOpen = false;
 
+        // AutoSuggestBox may reopen its popup at the end of QuerySubmitted.
+        // Move keyboard focus away on the next UI turn so the suggestion popup
+        // is closed by the control's own focus-loss behavior.
         DispatcherQueue.TryEnqueue(() =>
         {
+            AddPeopleTagsButton.Focus(FocusState.Programmatic);
             NewTagBox.IsSuggestionListOpen = false;
-            NewTagBox.ItemsSource = ViewModel?.AvailableTags;
             _suppressTagSuggestions = false;
         });
     }
