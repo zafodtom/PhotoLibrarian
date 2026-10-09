@@ -9,6 +9,7 @@ public static class AlbumService
     public const string AlbumFolderName = ".album";
     public const string AlbumManifestName = "album.json";
     public const string AlbumCacheName = "cache.db";
+    public const string AlbumTagsName = "tags.json";
 
     public static string? GetAlbumPathFromCommandLine()
     {
@@ -56,11 +57,82 @@ public static class AlbumService
                     new JsonSerializerOptions { WriteIndented = true }));
         }
 
+        var tagsPath = Path.Combine(albumDir, AlbumTagsName);
+        if (!File.Exists(tagsPath))
+        {
+            File.WriteAllText(
+                tagsPath,
+                JsonSerializer.Serialize(
+                    new AlbumTagCatalog(),
+                    new JsonSerializerOptions { WriteIndented = true }));
+        }
+
         return root;
     }
 
     public static string GetAlbumCachePath(string albumRoot) =>
         Path.Combine(albumRoot, AlbumFolderName, AlbumCacheName);
+
+    public static string GetAlbumTagsPath(string albumRoot) =>
+        Path.Combine(albumRoot, AlbumFolderName, AlbumTagsName);
+
+    public static AlbumTagCatalog LoadTagCatalog(string? albumRoot)
+    {
+        if (string.IsNullOrWhiteSpace(albumRoot))
+            return new AlbumTagCatalog();
+
+        var path = GetAlbumTagsPath(albumRoot);
+        try
+        {
+            if (!File.Exists(path))
+                return new AlbumTagCatalog();
+
+            var json = File.ReadAllText(path);
+            return JsonSerializer.Deserialize<AlbumTagCatalog>(json)
+                   ?? new AlbumTagCatalog();
+        }
+        catch
+        {
+            return new AlbumTagCatalog();
+        }
+    }
+
+    public static void SaveTagCatalog(string albumRoot, AlbumTagCatalog catalog)
+    {
+        var path = GetAlbumTagsPath(albumRoot);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        var normalized = new AlbumTagCatalog
+        {
+            Version = Math.Max(1, catalog.Version),
+            SelectedTags = catalog.SelectedTags
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Select(tag => tag.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+                .ToList()
+        };
+
+        File.WriteAllText(
+            path,
+            JsonSerializer.Serialize(
+                normalized,
+                new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    public static void AddSelectedTag(string tag)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            return;
+
+        var trimmed = tag.Trim();
+        var catalog = LoadTagCatalog(App.CurrentAlbumPath);
+        if (catalog.SelectedTags.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+            return;
+
+        catalog.SelectedTags.Add(trimmed);
+        SaveTagCatalog(App.CurrentAlbumPath, catalog);
+    }
 
     public static string PrepareCleanSessionCache()
     {
@@ -108,4 +180,11 @@ public static class AlbumService
         var escaped = albumRoot.Replace("\"", "\\\"");
         Microsoft.Windows.AppLifecycle.AppInstance.Restart($"--album \"{escaped}\"");
     }
+}
+
+
+public sealed class AlbumTagCatalog
+{
+    public int Version { get; set; } = 1;
+    public List<string> SelectedTags { get; set; } = [];
 }
