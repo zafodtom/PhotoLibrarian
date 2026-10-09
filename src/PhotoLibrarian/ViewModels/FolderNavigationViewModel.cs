@@ -42,7 +42,8 @@ public partial class FolderNavigationViewModel : ObservableObject
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var path = reader.GetString(1);
+            var storedPath = reader.GetString(1);
+            var path = AlbumPathStorage.ToAbsolutePath(storedPath);
             var node = new FolderNode
             {
                 Id = reader.GetInt64(0),
@@ -130,45 +131,25 @@ public partial class FolderNavigationViewModel : ObservableObject
 
         using var conn = _db.CreateConnection();
 
-        if (App.HasActiveAlbum)
-        {
-            var existingRoots = new List<string>();
-            using (var roots = conn.CreateCommand())
-            {
-                roots.CommandText = "SELECT path FROM watched_folders";
-                using var reader = await roots.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                    existingRoots.Add(reader.GetString(0));
-            }
-
-            var cacheBelongsToCurrentRoot =
-                existingRoots.Count == 0 ||
-                (existingRoots.Count == 1 &&
-                 string.Equals(existingRoots[0], normalizedPath, StringComparison.OrdinalIgnoreCase));
-
-            if (!cacheBelongsToCurrentRoot)
-            {
-                DebugLog.WriteLine(
-                    $"AddOrSelectFolderAsync: Album moved or cache contains another root; rebuilding cache for '{normalizedPath}'");
-
-                using var reset = conn.CreateCommand();
-                reset.CommandText = """
-                    DELETE FROM images;
-                    DELETE FROM persons;
-                    DELETE FROM watched_folders;
-                    """;
-                await reset.ExecuteNonQueryAsync();
-            }
-        }
-
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT OR IGNORE INTO watched_folders (path, include_sub)
             VALUES ($path, $includeSub)
             """;
-        cmd.Parameters.AddWithValue("$path", normalizedPath);
+        var storedRootPath = App.HasActiveAlbum
+            ? AlbumPathStorage.AlbumRootStoragePath
+            : normalizedPath;
+        cmd.Parameters.AddWithValue("$path", storedRootPath);
         cmd.Parameters.AddWithValue("$includeSub", includeSubfolders ? 1 : 0);
         var rowsAffected = await cmd.ExecuteNonQueryAsync();
+
+        var shouldIndex = rowsAffected > 0;
+        if (App.HasActiveAlbum && !shouldIndex)
+        {
+            using var countImages = conn.CreateCommand();
+            countImages.CommandText = "SELECT COUNT(*) FROM images";
+            shouldIndex = Convert.ToInt32(await countImages.ExecuteScalarAsync()) == 0;
+        }
 
         await LoadWatchedFoldersAsync();
 
@@ -177,7 +158,7 @@ public partial class FolderNavigationViewModel : ObservableObject
         if (node is not null)
             SelectedFolder = node;
 
-        if (rowsAffected > 0)
+        if (shouldIndex)
         {
             DebugLog.WriteLine($"AddOrSelectFolderAsync: Starting background indexing for '{normalizedPath}'");
             _indexCts?.Cancel();
