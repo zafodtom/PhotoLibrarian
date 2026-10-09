@@ -110,6 +110,16 @@ public partial class App : Application
         _window.Activate();
 
         await ViewModel.InitializeAsync();
+
+        var commandLineArgs = Environment.GetCommandLineArgs();
+        var albumArgIndex = Array.FindIndex(
+            commandLineArgs,
+            arg => string.Equals(arg, "--album", StringComparison.OrdinalIgnoreCase));
+
+        if (albumArgIndex >= 0 && albumArgIndex + 1 < commandLineArgs.Length)
+        {
+            await ViewModel.FolderNav.AddOrSelectFolderAsync(commandLineArgs[albumArgIndex + 1]);
+        }
     }
 
     public static new App Current => (App)Application.Current;
