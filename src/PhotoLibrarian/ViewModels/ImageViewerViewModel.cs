@@ -12,6 +12,7 @@ public partial class ImageViewerViewModel : ObservableObject
 {
     private List<ImageEntry> _allImages = [];
     private int _currentIndex;
+    private InMemoryRandomAccessStream? _heifImageStream;
 
     [ObservableProperty]
     public partial bool IsOpen { get; set; }
@@ -95,6 +96,8 @@ public partial class ImageViewerViewModel : ObservableObject
     {
         IsOpen = false;
         CurrentImage = null;
+        _heifImageStream?.Dispose();
+        _heifImageStream = null;
         VideoPath = null;
         IsVideo = false;
         RaiseCurrentEntryChanged();
@@ -162,6 +165,9 @@ public partial class ImageViewerViewModel : ObservableObject
         IsVideo = false;
         VideoPath = null;
 
+        _heifImageStream?.Dispose();
+        _heifImageStream = null;
+
         if (HeifFallbackDecoder.IsHeifFamily(entry.FilePath))
         {
             try
@@ -169,16 +175,17 @@ public partial class ImageViewerViewModel : ObservableObject
                 var bytes = await HeifFallbackDecoder.DecodeToJpegAsync(entry.FilePath);
                 if (bytes is not null)
                 {
-                    using var memoryStream = new InMemoryRandomAccessStream();
-                    using (var writer = new DataWriter(memoryStream))
+                    _heifImageStream = new InMemoryRandomAccessStream();
+                    using (var writer = new DataWriter(_heifImageStream))
                     {
                         writer.WriteBytes(bytes);
                         await writer.StoreAsync();
+                        writer.DetachStream();
                     }
-                    memoryStream.Seek(0);
+                    _heifImageStream.Seek(0);
 
                     var heifBitmap = new BitmapImage();
-                    await heifBitmap.SetSourceAsync(memoryStream);
+                    await heifBitmap.SetSourceAsync(_heifImageStream);
                     CurrentImage = heifBitmap;
                     ZoomFactor = 1.0;
                     return;
@@ -202,34 +209,6 @@ public partial class ImageViewerViewModel : ObservableObject
         }
         catch
         {
-            if (HeifFallbackDecoder.IsHeifFamily(entry.FilePath))
-            {
-                try
-                {
-                    var bytes = await HeifFallbackDecoder.DecodeToJpegAsync(entry.FilePath);
-                    if (bytes is not null)
-                    {
-                        using var stream = new InMemoryRandomAccessStream();
-                        using (var writer = new DataWriter(stream))
-                        {
-                            writer.WriteBytes(bytes);
-                            await writer.StoreAsync();
-                        }
-                        stream.Seek(0);
-
-                        var bmp = new BitmapImage();
-                        await bmp.SetSourceAsync(stream);
-                        CurrentImage = bmp;
-                        ZoomFactor = 1.0;
-                        return;
-                    }
-                }
-                catch
-                {
-                    // Fall through to the normal unsupported-image state.
-                }
-            }
-
             CurrentImage = null;
         }
     }
