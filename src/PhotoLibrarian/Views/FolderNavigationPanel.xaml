@@ -73,6 +73,12 @@
                         <StackPanel Grid.Column="1"
                                     Orientation="Horizontal"
                                     Spacing="2">
+                            <Button Click="OnManageTagCatalogClick"
+                                    Padding="5,3"
+                                    ToolTipService.ToolTip="Správa katalogu tagů"
+                                    AutomationProperties.Name="Správa katalogu tagů">
+                                <FontIcon Glyph="&#xE713;" FontSize="12" />
+                            </Button>
                             <Button Click="OnExpandAllTagsClick"
                                     Padding="5,3"
                                     ToolTipService.ToolTip="Expand all tags"
