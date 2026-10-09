@@ -407,14 +407,25 @@ public sealed partial class FolderNavigationPanel : UserControl
 
     private async void OnManageFoldersClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new ManageFoldersDialog
+        if (App.MainWindow is not Window owner) return;
+
+        try
         {
-            XamlRoot = this.XamlRoot
-        };
-        await dialog.ShowAsync();
-        
-        // Refresh tree after dialog closes
-        RefreshLibraryTree();
+            var albumPath = await AlbumService.PickAlbumFolderAsync(owner);
+            if (albumPath is not null)
+                AlbumService.RestartForAlbum(albumPath);
+        }
+        catch (Exception ex)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Album se nepodařilo otevřít",
+                Content = ex.Message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
     }
 
     private async void OnRefreshClick(object sender, RoutedEventArgs e)
