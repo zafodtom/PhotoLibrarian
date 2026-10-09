@@ -50,8 +50,13 @@ public partial class App : Application
             dbPath = AlbumService.PrepareCleanSessionCache();
         }
 
+        AlbumPathStorage.Configure(CurrentAlbumPath);
+
         // Create services
         var db = new CacheDatabase(dbPath);
+        await db.InitializeAsync();
+        if (CurrentAlbumPath is not null)
+            await db.MigrateAlbumPathsToRelativeAsync(CurrentAlbumPath);
         var imageRepo = new ImageRepository(db);
         var tagRepo = new TagRepository(db);
         var faceRepo = new FaceRepository(db);
