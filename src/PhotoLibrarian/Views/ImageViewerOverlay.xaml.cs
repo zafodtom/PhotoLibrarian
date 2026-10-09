@@ -531,10 +531,7 @@ public sealed partial class ImageViewerOverlay : UserControl
                 ViewModel.ZoomOutCommand.Execute(null);
                 e.Handled = true;
                 break;
-            case Windows.System.VirtualKey.F:
-                await ToggleFlagAsync();
-                e.Handled = true;
-                break;
+            // Flag shortcut intentionally disabled in the current album UI.
         }
     }
 
