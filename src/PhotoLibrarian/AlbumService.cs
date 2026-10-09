@@ -107,9 +107,17 @@ public static class AlbumService
             Version = Math.Max(1, catalog.Version),
             SelectedTags = catalog.SelectedTags
                 .Where(tag => !string.IsNullOrWhiteSpace(tag))
-                .Select(tag => tag.Trim())
+                .Select(tag => tag.Trim().Trim('/'))
+                .Where(tag => tag.Length > 0)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            Groups = catalog.Groups
+                .Where(group => !string.IsNullOrWhiteSpace(group))
+                .Select(group => group.Trim().Trim('/'))
+                .Where(group => group.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group, StringComparer.OrdinalIgnoreCase)
                 .ToList()
         };
 
@@ -119,6 +127,27 @@ public static class AlbumService
                 normalized,
                 new JsonSerializerOptions { WriteIndented = true }));
     }
+
+    public static void AddGroup(string group)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            return;
+
+        var normalized = group.Trim().Trim('/');
+        if (normalized.Length == 0) return;
+
+        var catalog = LoadTagCatalog(App.CurrentAlbumPath);
+        if (!catalog.Groups.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            catalog.Groups.Add(normalized);
+            SaveTagCatalog(App.CurrentAlbumPath, catalog);
+        }
+    }
+
+    public static IReadOnlyList<string> GetGroups() =>
+        LoadTagCatalog(App.CurrentAlbumPath).Groups
+            .OrderBy(group => group, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     public static void AddSelectedTag(string tag)
     {
@@ -198,4 +227,5 @@ public sealed class AlbumTagCatalog
 {
     public int Version { get; set; } = 1;
     public List<string> SelectedTags { get; set; } = [];
+    public List<string> Groups { get; set; } = [];
 }
