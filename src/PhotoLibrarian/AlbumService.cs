@@ -134,6 +134,17 @@ public static class AlbumService
         SaveTagCatalog(App.CurrentAlbumPath, catalog);
     }
 
+    public static void RemoveSelectedTag(string tag)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            return;
+
+        var catalog = LoadTagCatalog(App.CurrentAlbumPath);
+        catalog.SelectedTags.RemoveAll(existing =>
+            string.Equals(existing, tag, StringComparison.OrdinalIgnoreCase));
+        SaveTagCatalog(App.CurrentAlbumPath, catalog);
+    }
+
     public static string PrepareCleanSessionCache()
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
