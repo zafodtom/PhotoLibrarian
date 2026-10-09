@@ -1,6 +1,7 @@
 using PhotoLibrarian.Core.Data;
 using PhotoLibrarian.Core.Diagnostics;
 using PhotoLibrarian.Core.Models;
+using System.Security.Cryptography;
 
 namespace PhotoLibrarian.Core.Services;
 
@@ -120,7 +121,11 @@ public sealed class LibraryIndexingService
             }
         }
 
-        DebugLog.WriteLine($"IndexFolderAsync: Complete - processed={processed}, skipped={skipped}, errors={errors}");
+        var removed = await _imageRepo.DeleteMissingInDirectoryAsync(folderPath);
+        if (removed > 0)
+            DebugLog.WriteLine($"IndexFolderAsync: Removed {removed} missing cache record(s) under '{folderPath}'");
+
+        DebugLog.WriteLine($"IndexFolderAsync: Complete - processed={processed}, skipped={skipped}, errors={errors}, removed={removed}");
         Progress?.Invoke(this, new IndexingProgressEventArgs(processed, skipped, folderPath, isComplete: true));
     }
 
@@ -128,10 +133,41 @@ public sealed class LibraryIndexingService
     public async Task<bool> IndexFileAsync(string filePath, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var existing = await _imageRepo.GetByPathAsync(filePath);
         var fileInfo = new FileInfo(filePath);
         if (!fileInfo.Exists)
             throw new FileNotFoundException("The photo to index could not be found.", filePath);
+
+        var existing = await _imageRepo.GetByPathAsync(filePath);
+
+        // The path is only the current location, not the photo identity. New paths are
+        // matched to exactly one missing old record by SHA-256 + file size.
+        string? currentHash = existing?.FileHash;
+        if (existing is null || string.IsNullOrWhiteSpace(currentHash))
+        {
+            currentHash = await ComputeSha256Async(filePath, ct);
+
+            if (existing is null)
+            {
+                var moved = await _imageRepo.FindUniqueMissingByHashAsync(
+                    currentHash,
+                    fileInfo.Length);
+                if (moved is not null)
+                {
+                    MoveSidecarIfNeeded(moved.FilePath, filePath);
+                    await _imageRepo.UpdatePathAsync(moved.Id, filePath);
+                    existing = moved;
+                    existing.FilePath = filePath;
+                    existing.FileName = Path.GetFileName(filePath);
+                    DebugLog.WriteLine(
+                        $"IndexFileAsync: Matched moved/renamed photo '{moved.FilePath}' -> '{filePath}' by SHA-256");
+                }
+            }
+            else
+            {
+                await _imageRepo.UpdateHashAsync(existing.Id, currentHash);
+                existing.FileHash = currentHash;
+            }
+        }
 
         if (existing?.FaceMetadataExportRequired == true)
         {
@@ -155,6 +191,7 @@ public sealed class LibraryIndexingService
             return false;
 
         var entry = _metadataReader.ReadMetadata(filePath);
+        entry.FileHash = currentHash ?? await ComputeSha256Async(filePath, ct);
         var imageId = await _imageRepo.UpsertImageAsync(entry);
         await _faceRepo.SetFaceMetadataImportedAsync(imageId, false, cancellationToken: ct);
         var faceMetadata = _faceMetadataStore.Read(filePath);
@@ -176,6 +213,58 @@ public sealed class LibraryIndexingService
         }
         return true;
     }
+    private static async Task<string> ComputeSha256Async(
+        string filePath,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 1024 * 1024,
+            options: FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+        using var sha = SHA256.Create();
+        var hash = await sha.ComputeHashAsync(stream, cancellationToken);
+        return Convert.ToHexString(hash);
+    }
+
+    private static void MoveSidecarIfNeeded(
+        string oldImagePath,
+        string newImagePath)
+    {
+        try
+        {
+            var oldSidecar = FaceMetadataStore.GetSidecarPathForImage(oldImagePath);
+            var newSidecar = FaceMetadataStore.GetSidecarPathForImage(newImagePath);
+
+            if (string.Equals(
+                    oldSidecar,
+                    newSidecar,
+                    StringComparison.OrdinalIgnoreCase) ||
+                !File.Exists(oldSidecar) ||
+                File.Exists(newSidecar))
+            {
+                return;
+            }
+
+            var destinationDirectory = Path.GetDirectoryName(newSidecar);
+            if (!string.IsNullOrWhiteSpace(destinationDirectory))
+                Directory.CreateDirectory(destinationDirectory);
+
+            File.Move(oldSidecar, newSidecar);
+            DebugLog.WriteLine(
+                $"Moved sidecar '{oldSidecar}' -> '{newSidecar}' with its photo.");
+        }
+        catch (Exception ex)
+        {
+            // The photo identity is still preserved in the DB; a sidecar problem must
+            // not turn a successful move into a lost library record.
+            DebugLog.WriteLine($"Could not move photo sidecar: {ex.Message}");
+        }
+    }
+
 }
 
 public sealed class IndexingProgressEventArgs(int processed, int skipped, string folder, bool isComplete = false) : EventArgs
