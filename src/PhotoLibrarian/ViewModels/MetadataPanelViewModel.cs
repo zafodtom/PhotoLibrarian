@@ -74,6 +74,11 @@ public partial class TagDisplayItem : ObservableObject
 public partial class AvailableTagItem : ObservableObject
 {
     public string Tag { get; }
+    public string Name { get; }
+    public int Depth { get; }
+    public bool IsBranch { get; }
+    public Microsoft.UI.Xaml.Thickness Indent =>
+        new(Math.Max(0, Depth) * 16, 0, 0, 0);
 
     [ObservableProperty]
     public partial bool IsSelectedInAlbum { get; set; }
@@ -86,12 +91,22 @@ public partial class AvailableTagItem : ObservableObject
         IsUsedInAlbum ? "Použitý" : "";
 
     public string PinGlyph => IsSelectedInAlbum ? "\uE77A" : "\uE718";
+    public string TypeGlyph => IsBranch ? "\uE8B7" : "\uE8EC";
 
-    public AvailableTagItem(string tag, bool isSelectedInAlbum, bool isUsedInAlbum)
+    public AvailableTagItem(
+        string tag,
+        bool isSelectedInAlbum,
+        bool isUsedInAlbum,
+        bool isBranch = false)
     {
         Tag = tag;
         IsSelectedInAlbum = isSelectedInAlbum;
         IsUsedInAlbum = isUsedInAlbum;
+        IsBranch = isBranch;
+
+        var parts = tag.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        Depth = Math.Max(0, parts.Length - 1);
+        Name = parts.Length > 0 ? parts[^1] : tag;
     }
 
     public void RefreshComputed()
@@ -408,14 +423,23 @@ public partial class MetadataPanelViewModel : ObservableObject
                 used.Add(tag);
         }
 
-        foreach (var tag in selected
-                     .Union(used, StringComparer.OrdinalIgnoreCase)
-                     .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
+        var all = selected
+            .Union(used, StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var tag in all.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
         {
+            var prefix = tag.TrimEnd('/') + "/";
+            var isBranch = all.Any(other =>
+                !string.Equals(other, tag, StringComparison.OrdinalIgnoreCase) &&
+                other.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+
             AvailableTags.Add(new AvailableTagItem(
                 tag,
                 selected.Contains(tag),
-                used.Contains(tag)));
+                used.Contains(tag),
+                isBranch));
         }
     }
 
