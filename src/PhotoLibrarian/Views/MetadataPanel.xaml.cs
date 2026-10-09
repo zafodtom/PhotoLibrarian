@@ -425,6 +425,120 @@ public sealed partial class MetadataPanel : UserControl
         ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
     }
 
+    private async void OnManageCatalogItemClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null ||
+            sender is not Button { Tag: AvailableTagItem item })
+            return;
+
+        HideTagSuggestions();
+
+        var groups = AlbumService.GetGroups()
+            .Where(group =>
+                !string.Equals(group, item.Tag, StringComparison.OrdinalIgnoreCase) &&
+                !group.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var currentParent = "";
+        var slash = item.Tag.LastIndexOf('/');
+        if (slash > 0)
+            currentParent = item.Tag[..slash];
+
+        var parentBox = new ComboBox
+        {
+            Header = "Nadřazená skupina",
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        parentBox.Items.Add("(bez skupiny)");
+        foreach (var group in groups)
+            parentBox.Items.Add(group);
+
+        parentBox.SelectedIndex = 0;
+        for (var index = 0; index < groups.Count; index++)
+        {
+            if (string.Equals(groups[index], currentParent, StringComparison.OrdinalIgnoreCase))
+            {
+                parentBox.SelectedIndex = index + 1;
+                break;
+            }
+        }
+
+        var nameBox = new TextBox
+        {
+            Header = item.IsGroup ? "Název skupiny" : "Název tagu",
+            Text = item.Name
+        };
+
+        var info = new TextBlock
+        {
+            Text = item.IsUsedInAlbum
+                ? "Přejmenování se propíše i do fotografií, které tento tag používají."
+                : "Položka zatím není použitá na žádné fotografii.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(
+                Microsoft.UI.Colors.Gray)
+        };
+
+        var panel = new StackPanel { Spacing = 10 };
+        panel.Children.Add(parentBox);
+        panel.Children.Add(nameBox);
+        panel.Children.Add(info);
+
+        var dialog = new ContentDialog
+        {
+            Title = item.IsGroup ? "Správa skupiny" : "Správa tagu",
+            Content = panel,
+            PrimaryButtonText = "Uložit změny",
+            SecondaryButtonText = "Odebrat z katalogu",
+            CloseButtonText = "Zrušit",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+
+        if (result == ContentDialogResult.Secondary)
+        {
+            await ViewModel.RemoveCatalogItemAsync(item);
+            ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+            return;
+        }
+
+        if (result != ContentDialogResult.Primary)
+            return;
+
+        var name = nameBox.Text?.Trim().Trim('/');
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        var parent = parentBox.SelectedIndex > 0
+            ? parentBox.SelectedItem?.ToString()
+            : null;
+
+        var newFullPath = string.IsNullOrWhiteSpace(parent)
+            ? name
+            : $"{parent}/{name}";
+
+        if (newFullPath.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            App.ViewModel.StatusText = "Skupinu nelze přesunout do její vlastní podskupiny.";
+            return;
+        }
+
+        try
+        {
+            await ViewModel.RenameCatalogItemAsync(item, newFullPath);
+            App.ViewModel.StatusText =
+                $"{(item.IsGroup ? "Skupina" : "Tag")} přejmenován na '{newFullPath}'.";
+        }
+        catch (Exception ex)
+        {
+            App.ViewModel.StatusText = $"Přejmenování se nezdařilo: {ex.Message}";
+        }
+
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+    }
+
     private async void OnToggleAlbumTagSelectionClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null ||
