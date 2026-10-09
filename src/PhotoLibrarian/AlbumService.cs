@@ -149,6 +149,52 @@ public static class AlbumService
             .OrderBy(group => group, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+    public static void RenameCatalogPrefix(string oldPrefix, string newPrefix)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            return;
+
+        oldPrefix = oldPrefix.Trim().Trim('/');
+        newPrefix = newPrefix.Trim().Trim('/');
+        if (oldPrefix.Length == 0 || newPrefix.Length == 0) return;
+
+        static string ReplacePrefix(string value, string oldPrefix, string newPrefix)
+        {
+            if (string.Equals(value, oldPrefix, StringComparison.OrdinalIgnoreCase))
+                return newPrefix;
+            return value.StartsWith(oldPrefix + "/", StringComparison.OrdinalIgnoreCase)
+                ? newPrefix + value[oldPrefix.Length..]
+                : value;
+        }
+
+        var catalog = LoadTagCatalog(App.CurrentAlbumPath);
+        catalog.Groups = catalog.Groups
+            .Select(value => ReplacePrefix(value, oldPrefix, newPrefix))
+            .ToList();
+        catalog.SelectedTags = catalog.SelectedTags
+            .Select(value => ReplacePrefix(value, oldPrefix, newPrefix))
+            .ToList();
+        SaveTagCatalog(App.CurrentAlbumPath, catalog);
+    }
+
+    public static void RemoveCatalogPrefix(string prefix)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            return;
+
+        prefix = prefix.Trim().Trim('/');
+        if (prefix.Length == 0) return;
+
+        var catalog = LoadTagCatalog(App.CurrentAlbumPath);
+        catalog.Groups.RemoveAll(value =>
+            string.Equals(value, prefix, StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase));
+        catalog.SelectedTags.RemoveAll(value =>
+            string.Equals(value, prefix, StringComparison.OrdinalIgnoreCase) ||
+            value.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase));
+        SaveTagCatalog(App.CurrentAlbumPath, catalog);
+    }
+
     public static void AddSelectedTag(string tag)
     {
         if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
