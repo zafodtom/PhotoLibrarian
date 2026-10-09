@@ -65,7 +65,7 @@ public partial class FolderNavigationViewModel : ObservableObject
             {
                 if (string.Equals(
                     System.IO.Path.GetFileName(dir),
-                    AlbumService.AlbumFolderName,
+                    PhotoLibrarian.AlbumService.AlbumFolderName,
                     StringComparison.OrdinalIgnoreCase))
                     continue;
 
@@ -129,6 +129,38 @@ public partial class FolderNavigationViewModel : ObservableObject
         }
 
         using var conn = _db.CreateConnection();
+
+        if (App.HasActiveAlbum)
+        {
+            var existingRoots = new List<string>();
+            using (var roots = conn.CreateCommand())
+            {
+                roots.CommandText = "SELECT path FROM watched_folders";
+                using var reader = await roots.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    existingRoots.Add(reader.GetString(0));
+            }
+
+            var cacheBelongsToCurrentRoot =
+                existingRoots.Count == 0 ||
+                (existingRoots.Count == 1 &&
+                 string.Equals(existingRoots[0], normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+            if (!cacheBelongsToCurrentRoot)
+            {
+                DebugLog.WriteLine(
+                    $"AddOrSelectFolderAsync: Album moved or cache contains another root; rebuilding cache for '{normalizedPath}'");
+
+                using var reset = conn.CreateCommand();
+                reset.CommandText = """
+                    DELETE FROM images;
+                    DELETE FROM persons;
+                    DELETE FROM watched_folders;
+                    """;
+                await reset.ExecuteNonQueryAsync();
+            }
+        }
+
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT OR IGNORE INTO watched_folders (path, include_sub)
