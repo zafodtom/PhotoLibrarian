@@ -94,6 +94,8 @@ public partial class AvailableTagItem : ObservableObject
 
     public string PinGlyph => IsSelectedInAlbum ? "\uE77A" : "\uE718";
     public string TypeGlyph => IsBranch ? "\uE8B7" : "\uE8EC";
+    public Microsoft.UI.Xaml.Visibility PinVisibility =>
+        IsGroup ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
 
     public AvailableTagItem(
         string tag,
@@ -463,6 +465,45 @@ public partial class MetadataPanelViewModel : ObservableObject
         item.IsSelectedInAlbum = !item.IsSelectedInAlbum;
         item.RefreshComputed();
         await ReloadAvailableTagsAsync();
+    }
+
+    public async Task RenameCatalogItemAsync(AvailableTagItem item, string newFullPath)
+    {
+        newFullPath = newFullPath.Trim().Trim('/');
+        if (string.IsNullOrWhiteSpace(newFullPath) ||
+            string.Equals(item.Tag, newFullPath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        AlbumService.RenameCatalogPrefix(item.Tag, newFullPath);
+
+        if (_tagRepo != null && _imageRepo != null && item.IsUsedInAlbum)
+        {
+            var affectedIds = await _tagRepo.RenameTagPrefixAsync(item.Tag, newFullPath);
+            var affectedImages = await _imageRepo.GetByIdsAsync(affectedIds);
+
+            foreach (var image in affectedImages)
+            {
+                var tags = await _tagRepo.GetTagsAsync(image.Id);
+                await TagWriterService.WriteTagsToSidecarAsync(
+                    image.FilePath,
+                    tags.Select(tag => tag.Tag).Distinct(StringComparer.OrdinalIgnoreCase));
+            }
+        }
+
+        await ReloadAvailableTagsAsync();
+        if (_main != null)
+        {
+            await _main.RefreshTagsTreeAsync();
+            await ReloadTagsAsync();
+        }
+    }
+
+    public async Task RemoveCatalogItemAsync(AvailableTagItem item)
+    {
+        AlbumService.RemoveCatalogPrefix(item.Tag);
+        await ReloadAvailableTagsAsync();
+        if (_main != null)
+            await _main.RefreshTagsTreeAsync();
     }
 
     [ObservableProperty]
