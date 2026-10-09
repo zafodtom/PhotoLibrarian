@@ -455,6 +455,81 @@ public partial class MetadataPanelViewModel : ObservableObject
         }
     }
 
+    public string? ValidateCatalogPath(
+        string proposedPath,
+        string? sourcePrefix = null)
+    {
+        static string Normalize(string value) =>
+            string.Join(
+                "/",
+                value.Trim()
+                    .Trim('/')
+                    .Split(
+                        '/',
+                        StringSplitOptions.RemoveEmptyEntries |
+                        StringSplitOptions.TrimEntries));
+
+        var destination = Normalize(proposedPath);
+        if (string.IsNullOrWhiteSpace(destination))
+            return "Název tagu nebo skupiny nesmí být prázdný.";
+
+        var parts = destination.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Any(part => part is "." or ".."))
+            return "Názvy '.' a '..' nejsou povolené.";
+
+        var source = string.IsNullOrWhiteSpace(sourcePrefix)
+            ? null
+            : Normalize(sourcePrefix);
+
+        if (source is not null &&
+            destination.StartsWith(source + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Skupinu nelze přesunout do její vlastní podskupiny.";
+        }
+
+        var outsidePaths = AvailableTags
+            .Where(item =>
+                source is null ||
+                (!string.Equals(item.Tag, source, StringComparison.OrdinalIgnoreCase) &&
+                 !item.Tag.StartsWith(source + "/", StringComparison.OrdinalIgnoreCase)))
+            .Select(item => Normalize(item.Tag))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (source is null)
+        {
+            if (outsidePaths.Contains(destination))
+                return $"Položka '{destination}' už v katalogu nebo mezi použitými tagy existuje.";
+
+            return null;
+        }
+
+        var movingPaths = AvailableTags
+            .Where(item =>
+                string.Equals(item.Tag, source, StringComparison.OrdinalIgnoreCase) ||
+                item.Tag.StartsWith(source + "/", StringComparison.OrdinalIgnoreCase))
+            .Select(item => Normalize(item.Tag))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (movingPaths.Count == 0)
+            movingPaths.Add(source);
+
+        foreach (var oldPath in movingPaths)
+        {
+            var suffix = string.Equals(oldPath, source, StringComparison.OrdinalIgnoreCase)
+                ? ""
+                : oldPath[source.Length..];
+
+            var movedPath = destination + suffix;
+            if (outsidePaths.Contains(movedPath))
+            {
+                return $"Přesun by kolidoval s již existující položkou '{movedPath}'.";
+            }
+        }
+
+        return null;
+    }
+
     public async Task ToggleAlbumTagSelectionAsync(AvailableTagItem item)
     {
         if (item.IsSelectedInAlbum)
