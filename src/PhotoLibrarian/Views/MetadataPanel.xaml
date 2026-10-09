@@ -160,13 +160,21 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <AutoSuggestBox x:Name="NewTagBox" Grid.Column="0"
                                         PlaceholderText="Add or choose descriptive tag"
                                         TextChanged="OnTagSuggestionTextChanged"
                                         QuerySubmitted="OnTagSuggestionSubmitted"
                                         FontSize="13" />
-                        <Button Grid.Column="1" Click="OnAddTagClick" Padding="6,4"
+                        <Button Grid.Column="1"
+                                Click="OnShowAllTagsClick"
+                                Padding="6,4"
+                                ToolTipService.ToolTip="Show all available tags"
+                                AutomationProperties.Name="Show all available tags">
+                            <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                        </Button>
+                        <Button Grid.Column="2" Click="OnAddTagClick" Padding="6,4"
                                 ToolTipService.ToolTip="Add tag to all selected">
                             <FontIcon Glyph="&#xE109;" FontSize="12" />
                         </Button>
