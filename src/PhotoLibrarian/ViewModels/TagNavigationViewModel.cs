@@ -26,8 +26,10 @@ public partial class TagNavigationViewModel : ObservableObject
         // Get all unique tags with their counts
         var tagCounts = await _tagRepo.GetAllTagsWithCountAsync();
         
-        // Calculate total count
-        int totalCount = tagCounts.Sum(t => t.Count);
+        // Parent paths are materialized in the tag table, so their counts already
+        // represent all photos below that branch. The root must therefore count
+        // unique tagged images rather than summing every path.
+        int totalCount = await _tagRepo.GetTaggedImageCountAsync();
 
         // Build hierarchical structure
         var rootDict = new Dictionary<string, TagNode>();
@@ -83,12 +85,10 @@ public partial class TagNavigationViewModel : ObservableObject
             }
         }
 
-        // Calculate totals for parent nodes (sum of all children)
-        foreach (var node in tempRootTags)
-        {
-            UpdateParentCounts(node);
-        }
-        
+        // Do not sum child counts into parents here. AddTagAsync stores each parent
+        // path for the image, so the parent's direct DB count is already the correct
+        // number of unique photos in that branch.
+
         // Sort alphabetically at each level
         SortTagNodeRecursive(tempRootTags);
         
@@ -151,24 +151,6 @@ public partial class TagNavigationViewModel : ObservableObject
         return dict;
     }
 
-    private int UpdateParentCounts(TagNode node)
-    {
-        if (node.Children.Count == 0)
-        {
-            // Leaf node, count is already set
-            return node.Count;
-        }
-
-        // Sum counts from all children
-        int total = node.Count; // Start with direct count (if any)
-        foreach (var child in node.Children)
-        {
-            total += UpdateParentCounts(child);
-        }
-
-        node.Count = total;
-        return total;
-    }
 }
 
 /// <summary>
