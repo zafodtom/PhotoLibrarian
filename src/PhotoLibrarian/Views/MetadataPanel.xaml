@@ -194,16 +194,9 @@
                                 Padding="8"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                             <StackPanel Spacing="6">
-                                <StackPanel Orientation="Horizontal"
-                                            HorizontalAlignment="Stretch"
-                                            Spacing="6">
-                                    <Button Content="Nová skupina"
-                                            Click="OnNewTagGroupClick"
-                                            HorizontalAlignment="Stretch" />
-                                    <Button Content="Nový tag"
-                                            Click="OnNewCatalogTagClick"
-                                            HorizontalAlignment="Stretch" />
-                                </StackPanel>
+                                <Button Content="Nový tag"
+                                        Click="OnNewCatalogTagClick"
+                                        HorizontalAlignment="Stretch" />
                                 <ListView x:Name="TagSuggestionsList"
                                           MaxHeight="320"
                                           IsItemClickEnabled="True"
@@ -245,7 +238,7 @@
                                                         Tag="{x:Bind}"
                                                         Click="OnManageCatalogItemClick"
                                                         Padding="4,2"
-                                                        ToolTipService.ToolTip="Manage tag or group">
+                                                        ToolTipService.ToolTip="Spravovat tag">
                                                     <FontIcon Glyph="&#xE70F;"
                                                               FontSize="11" />
                                                 </Button>
