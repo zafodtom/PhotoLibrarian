@@ -255,53 +255,46 @@ public partial class ImageGridViewModel : ObservableObject
 
         DebugLog.WriteLine($"LoadImagesAsync: Total images from DB: {allImages.Count}, FolderFilters: {folderFilters?.Count ?? 0}, DateFilters: {hasDateFilter}, TagFilters: {hasTagFilter}");
         DebugLog.WriteLine(
-            "  UNION logic: Show images matching ANY filter " +
-            "(folder OR date OR people OR tag OR flag)");
+            "  Album filter logic: folder scopes tags; legacy date/people/flag filters remain OR-composed.");
 
         int matchCount = 0;
         int skipCount = 0;
         int index = 0;
         foreach (var img in allImages)
         {
-            bool matchesAnyFilter = false;
+            var matchesFolder = !hasFolderFilter ||
+                (folderFilters is not null &&
+                 folderFilters.Any(folder =>
+                     img.FilePath.StartsWith(folder, StringComparison.OrdinalIgnoreCase)));
 
-            // Check folder filter
-            if (hasFolderFilter && folderFilters is not null)
-            {
-                bool matchesFolder = folderFilters.Any(f => 
-                    img.FilePath.StartsWith(f, StringComparison.OrdinalIgnoreCase));
-                
-                if (matchesFolder)
-                {
-                    matchesAnyFilter = true;
-                }
-            }
+            var matchesTag = !hasTagFilter ||
+                (taggedImageIds is not null && taggedImageIds.Contains(img.Id));
 
-            // Check date filter
+            // Folder selection is the scope for tag filtering:
+            // selecting "Folder A" + "Tag X" means Tag X inside Folder A,
+            // not the previous Folder A OR Tag X across the whole album.
+            bool matchesAnyFilter =
+                (hasFolderFilter && !hasTagFilter && matchesFolder) ||
+                (hasTagFilter && matchesTag && matchesFolder);
+
+            // Legacy navigation filters remain OR-composed. They are currently hidden
+            // in the album-focused UI, but keeping their behavior makes the change reversible.
             if (!matchesAnyFilter && hasDateFilter && img.DateTaken.HasValue)
             {
                 if (_currentDateRootSelected)
                 {
-                    // Date root selected - matches all dated images
                     matchesAnyFilter = true;
                 }
                 else
                 {
-                    // Check year/month filters
                     int year = img.DateTaken.Value.Year;
                     var yearMonth = (year, img.DateTaken.Value.Month);
-
-                    bool matchesYear = _currentYearFilters?.Contains(year) ?? false;
-                    bool matchesMonth = _currentMonthFilters?.Contains(yearMonth) ?? false;
-
-                    if (matchesYear || matchesMonth)
-                    {
-                        matchesAnyFilter = true;
-                    }
+                    matchesAnyFilter =
+                        (_currentYearFilters?.Contains(year) ?? false) ||
+                        (_currentMonthFilters?.Contains(yearMonth) ?? false);
                 }
             }
 
-            // Check people filter
             if (!matchesAnyFilter && hasPeopleFilter &&
                 personIdsByImageId is not null &&
                 personIdsByImageId.TryGetValue(img.Id, out var navigationPersonIds))
@@ -310,20 +303,8 @@ public partial class ImageGridViewModel : ObservableObject
                     (_currentPersonFilters?.Any(navigationPersonIds.Contains) ?? false);
             }
 
-            // Check tag filter
-            if (!matchesAnyFilter && hasTagFilter && taggedImageIds is not null)
-            {
-                if (taggedImageIds.Contains(img.Id))
-                {
-                    matchesAnyFilter = true;
-                }
-            }
-
-            // Check flag filter
             if (!matchesAnyFilter && hasFlagFilter && img.IsFlagged)
-            {
                 matchesAnyFilter = true;
-            }
 
             HashSet<string>? imageTags = null;
             HashSet<long>? imagePersonIds = null;
@@ -345,7 +326,7 @@ public partial class ImageGridViewModel : ObservableObject
                 skipCount++;
             }
         }
-        
+
         if (skipCount > 2)
             DebugLog.WriteLine($"  ... and {skipCount - 2} more skipped");
         
@@ -363,7 +344,7 @@ public partial class ImageGridViewModel : ObservableObject
 
         // HYBRID APPROACH: Scan folders to find any missing/new files not in database
         // This ensures we show all images even if database is stale/incomplete
-        if (hasFolderFilter && folderFilters is not null)
+        if (hasFolderFilter && !hasTagFilter && folderFilters is not null)
         {
             // Get indexed file paths for quick lookup
             var indexedPaths = new HashSet<string>(Images.Select(i => i.Entry.FilePath), StringComparer.OrdinalIgnoreCase);
