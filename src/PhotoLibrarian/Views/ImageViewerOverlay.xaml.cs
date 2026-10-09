@@ -428,6 +428,9 @@ public sealed partial class ImageViewerOverlay : UserControl
 
     private void ImageScrollViewer_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        if (!IsCropping && !IsStraightening && !_isManualFaceTagging && !IsRedEyeRemoving)
+            Focus(FocusState.Programmatic);
+
         if (IsCropping || IsStraightening || _isManualFaceTagging) return;
         _zoomPan?.HandlePointerPressed(ImageScrollViewer, e);
     }
