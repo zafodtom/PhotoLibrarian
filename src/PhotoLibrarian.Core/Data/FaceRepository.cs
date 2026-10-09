@@ -1376,7 +1376,8 @@ public sealed class FaceRepository : IFaceScanStore
                 reader.GetInt64(reader.GetOrdinal("owner_person_id")),
                 (
                     ReadFaceRegion(reader),
-                    reader.GetString(reader.GetOrdinal("file_path"))
+                    AlbumPathStorage.ToAbsolutePath(
+                        reader.GetString(reader.GetOrdinal("file_path")))
                 ));
         }
         return results;
