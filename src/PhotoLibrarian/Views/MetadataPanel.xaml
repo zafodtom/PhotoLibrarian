@@ -171,8 +171,18 @@
                                 <Flyout x:Name="TagSuggestionsFlyout"
                                         Placement="Bottom"
                                         ShouldConstrainToRootBounds="True">
-                                    <ListView x:Name="TagSuggestionsList"
-                                              Width="320"
+                                    <StackPanel Width="340" Spacing="6">
+                                        <StackPanel Orientation="Horizontal"
+                                                    HorizontalAlignment="Stretch"
+                                                    Spacing="6">
+                                            <Button Content="Nová skupina"
+                                                    Click="OnNewTagGroupClick"
+                                                    HorizontalAlignment="Stretch" />
+                                            <Button Content="Nový tag"
+                                                    Click="OnNewCatalogTagClick"
+                                                    HorizontalAlignment="Stretch" />
+                                        </StackPanel>
+                                        <ListView x:Name="TagSuggestionsList"
                                               MaxHeight="320"
                                               IsItemClickEnabled="True"
                                               ItemClick="OnTagSuggestionItemClick"
@@ -210,7 +220,8 @@
                                                 </Grid>
                                             </DataTemplate>
                                         </ListView.ItemTemplate>
-                                    </ListView>
+                                        </ListView>
+                                    </StackPanel>
                                 </Flyout>
                             </FlyoutBase.AttachedFlyout>
                         </TextBox>
