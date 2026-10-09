@@ -129,10 +129,12 @@
                                     </ComboBox>
 
                                     <TextBlock Grid.Row="1"
+                                               Visibility="Collapsed"
                                                Text="Capture date"
                                                VerticalAlignment="Center"
                                                Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <ComboBox x:Name="DatePresetCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterDatePreset"
                                               AutomationProperties.Name="Capture date range"
                                               Grid.Row="1"
@@ -201,10 +203,12 @@
                                              PlaceholderText="Comma-separated" />
 
                                     <TextBlock Grid.Row="2"
+                                               Visibility="Collapsed"
                                                Text="Person"
                                                VerticalAlignment="Center"
                                                Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <ComboBox x:Name="PersonCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterPerson"
                                               AutomationProperties.Name="Person"
                                               Grid.Row="2"
@@ -214,10 +218,12 @@
                                     </ComboBox>
 
                                     <TextBlock Grid.Row="3"
+                                               Visibility="Collapsed"
                                                Text="Flag"
                                                VerticalAlignment="Center"
                                                Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <ComboBox x:Name="FlagCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterFlag"
                                               AutomationProperties.Name="Flag state"
                                               Grid.Row="3"
@@ -264,9 +270,9 @@
                                               SelectedIndex="0">
                                         <ComboBoxItem Content="Any metadata" Tag="None" />
                                         <ComboBoxItem Content="Untagged" Tag="Tags" />
-                                        <ComboBoxItem Content="Unrated" Tag="Rating" />
-                                        <ComboBoxItem Content="No capture date" Tag="CaptureDate" />
-                                        <ComboBoxItem Content="No geotag" Tag="Geotag" />
+                                        <ComboBoxItem Content="Unrated" Tag="Rating" Visibility="Collapsed" />
+                                        <ComboBoxItem Content="No capture date" Tag="CaptureDate" Visibility="Collapsed" />
+                                        <ComboBoxItem Content="No geotag" Tag="Geotag" Visibility="Collapsed" />
                                     </ComboBox>
                                 </Grid>
 
