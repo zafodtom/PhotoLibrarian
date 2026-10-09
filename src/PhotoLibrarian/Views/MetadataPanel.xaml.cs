@@ -21,6 +21,7 @@ public sealed partial class MetadataPanel : UserControl
     private string _lastLoadedCaption = "";
     private bool _suppressDateBoxLostFocus;
     private string _lastLoadedDateText = "";
+    private bool _suppressTagSuggestions;
 
     // Accepted date formats (in order). M/d/yyyy h:mm tt is the canonical one shown to user.
     private static readonly string[] AcceptedDateFormats = new[]
@@ -301,7 +302,9 @@ public sealed partial class MetadataPanel : UserControl
 
     private void OnTagSuggestionTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        if (ViewModel is null || args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+        if (_suppressTagSuggestions || ViewModel is null ||
+            args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+            return;
 
         var query = sender.Text?.Trim() ?? "";
         sender.ItemsSource = string.IsNullOrEmpty(query)
@@ -318,7 +321,7 @@ public sealed partial class MetadataPanel : UserControl
             sender.Text = chosen;
 
         AddCurrentTag();
-        sender.IsSuggestionListOpen = false;
+        CloseTagSuggestions();
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
@@ -336,8 +339,25 @@ public sealed partial class MetadataPanel : UserControl
         var tag = NewTagBox.Text?.Trim();
         if (string.IsNullOrEmpty(tag)) return;
         ViewModel.AddTagCommand.Execute(tag);
-        NewTagBox.Text = "";
+        CloseTagSuggestions(clearText: true);
+    }
+
+    private void CloseTagSuggestions(bool clearText = false)
+    {
+        _suppressTagSuggestions = true;
+
+        if (clearText)
+            NewTagBox.Text = "";
+
+        NewTagBox.ItemsSource = null;
         NewTagBox.IsSuggestionListOpen = false;
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            NewTagBox.IsSuggestionListOpen = false;
+            NewTagBox.ItemsSource = ViewModel?.AvailableTags;
+            _suppressTagSuggestions = false;
+        });
     }
 
     private void OnRemoveTagClick(object sender, RoutedEventArgs e)
