@@ -97,6 +97,49 @@ public sealed class ImageRepository
         return ReadImageEntry(reader);
     }
 
+    public async Task<ImageEntry?> FindUniqueMissingByHashAsync(
+        string fileHash,
+        long fileSize)
+    {
+        if (string.IsNullOrWhiteSpace(fileHash))
+            return null;
+
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT *
+            FROM images
+            WHERE file_hash = $hash
+              AND file_size = $size
+            """;
+        cmd.Parameters.AddWithValue("$hash", fileHash);
+        cmd.Parameters.AddWithValue("$size", fileSize);
+
+        var missing = new List<ImageEntry>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var image = ReadImageEntry(reader);
+            if (!File.Exists(image.FilePath))
+                missing.Add(image);
+
+            if (missing.Count > 1)
+                return null;
+        }
+
+        return missing.Count == 1 ? missing[0] : null;
+    }
+
+    public async Task UpdateHashAsync(long imageId, string fileHash)
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE images SET file_hash = $hash WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", imageId);
+        cmd.Parameters.AddWithValue("$hash", fileHash);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     public async Task<List<ImageEntry>> GetAllAsync(string? orderBy = "date_taken", bool descending = true)
     {
         using var conn = _db.CreateConnection();
@@ -349,6 +392,33 @@ public sealed class ImageRepository
         cmd.Parameters.AddWithValue("$path", AlbumPathStorage.ToStoragePath(newPath));
         cmd.Parameters.AddWithValue("$name", System.IO.Path.GetFileName(newPath));
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<int> UpdatePathPrefixAsync(
+        string oldDirectoryPath,
+        string newDirectoryPath)
+    {
+        var oldRoot = Path.GetFullPath(oldDirectoryPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var newRoot = Path.GetFullPath(newDirectoryPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var oldPrefix = oldRoot + Path.DirectorySeparatorChar;
+
+        var images = await GetAllAsync();
+        var affected = images
+            .Where(image =>
+                string.Equals(image.FilePath, oldRoot, StringComparison.OrdinalIgnoreCase) ||
+                image.FilePath.StartsWith(oldPrefix, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        foreach (var image in affected)
+        {
+            var relative = Path.GetRelativePath(oldRoot, image.FilePath);
+            var newPath = Path.GetFullPath(Path.Combine(newRoot, relative));
+            await UpdatePathAsync(image.Id, newPath);
+        }
+
+        return affected.Count;
     }
 
     internal static ImageEntry ReadImageEntry(SqliteDataReader reader)
