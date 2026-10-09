@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Windows.Storage.Pickers;
 
 namespace PhotoLibrarian;
@@ -88,8 +89,31 @@ public static class AlbumService
                 return new AlbumTagCatalog();
 
             var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<AlbumTagCatalog>(json)
-                   ?? new AlbumTagCatalog();
+            var catalog = JsonSerializer.Deserialize<AlbumTagCatalog>(json)
+                          ?? new AlbumTagCatalog();
+
+            // v1 stored organisational "Groups" separately. In v2 every node is
+            // simply a catalog tag; hierarchy is expressed only by slash paths.
+            if (catalog.LegacyGroups is { Count: > 0 })
+            {
+                catalog.SelectedTags = catalog.SelectedTags
+                    .Concat(catalog.LegacyGroups)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Select(value => value.Trim().Trim('/'))
+                    .Where(value => value.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                catalog.LegacyGroups = null;
+                catalog.Version = 2;
+                SaveTagCatalog(albumRoot, catalog);
+            }
+            else if (catalog.Version < 2)
+            {
+                catalog.Version = 2;
+                SaveTagCatalog(albumRoot, catalog);
+            }
+
+            return catalog;
         }
         catch
         {
@@ -104,7 +128,7 @@ public static class AlbumService
 
         var normalized = new AlbumTagCatalog
         {
-            Version = Math.Max(1, catalog.Version),
+            Version = Math.Max(2, catalog.Version),
             SelectedTags = catalog.SelectedTags
                 .Where(tag => !string.IsNullOrWhiteSpace(tag))
                 .Select(tag => tag.Trim().Trim('/'))
@@ -112,13 +136,7 @@ public static class AlbumService
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
                 .ToList(),
-            Groups = catalog.Groups
-                .Where(group => !string.IsNullOrWhiteSpace(group))
-                .Select(group => group.Trim().Trim('/'))
-                .Where(group => group.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(group => group, StringComparer.OrdinalIgnoreCase)
-                .ToList()
+            LegacyGroups = null
         };
 
         File.WriteAllText(
@@ -127,27 +145,6 @@ public static class AlbumService
                 normalized,
                 new JsonSerializerOptions { WriteIndented = true }));
     }
-
-    public static void AddGroup(string group)
-    {
-        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
-            return;
-
-        var normalized = group.Trim().Trim('/');
-        if (normalized.Length == 0) return;
-
-        var catalog = LoadTagCatalog(App.CurrentAlbumPath);
-        if (!catalog.Groups.Contains(normalized, StringComparer.OrdinalIgnoreCase))
-        {
-            catalog.Groups.Add(normalized);
-            SaveTagCatalog(App.CurrentAlbumPath, catalog);
-        }
-    }
-
-    public static IReadOnlyList<string> GetGroups() =>
-        LoadTagCatalog(App.CurrentAlbumPath).Groups
-            .OrderBy(group => group, StringComparer.OrdinalIgnoreCase)
-            .ToList();
 
     public static void RenameCatalogPrefix(string oldPrefix, string newPrefix)
     {
@@ -168,9 +165,6 @@ public static class AlbumService
         }
 
         var catalog = LoadTagCatalog(App.CurrentAlbumPath);
-        catalog.Groups = catalog.Groups
-            .Select(value => ReplacePrefix(value, oldPrefix, newPrefix))
-            .ToList();
         catalog.SelectedTags = catalog.SelectedTags
             .Select(value => ReplacePrefix(value, oldPrefix, newPrefix))
             .ToList();
@@ -186,9 +180,6 @@ public static class AlbumService
         if (prefix.Length == 0) return;
 
         var catalog = LoadTagCatalog(App.CurrentAlbumPath);
-        catalog.Groups.RemoveAll(value =>
-            string.Equals(value, prefix, StringComparison.OrdinalIgnoreCase) ||
-            value.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase));
         catalog.SelectedTags.RemoveAll(value =>
             string.Equals(value, prefix, StringComparison.OrdinalIgnoreCase) ||
             value.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase));
@@ -271,7 +262,12 @@ public static class AlbumService
 
 public sealed class AlbumTagCatalog
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
     public List<string> SelectedTags { get; set; } = [];
-    public List<string> Groups { get; set; } = [];
+
+    // Read-only migration hook for v1 tags.json files. New files never write
+    // a separate Groups collection.
+    [JsonPropertyName("Groups")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? LegacyGroups { get; set; }
 }
