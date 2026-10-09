@@ -9,5 +9,7 @@
     <PackageReference Include="XmpCore" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="PhotoSauce.MagicScaler" />
+    <PackageReference Include="PhotoSauce.NativeCodecs.Libheif" />
   </ItemGroup>
 </Project>
