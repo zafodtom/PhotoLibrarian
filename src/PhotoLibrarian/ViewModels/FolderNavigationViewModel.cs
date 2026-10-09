@@ -63,6 +63,12 @@ public partial class FolderNavigationViewModel : ObservableObject
         {
             foreach (var dir in Directory.GetDirectories(parent.Path))
             {
+                if (string.Equals(
+                    System.IO.Path.GetFileName(dir),
+                    AlbumService.AlbumFolderName,
+                    StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 var child = new FolderNode
                 {
                     Path = dir,
