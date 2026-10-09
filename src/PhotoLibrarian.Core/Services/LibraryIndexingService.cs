@@ -142,7 +142,15 @@ public sealed class LibraryIndexingService
         // The path is only the current location, not the photo identity. New paths are
         // matched to exactly one missing old record by SHA-256 + file size.
         string? currentHash = existing?.FileHash;
-        if (existing is null || string.IsNullOrWhiteSpace(currentHash))
+        var contentChanged = existing is not null &&
+            (existing.FileSize != fileInfo.Length ||
+             existing.DateModified != fileInfo.LastWriteTimeUtc);
+        var hashMustBeComputed =
+            existing is null ||
+            string.IsNullOrWhiteSpace(currentHash) ||
+            contentChanged;
+
+        if (hashMustBeComputed)
         {
             currentHash = await ComputeSha256Async(filePath, ct);
 
@@ -153,17 +161,19 @@ public sealed class LibraryIndexingService
                     fileInfo.Length);
                 if (moved is not null)
                 {
-                    MoveSidecarIfNeeded(moved.FilePath, filePath);
+                    var oldMovedPath = moved.FilePath;
+                    MoveSidecarIfNeeded(oldMovedPath, filePath);
                     await _imageRepo.UpdatePathAsync(moved.Id, filePath);
                     existing = moved;
                     existing.FilePath = filePath;
                     existing.FileName = Path.GetFileName(filePath);
                     DebugLog.WriteLine(
-                        $"IndexFileAsync: Matched moved/renamed photo '{moved.FilePath}' -> '{filePath}' by SHA-256");
+                        $"IndexFileAsync: Matched moved/renamed photo '{oldMovedPath}' -> '{filePath}' by SHA-256");
                 }
             }
-            else
+            else if (!contentChanged)
             {
+                // Backfill hashes for libraries created before content identity support.
                 await _imageRepo.UpdateHashAsync(existing.Id, currentHash);
                 existing.FileHash = currentHash;
             }
@@ -185,6 +195,7 @@ public sealed class LibraryIndexingService
              existing.FaceSidecarModified != sidecar?.LastWriteTimeUtc);
 
         if (existing is not null &&
+            existing.FileSize == fileInfo.Length &&
             existing.DateModified >= fileInfo.LastWriteTimeUtc &&
             existing.FaceMetadataImported &&
             !sidecarChanged)
