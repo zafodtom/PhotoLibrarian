@@ -172,11 +172,38 @@
                                         Placement="Bottom"
                                         ShouldConstrainToRootBounds="True">
                                     <ListView x:Name="TagSuggestionsList"
-                                              Width="280"
+                                              Width="320"
                                               MaxHeight="320"
                                               IsItemClickEnabled="True"
                                               ItemClick="OnTagSuggestionItemClick"
-                                              SelectionMode="None" />
+                                              SelectionMode="None">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:AvailableTagItem">
+                                                <Grid ColumnSpacing="8" Padding="4,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="{x:Bind Tag}" FontSize="13" />
+                                                        <TextBlock Text="{x:Bind SourceLabel, Mode=OneWay}"
+                                                                   FontSize="10"
+                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="2"
+                                                            Tag="{x:Bind}"
+                                                            Click="OnToggleAlbumTagSelectionClick"
+                                                            Padding="5,2"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            ToolTipService.ToolTip="Přidat nebo odebrat z vybraných tagů alba">
+                                                        <FontIcon Glyph="{x:Bind PinGlyph, Mode=OneWay}" FontSize="12" />
+                                                    </Button>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                    </ListView>
                                 </Flyout>
                             </FlyoutBase.AttachedFlyout>
                         </TextBox>
