@@ -473,32 +473,112 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         CatalogManagerRow? draggedRow = null;
 
-        CatalogManagerRow? GetDropTarget(DragEventArgs args)
+        async Task MoveCatalogItemAsync(
+            CatalogManagerRow moving,
+            string? destinationParent)
         {
+            var newFullPath = string.IsNullOrWhiteSpace(destinationParent)
+                ? moving.Item.Name
+                : $"{destinationParent}/{moving.Item.Name}";
+
+            if (string.Equals(
+                newFullPath,
+                moving.Item.Tag,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var validation = metadata.ValidateCatalogPath(
+                newFullPath,
+                moving.Item.Tag);
+            if (validation is not null)
+            {
+                ShowManagerStatus(validation);
+                return;
+            }
+
             try
             {
-                var elements = VisualTreeHelper.FindElementsInHostCoordinates(
-                    args.GetPosition(list),
-                    list);
-
-                foreach (var element in elements)
-                {
-                    if (element is not ListViewItem container)
-                        continue;
-
-                    if (container.Content is CatalogManagerRow row)
-                        return row;
-
-                    if (list.ItemFromContainer(container) is CatalogManagerRow itemRow)
-                        return itemRow;
-                }
+                await metadata.RenameCatalogItemAsync(
+                    moving.Item,
+                    newFullPath);
+                await metadata.ReloadAvailableTagsAsync();
+                await RefreshTagsTreeAsync();
+                ReloadRows();
             }
             catch (Exception ex)
             {
-                DebugLog.WriteLine($"Tag catalog drop hit-test failed: {ex.Message}");
+                ShowManagerStatus($"Přesun se nezdařil: {ex.Message}");
+            }
+        }
+
+        void OnCatalogRowDragOver(object sender, DragEventArgs args)
+        {
+            if (draggedRow is null ||
+                sender is not ListViewItem { Content: CatalogManagerRow target })
+            {
+                args.AcceptedOperation = DataPackageOperation.None;
+                return;
             }
 
-            return null;
+            if (!target.Item.IsGroup ||
+                string.Equals(
+                    target.Item.Tag,
+                    draggedRow.Item.Tag,
+                    StringComparison.OrdinalIgnoreCase) ||
+                target.Item.Tag.StartsWith(
+                    draggedRow.Item.Tag + "/",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                args.AcceptedOperation = DataPackageOperation.None;
+                args.Handled = true;
+                return;
+            }
+
+            args.AcceptedOperation = DataPackageOperation.Move;
+            args.DragUIOverride.Caption = $"Přesunout do '{target.Item.Tag}'";
+            args.Handled = true;
+        }
+
+        async void OnCatalogRowDrop(object sender, DragEventArgs args)
+        {
+            args.Handled = true;
+
+            if (draggedRow is null ||
+                sender is not ListViewItem { Content: CatalogManagerRow target } ||
+                !target.Item.IsGroup)
+            {
+                return;
+            }
+
+            var moving = draggedRow;
+            draggedRow = null;
+            await MoveCatalogItemAsync(moving, target.Item.Tag);
+        }
+
+        void OnCatalogRootDragOver(object sender, DragEventArgs args)
+        {
+            if (draggedRow is null)
+            {
+                args.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            // Row containers handle their own drag-over. The ListView itself is
+            // therefore only the target for empty space = move to root.
+            args.AcceptedOperation = DataPackageOperation.Move;
+            args.DragUIOverride.Caption = "Přesunout do kořene";
+        }
+
+        async void OnCatalogRootDrop(object sender, DragEventArgs args)
+        {
+            if (draggedRow is null)
+                return;
+
+            var moving = draggedRow;
+            draggedRow = null;
+            await MoveCatalogItemAsync(moving, null);
         }
 
         list.SelectionChanged += (_, _) =>
@@ -735,109 +815,34 @@ public sealed partial class FolderNavigationPanel : UserControl
             ReloadRows();
         };
 
+        var configuredContainers = new HashSet<ListViewItem>();
+
+        list.ContainerContentChanging += (_, args) =>
+        {
+            if (args.InRecycleQueue || args.ItemContainer is not ListViewItem container)
+                return;
+
+            if (!configuredContainers.Add(container))
+                return;
+
+            container.AllowDrop = true;
+            container.DragOver += OnCatalogRowDragOver;
+            container.Drop += OnCatalogRowDrop;
+        };
+
         list.DragItemsStarting += (_, args) =>
         {
             draggedRow = args.Items.OfType<CatalogManagerRow>().FirstOrDefault();
             ShowManagerStatus(null);
         };
 
-        list.DragOver += (_, args) =>
-        {
-            if (draggedRow is null)
-            {
-                args.AcceptedOperation = DataPackageOperation.None;
-                return;
-            }
-
-            args.Handled = true;
-
-            var target = GetDropTarget(args);
-            if (target is not null && !target.Item.IsGroup)
-            {
-                args.AcceptedOperation = DataPackageOperation.None;
-                return;
-            }
-
-            if (target is not null &&
-                (string.Equals(
-                     target.Item.Tag,
-                     draggedRow.Item.Tag,
-                     StringComparison.OrdinalIgnoreCase) ||
-                 target.Item.Tag.StartsWith(
-                     draggedRow.Item.Tag + "/",
-                     StringComparison.OrdinalIgnoreCase)))
-            {
-                args.AcceptedOperation = DataPackageOperation.None;
-                return;
-            }
-
-            args.AcceptedOperation = DataPackageOperation.Move;
-            args.DragUIOverride.Caption = target is null
-                ? "Přesunout do kořene"
-                : $"Přesunout do '{target.Item.Tag}'";
-            args.Handled = true;
-        };
-
-        list.Drop += async (_, args) =>
-        {
-            args.Handled = true;
-
-            if (draggedRow is null)
-                return;
-
-            DebugLog.WriteLine($"Tag catalog drop: moving '{draggedRow.Item.Tag}'");
-
-            var moving = draggedRow;
-            draggedRow = null;
-
-            var target = GetDropTarget(args);
-            if (target is not null && !target.Item.IsGroup)
-            {
-                ShowManagerStatus("Položku lze přetáhnout pouze na skupinu nebo na prázdné místo.");
-                return;
-            }
-
-            var destinationParent = target?.Item.Tag;
-            var newFullPath = string.IsNullOrWhiteSpace(destinationParent)
-                ? moving.Item.Name
-                : $"{destinationParent}/{moving.Item.Name}";
-
-            if (string.Equals(
-                newFullPath,
-                moving.Item.Tag,
-                StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
-
-            var validation = metadata.ValidateCatalogPath(
-                newFullPath,
-                moving.Item.Tag);
-            if (validation is not null)
-            {
-                ShowManagerStatus(validation);
-                return;
-            }
-
-            try
-            {
-                await metadata.RenameCatalogItemAsync(
-                    moving.Item,
-                    newFullPath);
-                await metadata.ReloadAvailableTagsAsync();
-                await RefreshTagsTreeAsync();
-                ReloadRows();
-            }
-            catch (Exception ex)
-            {
-                ShowManagerStatus($"Přesun se nezdařil: {ex.Message}");
-            }
-        };
-
         list.DragItemsCompleted += (_, _) =>
         {
             draggedRow = null;
         };
+
+        list.DragOver += OnCatalogRootDragOver;
+        list.Drop += OnCatalogRootDrop;
 
         ReloadRows();
         await dialog.ShowAsync();
