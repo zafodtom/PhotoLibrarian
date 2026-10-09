@@ -105,7 +105,7 @@ public static class AlbumService
 
     public static void RestartForAlbum(string albumRoot)
     {
-        var escaped = albumRoot.Replace(""", "\"");
+        var escaped = albumRoot.Replace("\"", "\\\"");
         Microsoft.Windows.AppLifecycle.AppInstance.Restart($"--album \"{escaped}\"");
     }
 }
