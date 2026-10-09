@@ -256,6 +256,24 @@ public sealed partial class FolderNavigationPanel : UserControl
         return treeNode;
     }
 
+    private IReadOnlyCollection<string>? GetSelectedFolderScope()
+    {
+        // Selecting the Photo Library root means the whole album.
+        if (LibraryTree.SelectedNodes.Any(
+            node => node.Content is string text && text.StartsWith("📚")))
+            return null;
+
+        var folders = LibraryTree.SelectedNodes
+            .Select(node => node.Content)
+            .OfType<FolderNodeWrapper>()
+            .Where(wrapper => wrapper.FolderNode is not null)
+            .Select(wrapper => wrapper.FolderNode.Path)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return folders.Count == 0 ? null : folders;
+    }
+
     public async Task RefreshTagsTreeAsync()
     {
         if (App.ViewModel?.TagNav is null) return;
@@ -263,7 +281,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         await _tagRefreshGate.WaitAsync();
         try
         {
-            await App.ViewModel.TagNav.LoadTagsAsync();
+            await App.ViewModel.TagNav.LoadTagsAsync(GetSelectedFolderScope());
             var completion =
                 new TaskCompletionSource(
                     TaskCreationOptions.RunContinuationsAsynchronously);
@@ -450,9 +468,9 @@ public sealed partial class FolderNavigationPanel : UserControl
                 sender.SelectedNodes.Add(node);
             }
 
-            // Manually trigger grid update since programmatic selection change
-            // might not fire SelectionChanged event
-            UpdateGridFromSelection();
+            // Programmatic selection changes do not always raise SelectionChanged.
+            _ = RefreshTagsTreeAsync().ContinueWith(
+                _ => DispatcherQueue.TryEnqueue(UpdateGridFromSelection));
         }
     }
 
@@ -530,8 +548,9 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
     }
 
-    private void OnLibrarySelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
+    private async void OnLibrarySelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
     {
+        await RefreshTagsTreeAsync();
         UpdateGridFromSelection();
     }
 
