@@ -37,6 +37,19 @@ public static class WindowsThumbnailService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"WindowsThumbnailService.GetThumbnailStreamAsync failed for {System.IO.Path.GetFileName(filePath)}: {ex.Message}");
+
+            if (HeifFallbackDecoder.IsHeifFamily(filePath))
+            {
+                try
+                {
+                    return await HeifFallbackDecoder.DecodeToJpegAsync(filePath, size);
+                }
+                catch (Exception fallbackEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"HEIF thumbnail fallback failed for {System.IO.Path.GetFileName(filePath)}: {fallbackEx.Message}");
+                }
+            }
+
             return null;
         }
     }
