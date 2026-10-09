@@ -28,7 +28,7 @@ public partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _recognitionCts;
     private Task? _recognitionTask;
     private readonly object _recognitionLock = new();
-    private bool _faceDetectionEnabled = true;
+    private bool _faceDetectionEnabled = false;
     private bool _autoTaggingEnabled;
     private bool _recognitionRescanRequested;
     private int _lastAutoTagTreeRefresh;
@@ -199,10 +199,9 @@ public partial class MainViewModel : ObservableObject
         TotalImages = await _imageRepo.GetCountAsync();
         StatusText = TotalImages > 0 ? "Select a folder to view photos" : "Add folders to get started";
 
-        // Start background indexing to populate metadata (tags, dates)
+        // Keep ordinary metadata indexing active, but this album-focused fork does not
+        // automatically run face detection or ML content tagging.
         StartBackgroundIndexing();
-        StartBackgroundFaceDetection();
-        StartBackgroundAutoTagging();
     }
 
     public void SyncWatchedFolders()
