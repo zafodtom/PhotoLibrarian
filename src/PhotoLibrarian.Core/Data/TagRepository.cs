@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using PhotoLibrarian.Core.Models;
+using PhotoLibrarian.Core.Services;
 
 namespace PhotoLibrarian.Core.Data;
 
@@ -84,45 +85,95 @@ public sealed class TagRepository : IAutoTagStore
     }
 
     /// <summary>
-    /// Gets all unique tags with their usage count.
+    /// Gets all unique tags with their usage count, optionally scoped to selected album folders.
     /// </summary>
-    public async Task<List<(string Tag, int Count)>> GetAllTagsWithCountAsync()
+    public async Task<List<(string Tag, int Count)>> GetAllTagsWithCountAsync(
+        IReadOnlyCollection<string>? folderPaths = null)
     {
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT tag, COUNT(DISTINCT image_id) as cnt FROM tags GROUP BY tag ORDER BY cnt DESC";
+        var scope = AddFolderScope(cmd, folderPaths, "i");
+        cmd.CommandText = $"""
+            SELECT t.tag, COUNT(DISTINCT t.image_id) as cnt
+            FROM tags t
+            JOIN images i ON i.id = t.image_id
+            {scope}
+            GROUP BY t.tag
+            ORDER BY cnt DESC
+            """;
 
         var results = new List<(string, int)>();
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
-        {
             results.Add((reader.GetString(0), reader.GetInt32(1)));
-        }
+
         return results;
     }
 
-    public async Task<int> GetTaggedImageCountAsync()
+    public async Task<int> GetTaggedImageCountAsync(
+        IReadOnlyCollection<string>? folderPaths = null)
     {
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(DISTINCT image_id) FROM tags";
+        var scope = AddFolderScope(cmd, folderPaths, "i");
+        cmd.CommandText = $"""
+            SELECT COUNT(DISTINCT t.image_id)
+            FROM tags t
+            JOIN images i ON i.id = t.image_id
+            {scope}
+            """;
         var result = await cmd.ExecuteScalarAsync();
         return Convert.ToInt32(result);
     }
 
-    public async Task<int> GetUntaggedImageCountAsync()
+    public async Task<int> GetUntaggedImageCountAsync(
+        IReadOnlyCollection<string>? folderPaths = null)
     {
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
+        var scope = AddFolderScope(cmd, folderPaths, "i");
+        var connector = string.IsNullOrWhiteSpace(scope) ? "WHERE" : "AND";
+        cmd.CommandText = $"""
             SELECT COUNT(*)
             FROM images i
-            WHERE NOT EXISTS (
+            {scope}
+            {connector} NOT EXISTS (
                 SELECT 1 FROM tags t WHERE t.image_id = i.id
             )
             """;
         var result = await cmd.ExecuteScalarAsync();
         return Convert.ToInt32(result);
+    }
+
+    private static string AddFolderScope(
+        SqliteCommand command,
+        IReadOnlyCollection<string>? folderPaths,
+        string imageAlias)
+    {
+        if (folderPaths is null || folderPaths.Count == 0)
+            return "";
+
+        var storedFolders = folderPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(AlbumPathStorage.ToStoragePath)
+            .Select(path => path.Trim().TrimEnd('/', '\\'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // The album root is stored as ".". Selecting it means the whole album.
+        if (storedFolders.Count == 0 ||
+            storedFolders.Any(path => path is "." or ""))
+            return "";
+
+        var conditions = new List<string>();
+        for (var index = 0; index < storedFolders.Count; index++)
+        {
+            var parameter = $"$folder{index}";
+            conditions.Add($"{imageAlias}.file_path LIKE {parameter} || '/%'");
+            command.Parameters.AddWithValue(parameter, storedFolders[index].Replace('\\', '/'));
+        }
+
+        return "WHERE (" + string.Join(" OR ", conditions) + ")";
     }
 
     /// <summary>
