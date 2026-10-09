@@ -49,8 +49,8 @@
                               SelectionChanged="OnDateSelectionChanged" />
                 </StackPanel>
 
-                <!-- People Section -->
-                <StackPanel>
+                <!-- People Section retained in code for compatibility, hidden in album-focused UI. -->
+                <StackPanel Visibility="Collapsed">
                     <TextBlock Text="People" FontWeight="SemiBold" Margin="0,0,0,8" />
                     <TreeView x:Name="PeopleTree"
                               AutomationProperties.AutomationId="PeopleTree"
