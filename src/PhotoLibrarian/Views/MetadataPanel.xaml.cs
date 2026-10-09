@@ -326,13 +326,103 @@ public sealed partial class MetadataPanel : UserControl
 
     private void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not AvailableTagItem chosen) return;
+        if (e.ClickedItem is not AvailableTagItem chosen || chosen.IsGroup) return;
 
         _suppressTagSuggestions = true;
         NewTagBox.Text = chosen.Tag;
         _suppressTagSuggestions = false;
 
         AddCurrentTag();
+    }
+
+    private async void OnNewTagGroupClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null) return;
+
+        HideTagSuggestions();
+
+        var nameBox = new TextBox
+        {
+            PlaceholderText = "Např. Barva nebo Oblečení/Typ"
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = "Nová skupina tagů",
+            Content = nameBox,
+            PrimaryButtonText = "Vytvořit",
+            CloseButtonText = "Zrušit",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var group = nameBox.Text?.Trim().Trim('/');
+        if (string.IsNullOrWhiteSpace(group))
+            return;
+
+        AlbumService.AddGroup(group);
+        await ViewModel.ReloadAvailableTagsAsync();
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+    }
+
+    private async void OnNewCatalogTagClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null) return;
+
+        HideTagSuggestions();
+
+        var groups = AlbumService.GetGroups();
+        var parentBox = new ComboBox
+        {
+            Header = "Skupina",
+            PlaceholderText = "Bez skupiny",
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        parentBox.Items.Add("(bez skupiny)");
+        foreach (var group in groups)
+            parentBox.Items.Add(group);
+        parentBox.SelectedIndex = 0;
+
+        var nameBox = new TextBox
+        {
+            Header = "Název tagu",
+            PlaceholderText = "Např. Červená"
+        };
+
+        var panel = new StackPanel { Spacing = 10 };
+        panel.Children.Add(parentBox);
+        panel.Children.Add(nameBox);
+
+        var dialog = new ContentDialog
+        {
+            Title = "Nový tag",
+            Content = panel,
+            PrimaryButtonText = "Vytvořit",
+            CloseButtonText = "Zrušit",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var name = nameBox.Text?.Trim().Trim('/');
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        var parent = parentBox.SelectedIndex > 0
+            ? parentBox.SelectedItem?.ToString()
+            : null;
+        var fullTag = string.IsNullOrWhiteSpace(parent)
+            ? name
+            : $"{parent}/{name}";
+
+        AlbumService.AddSelectedTag(fullTag);
+        await ViewModel.ReloadAvailableTagsAsync();
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
     }
 
     private async void OnToggleAlbumTagSelectionClick(object sender, RoutedEventArgs e)
