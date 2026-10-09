@@ -90,7 +90,7 @@ public sealed class TagRepository : IAutoTagStore
     {
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT tag, COUNT(*) as cnt FROM tags GROUP BY tag ORDER BY cnt DESC";
+        cmd.CommandText = "SELECT tag, COUNT(DISTINCT image_id) as cnt FROM tags GROUP BY tag ORDER BY cnt DESC";
 
         var results = new List<(string, int)>();
         using var reader = await cmd.ExecuteReaderAsync();
@@ -99,6 +99,15 @@ public sealed class TagRepository : IAutoTagStore
             results.Add((reader.GetString(0), reader.GetInt32(1)));
         }
         return results;
+    }
+
+    public async Task<int> GetTaggedImageCountAsync()
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(DISTINCT image_id) FROM tags";
+        var result = await cmd.ExecuteScalarAsync();
+        return Convert.ToInt32(result);
     }
 
     public async Task<int> GetUntaggedImageCountAsync()
