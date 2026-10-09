@@ -77,7 +77,6 @@ public partial class AvailableTagItem : ObservableObject
     public string Name { get; }
     public int Depth { get; }
     public bool IsBranch { get; }
-    public bool IsGroup { get; }
     public Microsoft.UI.Xaml.Thickness Indent =>
         new(Math.Max(0, Depth) * 16, 0, 0, 0);
 
@@ -87,28 +86,25 @@ public partial class AvailableTagItem : ObservableObject
     public bool IsUsedInAlbum { get; }
 
     public string SourceLabel =>
-        IsGroup ? "Skupina" :
         IsSelectedInAlbum && IsUsedInAlbum ? "Vybraný • použitý" :
         IsSelectedInAlbum ? "Vybraný" :
         IsUsedInAlbum ? "Použitý" : "";
 
     public string PinGlyph => IsSelectedInAlbum ? "\uE77A" : "\uE718";
-    public string TypeGlyph => IsBranch ? "\uE8B7" : "\uE8EC";
+    public string TypeGlyph => "\uE8EC";
     public Microsoft.UI.Xaml.Visibility PinVisibility =>
-        IsGroup ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+        Microsoft.UI.Xaml.Visibility.Visible;
 
     public AvailableTagItem(
         string tag,
         bool isSelectedInAlbum,
         bool isUsedInAlbum,
-        bool isBranch = false,
-        bool isGroup = false)
+        bool isBranch = false)
     {
         Tag = tag;
         IsSelectedInAlbum = isSelectedInAlbum;
         IsUsedInAlbum = isUsedInAlbum;
         IsBranch = isBranch;
-        IsGroup = isGroup;
 
         var parts = tag.Split('/', StringSplitOptions.RemoveEmptyEntries);
         Depth = Math.Max(0, parts.Length - 1);
@@ -429,20 +425,15 @@ public partial class MetadataPanelViewModel : ObservableObject
                 used.Add(tag);
         }
 
-        var groups = catalog.Groups
-            .Where(group => !string.IsNullOrWhiteSpace(group))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
         var all = selected
             .Union(used, StringComparer.OrdinalIgnoreCase)
-            .Union(groups, StringComparer.OrdinalIgnoreCase)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         foreach (var tag in all.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
         {
             var prefix = tag.TrimEnd('/') + "/";
-            var isBranch = groups.Contains(tag) || all.Any(other =>
+            var isBranch = all.Any(other =>
                 !string.Equals(other, tag, StringComparison.OrdinalIgnoreCase) &&
                 other.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
 
@@ -450,8 +441,7 @@ public partial class MetadataPanelViewModel : ObservableObject
                 tag,
                 selected.Contains(tag),
                 used.Contains(tag),
-                isBranch,
-                groups.Contains(tag)));
+                isBranch));
         }
     }
 
