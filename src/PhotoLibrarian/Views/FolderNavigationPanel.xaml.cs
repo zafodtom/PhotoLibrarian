@@ -400,7 +400,10 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             SelectionMode = ListViewSelectionMode.Single,
             MinWidth = 520,
-            MaxHeight = 520
+            MaxHeight = 520,
+            CanDragItems = true,
+            CanReorderItems = false,
+            AllowDrop = true
         };
 
         var addGroupButton = new Button { Content = "Nová skupina", Padding = new Thickness(10, 5, 10, 5) };
@@ -420,9 +423,16 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var hint = new TextBlock
         {
-            Text = "Skupiny jsou organizační uzly. Použitý tag zůstane po odebrání z katalogu zachovaný u fotografií.",
+            Text = "Skupiny jsou organizační uzly. Použitý tag zůstane po odebrání z katalogu zachovaný u fotografií. Přetažením položky na skupinu ji přesuneš dovnitř; přetažením na prázdné místo ji přesuneš do kořene.",
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.7
+        };
+
+        var managerStatus = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = Visibility.Collapsed,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed)
         };
 
         var content = new StackPanel
@@ -432,6 +442,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         };
         content.Children.Add(toolbar);
         content.Children.Add(hint);
+        content.Children.Add(managerStatus);
         content.Children.Add(list);
 
         var dialog = new ContentDialog
@@ -442,6 +453,14 @@ public sealed partial class FolderNavigationPanel : UserControl
             XamlRoot = XamlRoot
         };
 
+        void ShowManagerStatus(string? message)
+        {
+            managerStatus.Text = message ?? "";
+            managerStatus.Visibility = string.IsNullOrWhiteSpace(message)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
+
         void ReloadRows()
         {
             list.ItemsSource = metadata.AvailableTags
@@ -449,6 +468,26 @@ public sealed partial class FolderNavigationPanel : UserControl
                 .ToList();
             editButton.IsEnabled = false;
             removeButton.IsEnabled = false;
+            ShowManagerStatus(null);
+        }
+
+        CatalogManagerRow? draggedRow = null;
+
+        CatalogManagerRow? GetDropTarget(DragEventArgs args)
+        {
+            DependencyObject? current = args.OriginalSource as DependencyObject;
+            while (current is not null && !ReferenceEquals(current, list))
+            {
+                if (current is ListViewItem item &&
+                    item.Content is CatalogManagerRow row)
+                {
+                    return row;
+                }
+
+                current = VisualTreeHelper.GetParent(current);
+            }
+
+            return null;
         }
 
         list.SelectionChanged += (_, _) =>
@@ -484,6 +523,13 @@ public sealed partial class FolderNavigationPanel : UserControl
             var group = nameBox.Text?.Trim().Trim('/');
             if (string.IsNullOrWhiteSpace(group))
                 return;
+
+            var validation = metadata.ValidateCatalogPath(group);
+            if (validation is not null)
+            {
+                ShowManagerStatus(validation);
+                return;
+            }
 
             AlbumService.AddGroup(group);
             await metadata.ReloadAvailableTagsAsync();
@@ -541,6 +587,13 @@ public sealed partial class FolderNavigationPanel : UserControl
             var fullTag = string.IsNullOrWhiteSpace(parent)
                 ? name
                 : $"{parent}/{name}";
+
+            var validation = metadata.ValidateCatalogPath(fullTag);
+            if (validation is not null)
+            {
+                ShowManagerStatus(validation);
+                return;
+            }
 
             AlbumService.AddSelectedTag(fullTag);
             await metadata.ReloadAvailableTagsAsync();
@@ -621,9 +674,10 @@ public sealed partial class FolderNavigationPanel : UserControl
                 ? name
                 : $"{parent}/{name}";
 
-            if (newFullPath.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+            var validation = metadata.ValidateCatalogPath(newFullPath, item.Tag);
+            if (validation is not null)
             {
-                App.ViewModel.StatusText = "Skupinu nelze přesunout do její vlastní podskupiny.";
+                ShowManagerStatus(validation);
                 return;
             }
 
@@ -668,6 +722,104 @@ public sealed partial class FolderNavigationPanel : UserControl
             await metadata.ReloadAvailableTagsAsync();
             await RefreshTagsTreeAsync();
             ReloadRows();
+        };
+
+        list.DragItemsStarting += (_, args) =>
+        {
+            draggedRow = args.Items.OfType<CatalogManagerRow>().FirstOrDefault();
+            ShowManagerStatus(null);
+        };
+
+        list.DragOver += (_, args) =>
+        {
+            if (draggedRow is null)
+            {
+                args.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            var target = GetDropTarget(args);
+            if (target is not null && !target.Item.IsGroup)
+            {
+                args.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            if (target is not null &&
+                (string.Equals(
+                     target.Item.Tag,
+                     draggedRow.Item.Tag,
+                     StringComparison.OrdinalIgnoreCase) ||
+                 target.Item.Tag.StartsWith(
+                     draggedRow.Item.Tag + "/",
+                     StringComparison.OrdinalIgnoreCase)))
+            {
+                args.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            args.AcceptedOperation = DataPackageOperation.Move;
+            args.DragUIOverride.Caption = target is null
+                ? "Přesunout do kořene"
+                : $"Přesunout do '{target.Item.Tag}'";
+            args.Handled = true;
+        };
+
+        list.Drop += async (_, args) =>
+        {
+            if (draggedRow is null)
+                return;
+
+            var moving = draggedRow;
+            draggedRow = null;
+
+            var target = GetDropTarget(args);
+            if (target is not null && !target.Item.IsGroup)
+            {
+                ShowManagerStatus("Položku lze přetáhnout pouze na skupinu nebo na prázdné místo.");
+                return;
+            }
+
+            var destinationParent = target?.Item.Tag;
+            var newFullPath = string.IsNullOrWhiteSpace(destinationParent)
+                ? moving.Item.Name
+                : $"{destinationParent}/{moving.Item.Name}";
+
+            if (string.Equals(
+                newFullPath,
+                moving.Item.Tag,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var validation = metadata.ValidateCatalogPath(
+                newFullPath,
+                moving.Item.Tag);
+            if (validation is not null)
+            {
+                ShowManagerStatus(validation);
+                return;
+            }
+
+            try
+            {
+                await metadata.RenameCatalogItemAsync(
+                    moving.Item,
+                    newFullPath);
+                await metadata.ReloadAvailableTagsAsync();
+                await RefreshTagsTreeAsync();
+                ReloadRows();
+            }
+            catch (Exception ex)
+            {
+                ShowManagerStatus($"Přesun se nezdařil: {ex.Message}");
+            }
+        };
+
+        list.DragItemsCompleted += (_, _) =>
+        {
+            draggedRow = null;
         };
 
         ReloadRows();
