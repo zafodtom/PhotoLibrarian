@@ -334,6 +334,94 @@ public sealed class TagRepository : IAutoTagStore
         await insert.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<List<long>> RenameTagPrefixAsync(string oldPrefix, string newPrefix)
+    {
+        oldPrefix = oldPrefix.Trim().Trim('/');
+        newPrefix = newPrefix.Trim().Trim('/');
+        if (oldPrefix.Length == 0 || newPrefix.Length == 0)
+            return [];
+
+        using var conn = _db.CreateConnection();
+        using var transaction = conn.BeginTransaction();
+
+        var affected = new List<long>();
+        using (var find = conn.CreateCommand())
+        {
+            find.Transaction = transaction;
+            find.CommandText = """
+                SELECT DISTINCT image_id
+                FROM tags
+                WHERE tag = $old OR tag LIKE $prefix ESCAPE '\'
+                """;
+            find.Parameters.AddWithValue("$old", oldPrefix);
+            find.Parameters.AddWithValue("$prefix", oldPrefix.Replace("\", "\\").Replace("%", "\%").Replace("_", "\_") + "/%");
+            using var reader = await find.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                affected.Add(reader.GetInt64(0));
+        }
+
+        foreach (var imageId in affected)
+        {
+            var rows = new List<(string Tag, TagSource Source, float Confidence)>();
+            using (var read = conn.CreateCommand())
+            {
+                read.Transaction = transaction;
+                read.CommandText = """
+                    SELECT tag, source, confidence
+                    FROM tags
+                    WHERE image_id = $id
+                      AND (tag = $old OR tag LIKE $prefix ESCAPE '\')
+                    """;
+                read.Parameters.AddWithValue("$id", imageId);
+                read.Parameters.AddWithValue("$old", oldPrefix);
+                read.Parameters.AddWithValue("$prefix", oldPrefix.Replace("\", "\\").Replace("%", "\%").Replace("_", "\_") + "/%");
+                using var reader = await read.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    rows.Add((
+                        reader.GetString(0),
+                        (TagSource)reader.GetInt32(1),
+                        reader.GetFloat(2)));
+                }
+            }
+
+            foreach (var row in rows.OrderBy(r => r.Tag.Length))
+            {
+                var suffix = row.Tag.Length == oldPrefix.Length
+                    ? ""
+                    : row.Tag[oldPrefix.Length..];
+                var replacement = newPrefix + suffix;
+
+                using var insert = conn.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = """
+                    INSERT OR REPLACE INTO tags (image_id, tag, source, confidence)
+                    VALUES ($id, $tag, $source, $confidence)
+                    """;
+                insert.Parameters.AddWithValue("$id", imageId);
+                insert.Parameters.AddWithValue("$tag", replacement);
+                insert.Parameters.AddWithValue("$source", (int)row.Source);
+                insert.Parameters.AddWithValue("$confidence", row.Confidence);
+                await insert.ExecuteNonQueryAsync();
+            }
+
+            using var delete = conn.CreateCommand();
+            delete.Transaction = transaction;
+            delete.CommandText = """
+                DELETE FROM tags
+                WHERE image_id = $id
+                  AND (tag = $old OR tag LIKE $prefix ESCAPE '\')
+                """;
+            delete.Parameters.AddWithValue("$id", imageId);
+            delete.Parameters.AddWithValue("$old", oldPrefix);
+            delete.Parameters.AddWithValue("$prefix", oldPrefix.Replace("\", "\\").Replace("%", "\%").Replace("_", "\_") + "/%");
+            await delete.ExecuteNonQueryAsync();
+        }
+
+        transaction.Commit();
+        return affected;
+    }
+
     /// <summary>
     /// Renames a tag across all images.
     /// </summary>
