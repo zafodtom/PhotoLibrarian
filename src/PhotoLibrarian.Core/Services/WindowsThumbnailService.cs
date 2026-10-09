@@ -27,7 +27,12 @@ public static class WindowsThumbnailService
                 ThumbnailOptions.UseCurrentScale);
             
             if (thumb == null || thumb.Size == 0)
+            {
+                if (HeifFallbackDecoder.IsHeifFamily(filePath))
+                    return await HeifFallbackDecoder.DecodeToJpegAsync(filePath, size);
+
                 return null;
+            }
             
             // Return the encoded stream bytes (PNG/BMP from cache)
             var bytes = new byte[thumb.Size];
