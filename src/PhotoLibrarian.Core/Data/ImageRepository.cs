@@ -173,6 +173,32 @@ public sealed class ImageRepository
         return results;
     }
 
+    public async Task<List<ImageEntry>> GetUntaggedAsync(
+        string? orderBy = "date_taken",
+        bool descending = true)
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        var dir = descending ? "DESC" : "ASC";
+        var validColumns = new HashSet<string> { "date_taken", "file_name", "date_modified", "rating", "file_size" };
+        var col = validColumns.Contains(orderBy ?? "") ? orderBy : "date_taken";
+        cmd.CommandText = $"""
+            SELECT i.*
+            FROM images i
+            WHERE NOT EXISTS (
+                SELECT 1 FROM tags t WHERE t.image_id = i.id
+            )
+            ORDER BY i.{col} {dir}
+            """;
+
+        var results = new List<ImageEntry>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            results.Add(ReadImageEntry(reader));
+
+        return results;
+    }
+
     public async Task<int> GetCountAsync()
     {
         using var conn = _db.CreateConnection();
