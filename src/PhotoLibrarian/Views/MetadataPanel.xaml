@@ -165,7 +165,6 @@
                                         PlaceholderText="Add or choose descriptive tag"
                                         TextChanged="OnTagSuggestionTextChanged"
                                         QuerySubmitted="OnTagSuggestionSubmitted"
-                                        KeyDown="OnNewTagKeyDown"
                                         FontSize="13" />
                         <Button Grid.Column="1" Click="OnAddTagClick" Padding="6,4"
                                 ToolTipService.ToolTip="Add tag to all selected">
