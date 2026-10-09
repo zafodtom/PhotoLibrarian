@@ -58,8 +58,8 @@
                                    FontWeight="SemiBold" FontSize="13" />
                     </Border>
 
-                    <TextBlock Text="People tags" Style="{StaticResource SectionHeaderStyle}" />
-                    <ItemsRepeater x:Name="PeopleTagsList" Margin="0,2,0,0">
+                    <TextBlock Text="People tags" Style="{StaticResource SectionHeaderStyle}" Visibility="Collapsed" />
+                    <ItemsRepeater x:Name="PeopleTagsList" Margin="0,2,0,0" Visibility="Collapsed">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Vertical" Spacing="4" />
                         </ItemsRepeater.Layout>
@@ -100,6 +100,7 @@
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
                     <Button x:Name="AddPeopleTagsButton"
+                            Visibility="Collapsed"
                             AutomationProperties.AutomationId="AddPeopleTagsButton"
                             AutomationProperties.Name="Add people tags"
                             Content="Add people tags"
