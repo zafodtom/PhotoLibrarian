@@ -101,6 +101,21 @@ public sealed class TagRepository : IAutoTagStore
         return results;
     }
 
+    public async Task<int> GetUntaggedImageCountAsync()
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT COUNT(*)
+            FROM images i
+            WHERE NOT EXISTS (
+                SELECT 1 FROM tags t WHERE t.image_id = i.id
+            )
+            """;
+        var result = await cmd.ExecuteScalarAsync();
+        return Convert.ToInt32(result);
+    }
+
     /// <summary>
     /// Finds images that have a specific tag.
     /// </summary>
