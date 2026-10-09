@@ -396,14 +396,8 @@ public sealed partial class FolderNavigationPanel : UserControl
 
     private void OnCollapseAllTagsClick(object sender, RoutedEventArgs e)
     {
+        // Collapse every node including the synthetic Tags root.
         SetTagTreeExpansion(TagsTree.RootNodes, false);
-
-        // Keep the synthetic Tags root open so the first tag level remains visible.
-        foreach (var root in TagsTree.RootNodes)
-        {
-            if (root.Content is TagNodeWrapper { TagNode.IsRoot: true })
-                root.IsExpanded = true;
-        }
     }
 
     private static void SetTagTreeExpansion(
