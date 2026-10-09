@@ -362,7 +362,7 @@ public sealed class TagRepository : IAutoTagStore
                 WHERE tag = $old OR tag LIKE $prefix ESCAPE '\'
                 """;
             find.Parameters.AddWithValue("$old", oldPrefix);
-            find.Parameters.AddWithValue("$prefix", oldPrefix.Replace("\", "\\").Replace("%", "\%").Replace("_", "\_") + "/%");
+            find.Parameters.AddWithValue("$prefix", EscapeLikePattern(oldPrefix) + "/%");
             using var reader = await find.ExecuteReaderAsync();
             while (await reader.ReadAsync())
                 affected.Add(reader.GetInt64(0));
@@ -382,7 +382,7 @@ public sealed class TagRepository : IAutoTagStore
                     """;
                 read.Parameters.AddWithValue("$id", imageId);
                 read.Parameters.AddWithValue("$old", oldPrefix);
-                read.Parameters.AddWithValue("$prefix", oldPrefix.Replace("\", "\\").Replace("%", "\%").Replace("_", "\_") + "/%");
+                read.Parameters.AddWithValue("$prefix", EscapeLikePattern(oldPrefix) + "/%");
                 using var reader = await read.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
@@ -422,7 +422,7 @@ public sealed class TagRepository : IAutoTagStore
                 """;
             delete.Parameters.AddWithValue("$id", imageId);
             delete.Parameters.AddWithValue("$old", oldPrefix);
-            delete.Parameters.AddWithValue("$prefix", oldPrefix.Replace("\", "\\").Replace("%", "\%").Replace("_", "\_") + "/%");
+            delete.Parameters.AddWithValue("$prefix", EscapeLikePattern(oldPrefix) + "/%");
             await delete.ExecuteNonQueryAsync();
         }
 
