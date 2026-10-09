@@ -107,6 +107,15 @@ public partial class TagNavigationViewModel : ObservableObject
         }
         
         RootTags.Add(rootNode);
+
+        var untaggedCount = await _tagRepo.GetUntaggedImageCountAsync();
+        RootTags.Add(new TagNode
+        {
+            Name = "Bez tagů",
+            FullPath = "__untagged__",
+            Count = untaggedCount,
+            IsUntagged = true
+        });
     }
 
     private void SortTagNodeRecursive(List<TagNode> nodes)
@@ -171,5 +180,6 @@ public class TagNode
     public string FullPath { get; set; } = "";
     public int Count { get; set; }
     public bool IsRoot { get; set; }
+    public bool IsUntagged { get; set; }
     public ObservableCollection<TagNode> Children { get; } = [];
 }
