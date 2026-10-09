@@ -376,16 +376,48 @@ public sealed partial class FolderNavigationPanel : UserControl
         var treeNode = new TreeViewNode
         {
             Content = new TagNodeWrapper(tagNode),
-            HasUnrealizedChildren = tagNode.Children.Count > 0
+            // Tag children are already materialized here. Marking them as unrealized
+            // makes WinUI treat the node like a lazy-loading node and leads to awkward
+            // expand/collapse behaviour.
+            HasUnrealizedChildren = false,
+            IsExpanded = tagNode.IsRoot
         };
 
-        // Add children
         foreach (var child in tagNode.Children)
-        {
             treeNode.Children.Add(BuildTagNode(child));
-        }
 
         return treeNode;
+    }
+
+    private void OnExpandAllTagsClick(object sender, RoutedEventArgs e)
+    {
+        SetTagTreeExpansion(TagsTree.RootNodes, true);
+    }
+
+    private void OnCollapseAllTagsClick(object sender, RoutedEventArgs e)
+    {
+        SetTagTreeExpansion(TagsTree.RootNodes, false);
+
+        // Keep the synthetic Tags root open so the first tag level remains visible.
+        foreach (var root in TagsTree.RootNodes)
+        {
+            if (root.Content is TagNodeWrapper { TagNode.IsRoot: true })
+                root.IsExpanded = true;
+        }
+    }
+
+    private static void SetTagTreeExpansion(
+        IList<TreeViewNode> nodes,
+        bool expanded)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Children.Count > 0)
+            {
+                node.IsExpanded = expanded;
+                SetTagTreeExpansion(node.Children, expanded);
+            }
+        }
     }
 
     private static TreeViewNode BuildFolderNode(FolderNode folderNode, bool isRootFolder = false)
