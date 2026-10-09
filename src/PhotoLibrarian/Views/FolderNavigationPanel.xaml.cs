@@ -389,6 +389,279 @@ public sealed partial class FolderNavigationPanel : UserControl
         return treeNode;
     }
 
+    private async void OnManageTagCatalogClick(object sender, RoutedEventArgs e)
+    {
+        if (App.ViewModel?.MetadataPanel is not MetadataPanelViewModel metadata)
+            return;
+
+        await metadata.ReloadAvailableTagsAsync();
+
+        var list = new ListView
+        {
+            SelectionMode = ListViewSelectionMode.Single,
+            MinWidth = 520,
+            MaxHeight = 520
+        };
+
+        var addGroupButton = new Button { Content = "Nová skupina", Padding = new Thickness(10, 5, 10, 5) };
+        var addTagButton = new Button { Content = "Nový tag", Padding = new Thickness(10, 5, 10, 5) };
+        var editButton = new Button { Content = "Upravit", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
+        var removeButton = new Button { Content = "Odebrat z katalogu", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
+
+        var toolbar = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
+        };
+        toolbar.Children.Add(addGroupButton);
+        toolbar.Children.Add(addTagButton);
+        toolbar.Children.Add(editButton);
+        toolbar.Children.Add(removeButton);
+
+        var hint = new TextBlock
+        {
+            Text = "Skupiny jsou organizační uzly. Použitý tag zůstane po odebrání z katalogu zachovaný u fotografií.",
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.7
+        };
+
+        var content = new StackPanel
+        {
+            Spacing = 10,
+            MinWidth = 560
+        };
+        content.Children.Add(toolbar);
+        content.Children.Add(hint);
+        content.Children.Add(list);
+
+        var dialog = new ContentDialog
+        {
+            Title = "Správa katalogu tagů",
+            Content = content,
+            CloseButtonText = "Zavřít",
+            XamlRoot = XamlRoot
+        };
+
+        void ReloadRows()
+        {
+            list.ItemsSource = metadata.AvailableTags
+                .Select(item => new CatalogManagerRow(item))
+                .ToList();
+            editButton.IsEnabled = false;
+            removeButton.IsEnabled = false;
+        }
+
+        list.SelectionChanged += (_, _) =>
+        {
+            var hasSelection = list.SelectedItem is CatalogManagerRow;
+            editButton.IsEnabled = hasSelection;
+            removeButton.IsEnabled = hasSelection;
+        };
+
+        addGroupButton.Click += async (_, _) =>
+        {
+            var nameBox = new TextBox
+            {
+                PlaceholderText = "Např. Oblečení nebo Oblečení/Typ"
+            };
+
+            var createDialog = new ContentDialog
+            {
+                Title = "Nová skupina tagů",
+                Content = nameBox,
+                PrimaryButtonText = "Vytvořit",
+                CloseButtonText = "Zrušit",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+
+            if (await createDialog.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            var group = nameBox.Text?.Trim().Trim('/');
+            if (string.IsNullOrWhiteSpace(group))
+                return;
+
+            AlbumService.AddGroup(group);
+            await metadata.ReloadAvailableTagsAsync();
+            await RefreshTagsTreeAsync();
+            ReloadRows();
+        };
+
+        addTagButton.Click += async (_, _) =>
+        {
+            var groups = AlbumService.GetGroups();
+
+            var parentBox = new ComboBox
+            {
+                Header = "Skupina",
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            parentBox.Items.Add("(bez skupiny)");
+            foreach (var group in groups)
+                parentBox.Items.Add(group);
+            parentBox.SelectedIndex = 0;
+
+            var nameBox = new TextBox
+            {
+                Header = "Název tagu",
+                PlaceholderText = "Např. Červená"
+            };
+
+            var panel = new StackPanel { Spacing = 10 };
+            panel.Children.Add(parentBox);
+            panel.Children.Add(nameBox);
+
+            var createDialog = new ContentDialog
+            {
+                Title = "Nový tag",
+                Content = panel,
+                PrimaryButtonText = "Vytvořit",
+                CloseButtonText = "Zrušit",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+
+            if (await createDialog.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            var name = nameBox.Text?.Trim().Trim('/');
+            if (string.IsNullOrWhiteSpace(name))
+                return;
+
+            var parent = parentBox.SelectedIndex > 0
+                ? parentBox.SelectedItem?.ToString()
+                : null;
+            var fullTag = string.IsNullOrWhiteSpace(parent)
+                ? name
+                : $"{parent}/{name}";
+
+            AlbumService.AddSelectedTag(fullTag);
+            await metadata.ReloadAvailableTagsAsync();
+            await RefreshTagsTreeAsync();
+            ReloadRows();
+        };
+
+        editButton.Click += async (_, _) =>
+        {
+            if (list.SelectedItem is not CatalogManagerRow row)
+                return;
+
+            var item = row.Item;
+            var groups = AlbumService.GetGroups()
+                .Where(group =>
+                    !string.Equals(group, item.Tag, StringComparison.OrdinalIgnoreCase) &&
+                    !group.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var currentParent = "";
+            var slash = item.Tag.LastIndexOf('/');
+            if (slash > 0)
+                currentParent = item.Tag[..slash];
+
+            var parentBox = new ComboBox
+            {
+                Header = "Nadřazená skupina",
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            parentBox.Items.Add("(bez skupiny)");
+            foreach (var group in groups)
+                parentBox.Items.Add(group);
+
+            parentBox.SelectedIndex = 0;
+            for (var index = 0; index < groups.Count; index++)
+            {
+                if (string.Equals(groups[index], currentParent, StringComparison.OrdinalIgnoreCase))
+                {
+                    parentBox.SelectedIndex = index + 1;
+                    break;
+                }
+            }
+
+            var nameBox = new TextBox
+            {
+                Header = item.IsGroup ? "Název skupiny" : "Název tagu",
+                Text = item.Name
+            };
+
+            var panel = new StackPanel { Spacing = 10 };
+            panel.Children.Add(parentBox);
+            panel.Children.Add(nameBox);
+
+            var editDialog = new ContentDialog
+            {
+                Title = item.IsGroup ? "Upravit skupinu" : "Upravit tag",
+                Content = panel,
+                PrimaryButtonText = "Uložit",
+                CloseButtonText = "Zrušit",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+
+            if (await editDialog.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            var name = nameBox.Text?.Trim().Trim('/');
+            if (string.IsNullOrWhiteSpace(name))
+                return;
+
+            var parent = parentBox.SelectedIndex > 0
+                ? parentBox.SelectedItem?.ToString()
+                : null;
+            var newFullPath = string.IsNullOrWhiteSpace(parent)
+                ? name
+                : $"{parent}/{name}";
+
+            if (newFullPath.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                App.ViewModel.StatusText = "Skupinu nelze přesunout do její vlastní podskupiny.";
+                return;
+            }
+
+            try
+            {
+                await metadata.RenameCatalogItemAsync(item, newFullPath);
+                await metadata.ReloadAvailableTagsAsync();
+                await RefreshTagsTreeAsync();
+                ReloadRows();
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText = $"Přejmenování se nezdařilo: {ex.Message}";
+            }
+        };
+
+        removeButton.Click += async (_, _) =>
+        {
+            if (list.SelectedItem is not CatalogManagerRow row)
+                return;
+
+            var item = row.Item;
+            var confirm = new ContentDialog
+            {
+                Title = item.IsGroup ? "Odebrat skupinu z katalogu?" : "Odebrat tag z katalogu?",
+                Content = item.IsUsedInAlbum
+                    ? "Položka je použitá u fotografií. Při odebrání z katalogu zůstanou tato přiřazení zachovaná."
+                    : "Položka bude odebrána z katalogu alba.",
+                PrimaryButtonText = "Odebrat",
+                CloseButtonText = "Zrušit",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot
+            };
+
+            if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            await metadata.RemoveCatalogItemAsync(item);
+            await metadata.ReloadAvailableTagsAsync();
+            await RefreshTagsTreeAsync();
+            ReloadRows();
+        };
+
+        ReloadRows();
+        await dialog.ShowAsync();
+    }
+
     private void OnExpandAllTagsClick(object sender, RoutedEventArgs e)
     {
         SetTagTreeExpansion(TagsTree.RootNodes, true);
@@ -892,6 +1165,26 @@ public sealed partial class FolderNavigationPanel : UserControl
                 return $"{PersonNode.DisplayName} ({PersonNode.Count})";
 
             return $"👤 {PersonNode.DisplayName} ({PersonNode.Count})";
+        }
+    }
+
+    private sealed class CatalogManagerRow
+    {
+        public AvailableTagItem Item { get; }
+
+        public CatalogManagerRow(AvailableTagItem item)
+        {
+            Item = item;
+        }
+
+        public override string ToString()
+        {
+            var indent = new string(' ', Math.Max(0, Item.Depth) * 4);
+            var icon = Item.IsGroup ? "📁" : "🏷️";
+            var state = string.IsNullOrWhiteSpace(Item.SourceLabel)
+                ? ""
+                : $"  [{Item.SourceLabel}]";
+            return $"{indent}{icon} {Item.Name}{state}";
         }
     }
 
