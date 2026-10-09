@@ -62,7 +62,31 @@
 
                 <!-- Tags Section -->
                 <StackPanel>
-                    <TextBlock Text="Tags" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Tags"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    Spacing="2">
+                            <Button Click="OnExpandAllTagsClick"
+                                    Padding="5,3"
+                                    ToolTipService.ToolTip="Expand all tags"
+                                    AutomationProperties.Name="Expand all tags">
+                                <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                            </Button>
+                            <Button Click="OnCollapseAllTagsClick"
+                                    Padding="5,3"
+                                    ToolTipService.ToolTip="Collapse all tags"
+                                    AutomationProperties.Name="Collapse all tags">
+                                <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
                     <TreeView x:Name="TagsTree"
                               SelectionMode="Multiple"
                               CanDragItems="False"
