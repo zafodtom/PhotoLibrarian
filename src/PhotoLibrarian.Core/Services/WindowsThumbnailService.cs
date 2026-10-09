@@ -16,6 +16,19 @@ public static class WindowsThumbnailService
     /// </summary>
     public static async Task<byte[]?> GetThumbnailStreamAsync(string filePath, int size)
     {
+        if (HeifFallbackDecoder.IsHeifFamily(filePath))
+        {
+            try
+            {
+                return await HeifFallbackDecoder.DecodeToJpegAsync(filePath, size);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"HEIF thumbnail decode failed for {System.IO.Path.GetFileName(filePath)}: {ex.Message}");
+                return null;
+            }
+        }
+
         try
         {
             var file = await StorageFile.GetFileFromPathAsync(filePath);
