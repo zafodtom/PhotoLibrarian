@@ -157,98 +157,105 @@
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
-                    <Grid Margin="0,4,0,0" ColumnSpacing="4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="NewTagBox" Grid.Column="0"
-                                 PlaceholderText="Add or choose descriptive tag"
-                                 TextChanged="OnTagTextChanged"
-                                 KeyDown="OnNewTagKeyDown"
-                                 FontSize="13">
-                            <FlyoutBase.AttachedFlyout>
-                                <Flyout x:Name="TagSuggestionsFlyout"
-                                        Placement="Bottom"
-                                        ShouldConstrainToRootBounds="True">
-                                    <StackPanel Width="340" Spacing="6">
-                                        <StackPanel Orientation="Horizontal"
-                                                    HorizontalAlignment="Stretch"
-                                                    Spacing="6">
-                                            <Button Content="Nová skupina"
-                                                    Click="OnNewTagGroupClick"
-                                                    HorizontalAlignment="Stretch" />
-                                            <Button Content="Nový tag"
-                                                    Click="OnNewCatalogTagClick"
-                                                    HorizontalAlignment="Stretch" />
-                                        </StackPanel>
-                                        <ListView x:Name="TagSuggestionsList"
-                                              MaxHeight="320"
-                                              IsItemClickEnabled="True"
-                                              ItemClick="OnTagSuggestionItemClick"
-                                              SelectionMode="None">
-                                        <ListView.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:AvailableTagItem">
-                                                <Grid ColumnSpacing="8"
-                                                      Padding="4,2"
-                                                      Margin="{x:Bind Indent}">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <FontIcon Grid.Column="0"
-                                                              Glyph="{x:Bind TypeGlyph}"
-                                                              FontSize="11"
-                                                              VerticalAlignment="Center"
-                                                              Opacity="0.7" />
-                                                    <StackPanel Grid.Column="1">
-                                                        <TextBlock Text="{x:Bind Name}" FontSize="13" />
-                                                        <TextBlock Text="{x:Bind SourceLabel, Mode=OneWay}"
-                                                                   FontSize="10"
-                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                    </StackPanel>
-                                                    <Button Grid.Column="2"
-                                                            Tag="{x:Bind}"
-                                                            Click="OnToggleAlbumTagSelectionClick"
-                                                            Visibility="{x:Bind PinVisibility}"
-                                                            Padding="5,2"
-                                                            Background="Transparent"
-                                                            BorderThickness="0"
-                                                            ToolTipService.ToolTip="Přidat nebo odebrat z vybraných tagů alba">
-                                                        <FontIcon Glyph="{x:Bind PinGlyph, Mode=OneWay}" FontSize="12" />
-                                                    </Button>
-                                                    <Button Grid.Column="3"
-                                                            Tag="{x:Bind}"
-                                                            Click="OnManageCatalogItemClick"
-                                                            Padding="5,2"
-                                                            Background="Transparent"
-                                                            BorderThickness="0"
-                                                            ToolTipService.ToolTip="Přejmenovat, přesunout nebo odebrat z katalogu">
-                                                        <FontIcon Glyph="&#xE70F;" FontSize="12" />
-                                                    </Button>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ListView.ItemTemplate>
-                                        </ListView>
-                                    </StackPanel>
-                                </Flyout>
-                            </FlyoutBase.AttachedFlyout>
-                        </TextBox>
-                        <Button Grid.Column="1"
-                                Click="OnShowAllTagsClick"
-                                Padding="6,4"
-                                ToolTipService.ToolTip="Show all available tags"
-                                AutomationProperties.Name="Show all available tags">
-                            <FontIcon Glyph="&#xE70D;" FontSize="12" />
-                        </Button>
-                        <Button Grid.Column="2" Click="OnAddTagClick" Padding="6,4"
-                                ToolTipService.ToolTip="Add tag to all selected">
-                            <FontIcon Glyph="&#xE109;" FontSize="12" />
-                        </Button>
-                    </Grid>
+                    <StackPanel Margin="0,4,0,0" Spacing="4">
+                        <Grid ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="NewTagBox" Grid.Column="0"
+                                     PlaceholderText="Add or choose descriptive tag"
+                                     TextChanged="OnTagTextChanged"
+                                     KeyDown="OnNewTagKeyDown"
+                                     FontSize="13" />
+                            <Button Grid.Column="1"
+                                    Click="OnShowAllTagsClick"
+                                    Padding="6,4"
+                                    ToolTipService.ToolTip="Show all available tags"
+                                    AutomationProperties.Name="Show all available tags">
+                                <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                            </Button>
+                            <Button Grid.Column="2"
+                                    Click="OnAddTagClick"
+                                    Padding="6,4"
+                                    ToolTipService.ToolTip="Add tag to all selected">
+                                <FontIcon Glyph="&#xE109;" FontSize="12" />
+                            </Button>
+                        </Grid>
+
+                        <!-- Inline suggestion dropdown. Keeping it in the visual tree avoids
+                             the Flyout focus hand-off that interrupted typing. -->
+                        <Border x:Name="TagSuggestionsPanel"
+                                Visibility="Collapsed"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="8"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal"
+                                            HorizontalAlignment="Stretch"
+                                            Spacing="6">
+                                    <Button Content="Nová skupina"
+                                            Click="OnNewTagGroupClick"
+                                            HorizontalAlignment="Stretch" />
+                                    <Button Content="Nový tag"
+                                            Click="OnNewCatalogTagClick"
+                                            HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                                <ListView x:Name="TagSuggestionsList"
+                                          MaxHeight="320"
+                                          IsItemClickEnabled="True"
+                                          ItemClick="OnTagSuggestionItemClick"
+                                          SelectionMode="None">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:AvailableTagItem">
+                                            <Grid ColumnSpacing="8"
+                                                  Padding="4,2"
+                                                  Margin="{x:Bind Indent}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <FontIcon Grid.Column="0"
+                                                          Glyph="{x:Bind TypeGlyph}"
+                                                          FontSize="11"
+                                                          VerticalAlignment="Center"
+                                                          Opacity="0.7" />
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{x:Bind Name}"
+                                                               FontSize="12" />
+                                                    <TextBlock Text="{x:Bind SourceLabel}"
+                                                               FontSize="10"
+                                                               Opacity="0.6" />
+                                                </StackPanel>
+                                                <Button Grid.Column="2"
+                                                        Tag="{x:Bind}"
+                                                        Click="OnToggleAlbumTagSelectionClick"
+                                                        Padding="4,2"
+                                                        Visibility="{x:Bind PinVisibility}"
+                                                        ToolTipService.ToolTip="Pin/unpin in album catalog">
+                                                    <FontIcon Glyph="{x:Bind PinGlyph}"
+                                                              FontSize="11" />
+                                                </Button>
+                                                <Button Grid.Column="3"
+                                                        Tag="{x:Bind}"
+                                                        Click="OnManageCatalogItemClick"
+                                                        Padding="4,2"
+                                                        ToolTipService.ToolTip="Manage tag or group">
+                                                    <FontIcon Glyph="&#xE70F;"
+                                                              FontSize="11" />
+                                                </Button>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
 
                     <!-- Date taken — compact inline editor matching Photo Gallery -->
                     <StackPanel x:Name="DateEditPanel" Spacing="2" Margin="0,10,0,0" Visibility="Collapsed">
