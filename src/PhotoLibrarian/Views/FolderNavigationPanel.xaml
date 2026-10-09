@@ -94,14 +94,25 @@
                         </StackPanel>
                     </Grid>
                     <TreeView x:Name="TagsTree"
-                              SelectionMode="Single"
+                              SelectionMode="None"
                               CanDragItems="False"
                               CanReorderItems="False"
-                              ItemInvoked="OnTagsItemInvoked"
-                              SelectionChanged="OnTagsSelectionChanged"
                               AllowDrop="True"
                               DragOver="OnTagsTreeDragOver"
-                              Drop="OnTagsTreeDrop" />
+                              Drop="OnTagsTreeDrop">
+                        <TreeView.ItemTemplate>
+                            <DataTemplate x:DataType="TreeViewNode">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <CheckBox IsChecked="{Binding Content.IsSelected, Mode=TwoWay}"
+                                              Tag="{Binding Content}"
+                                              Click="OnTagFilterCheckBoxClick"
+                                              VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Content}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
                 </StackPanel>
 
                 <!-- Flags retained in code, hidden for the current album UI. -->
