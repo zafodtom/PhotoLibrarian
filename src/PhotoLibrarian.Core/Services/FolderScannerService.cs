@@ -23,6 +23,8 @@ public sealed class FolderScannerService : IDisposable
     public event EventHandler<FileDiscoveredEventArgs>? FileDiscovered;
     public event EventHandler<FileChangedEventArgs>? FileChanged;
     public event EventHandler<FileChangedEventArgs>? DirectoryChanged;
+    public event EventHandler<PathRenamedEventArgs>? FileRenamed;
+    public event EventHandler<PathRenamedEventArgs>? DirectoryRenamed;
     public event EventHandler<ScanProgressEventArgs>? ScanProgress;
 
     /// <summary>
@@ -179,14 +181,31 @@ public sealed class FolderScannerService : IDisposable
     {
         if (Directory.Exists(e.FullPath))
         {
-            DirectoryChanged?.Invoke(this, new FileChangedEventArgs(e.OldFullPath, FileChangeType.Deleted));
-            DirectoryChanged?.Invoke(this, new FileChangedEventArgs(e.FullPath, FileChangeType.Created));
+            DirectoryRenamed?.Invoke(
+                this,
+                new PathRenamedEventArgs(e.OldFullPath, e.FullPath));
             return;
         }
-        if (IsSupportedFile(e.OldFullPath) || IsSidecar(e.OldFullPath))
-            FileChanged?.Invoke(this, new FileChangedEventArgs(e.OldFullPath, FileChangeType.Deleted));
-        if (IsSupportedFile(e.FullPath) || IsSidecar(e.FullPath))
-            FileChanged?.Invoke(this, new FileChangedEventArgs(e.FullPath, FileChangeType.Created));
+
+        var oldIsMedia = IsSupportedFile(e.OldFullPath);
+        var newIsMedia = IsSupportedFile(e.FullPath);
+        if (oldIsMedia && newIsMedia)
+        {
+            FileRenamed?.Invoke(
+                this,
+                new PathRenamedEventArgs(e.OldFullPath, e.FullPath));
+            return;
+        }
+
+        // Renaming into/out of a supported extension is semantically a delete/create.
+        if (oldIsMedia || IsSidecar(e.OldFullPath))
+            FileChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(e.OldFullPath, FileChangeType.Deleted));
+        if (newIsMedia || IsSidecar(e.FullPath))
+            FileChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(e.FullPath, FileChangeType.Created));
     }
 
     private static bool IsSidecar(string path) =>
@@ -206,6 +225,14 @@ public sealed class FolderScannerService : IDisposable
 public sealed class FileDiscoveredEventArgs(string filePath) : EventArgs
 {
     public string FilePath { get; } = filePath;
+}
+
+public sealed class PathRenamedEventArgs(
+    string oldPath,
+    string newPath) : EventArgs
+{
+    public string OldPath { get; } = oldPath;
+    public string NewPath { get; } = newPath;
 }
 
 public sealed class FileChangedEventArgs(string filePath, FileChangeType changeType) : EventArgs
