@@ -290,6 +290,15 @@ public sealed partial class MetadataPanel : UserControl
 
     private void OnAddTagClick(object sender, RoutedEventArgs e) => AddCurrentTag();
 
+    private void OnShowAllTagsClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null) return;
+
+        NewTagBox.ItemsSource = ViewModel.AvailableTags.Take(100).ToList();
+        NewTagBox.IsSuggestionListOpen = true;
+        NewTagBox.Focus(FocusState.Programmatic);
+    }
+
     private void OnTagSuggestionTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         if (ViewModel is null || args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
@@ -309,6 +318,7 @@ public sealed partial class MetadataPanel : UserControl
             sender.Text = chosen;
 
         AddCurrentTag();
+        sender.IsSuggestionListOpen = false;
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
@@ -327,6 +337,7 @@ public sealed partial class MetadataPanel : UserControl
         if (string.IsNullOrEmpty(tag)) return;
         ViewModel.AddTagCommand.Execute(tag);
         NewTagBox.Text = "";
+        NewTagBox.IsSuggestionListOpen = false;
     }
 
     private void OnRemoveTagClick(object sender, RoutedEventArgs e)
