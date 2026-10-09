@@ -161,7 +161,9 @@ public sealed class FaceRepository : IFaceScanStore
         using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            paths.Add(reader.GetInt64(0), reader.GetString(1));
+            paths.Add(
+                reader.GetInt64(0),
+                AlbumPathStorage.ToAbsolutePath(reader.GetString(1)));
         }
         return paths;
     }
