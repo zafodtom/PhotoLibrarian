@@ -19,17 +19,17 @@ public partial class TagNavigationViewModel : ObservableObject
         _tagRepo = tagRepo;
     }
 
-    public async Task LoadTagsAsync()
+    public async Task LoadTagsAsync(IReadOnlyCollection<string>? folderPaths = null)
     {
         RootTags.Clear();
 
-        // Get all unique tags with their counts
-        var tagCounts = await _tagRepo.GetAllTagsWithCountAsync();
+        // Get all unique tags with their counts in the current folder scope.
+        var tagCounts = await _tagRepo.GetAllTagsWithCountAsync(folderPaths);
         
         // Parent paths are materialized in the tag table, so their counts already
         // represent all photos below that branch. The root must therefore count
         // unique tagged images rather than summing every path.
-        int totalCount = await _tagRepo.GetTaggedImageCountAsync();
+        int totalCount = await _tagRepo.GetTaggedImageCountAsync(folderPaths);
 
         // Build hierarchical structure
         var rootDict = new Dictionary<string, TagNode>();
@@ -108,7 +108,7 @@ public partial class TagNavigationViewModel : ObservableObject
         
         RootTags.Add(rootNode);
 
-        var untaggedCount = await _tagRepo.GetUntaggedImageCountAsync();
+        var untaggedCount = await _tagRepo.GetUntaggedImageCountAsync(folderPaths);
         RootTags.Add(new TagNode
         {
             Name = "Bez tagů",
