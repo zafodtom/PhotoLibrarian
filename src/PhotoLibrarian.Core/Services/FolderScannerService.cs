@@ -12,7 +12,7 @@ public sealed class FolderScannerService : IDisposable
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".gif", ".webp",
-        ".heic", ".heif", ".cr2", ".cr3", ".nef", ".arw", ".dng", ".orf", ".rw2"
+        ".heic", ".heif", ".avif", ".cr2", ".cr3", ".nef", ".arw", ".dng", ".orf", ".rw2"
     };
 
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
