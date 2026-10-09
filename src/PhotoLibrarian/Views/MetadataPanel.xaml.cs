@@ -324,7 +324,7 @@ public sealed partial class MetadataPanel : UserControl
 
     private void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not AvailableTagItem chosen || chosen.IsGroup) return;
+        if (e.ClickedItem is not AvailableTagItem chosen) return;
 
         _suppressTagSuggestions = true;
         NewTagBox.Text = chosen.Tag;
@@ -333,62 +333,27 @@ public sealed partial class MetadataPanel : UserControl
         AddCurrentTag();
     }
 
-    private async void OnNewTagGroupClick(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel is null) return;
-
-        HideTagSuggestions();
-
-        var nameBox = new TextBox
-        {
-            PlaceholderText = "Např. Barva nebo Oblečení/Typ"
-        };
-
-        var dialog = new ContentDialog
-        {
-            Title = "Nová skupina tagů",
-            Content = nameBox,
-            PrimaryButtonText = "Vytvořit",
-            CloseButtonText = "Zrušit",
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot
-        };
-
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-            return;
-
-        var group = nameBox.Text?.Trim().Trim('/');
-        if (string.IsNullOrWhiteSpace(group))
-            return;
-
-        var groupValidation = ViewModel.ValidateCatalogPath(group);
-        if (groupValidation is not null)
-        {
-            App.ViewModel.StatusText = groupValidation;
-            return;
-        }
-
-        AlbumService.AddGroup(group);
-        await ViewModel.ReloadAvailableTagsAsync();
-        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
-    }
-
     private async void OnNewCatalogTagClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null) return;
 
         HideTagSuggestions();
 
-        var groups = AlbumService.GetGroups();
+        var parentTags = ViewModel.AvailableTags
+            .Select(item => item.Tag)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var parentBox = new ComboBox
         {
-            Header = "Skupina",
-            PlaceholderText = "Bez skupiny",
+            Header = "Nadřazený tag",
+            PlaceholderText = "Kořen katalogu",
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        parentBox.Items.Add("(bez skupiny)");
-        foreach (var group in groups)
-            parentBox.Items.Add(group);
+        parentBox.Items.Add("(kořen)");
+        foreach (var parentTag in parentTags)
+            parentBox.Items.Add(parentTag);
         parentBox.SelectedIndex = 0;
 
         var nameBox = new TextBox
@@ -445,10 +410,13 @@ public sealed partial class MetadataPanel : UserControl
 
         HideTagSuggestions();
 
-        var groups = AlbumService.GetGroups()
-            .Where(group =>
-                !string.Equals(group, item.Tag, StringComparison.OrdinalIgnoreCase) &&
-                !group.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+        var parentTags = ViewModel.AvailableTags
+            .Where(candidate =>
+                !string.Equals(candidate.Tag, item.Tag, StringComparison.OrdinalIgnoreCase) &&
+                !candidate.Tag.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+            .Select(candidate => candidate.Tag)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var currentParent = "";
@@ -458,17 +426,17 @@ public sealed partial class MetadataPanel : UserControl
 
         var parentBox = new ComboBox
         {
-            Header = "Nadřazená skupina",
+            Header = "Nadřazený tag",
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        parentBox.Items.Add("(bez skupiny)");
-        foreach (var group in groups)
-            parentBox.Items.Add(group);
+        parentBox.Items.Add("(kořen)");
+        foreach (var parentTag in parentTags)
+            parentBox.Items.Add(parentTag);
 
         parentBox.SelectedIndex = 0;
-        for (var index = 0; index < groups.Count; index++)
+        for (var index = 0; index < parentTags.Count; index++)
         {
-            if (string.Equals(groups[index], currentParent, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(parentTags[index], currentParent, StringComparison.OrdinalIgnoreCase))
             {
                 parentBox.SelectedIndex = index + 1;
                 break;
@@ -477,7 +445,7 @@ public sealed partial class MetadataPanel : UserControl
 
         var nameBox = new TextBox
         {
-            Header = item.IsGroup ? "Název skupiny" : "Název tagu",
+            Header = "Název tagu",
             Text = item.Name
         };
 
@@ -498,7 +466,7 @@ public sealed partial class MetadataPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = item.IsGroup ? "Správa skupiny" : "Správa tagu",
+            Title = "Správa tagu",
             Content = panel,
             PrimaryButtonText = "Uložit změny",
             SecondaryButtonText = "Odebrat z katalogu",
@@ -542,7 +510,7 @@ public sealed partial class MetadataPanel : UserControl
         {
             await ViewModel.RenameCatalogItemAsync(item, newFullPath);
             App.ViewModel.StatusText =
-                $"{(item.IsGroup ? "Skupina" : "Tag")} přejmenován na '{newFullPath}'.";
+                $"Tag přejmenován na '{newFullPath}'.";
         }
         catch (Exception ex)
         {
