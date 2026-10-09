@@ -66,7 +66,8 @@ public partial class ImageGridViewModel : ObservableObject
     private List<(int Year, int Month)>? _currentMonthFilters;
     private bool _currentPeopleRootSelected;
     private List<long>? _currentPersonFilters;
-    private bool _currentTagRootSelected; // Root "Tags" node selected (show all tagged images)
+    private bool _currentTagRootSelected;
+    private bool _currentUntaggedSelected; // Root "Tags" node selected (show all tagged images)
     private List<string>? _currentTagFilters;
     private bool _currentFlaggedSelected; // "Flagged" node selected (show flagged working set)
     private string? _currentSortBy = "date_taken";
@@ -223,7 +224,8 @@ public partial class ImageGridViewModel : ObservableObject
         bool hasDateFilter = _currentDateRootSelected || 
                             (_currentYearFilters is not null && _currentYearFilters.Count > 0) ||
                             (_currentMonthFilters is not null && _currentMonthFilters.Count > 0);
-        bool hasTagFilter = _currentTagRootSelected || 
+        bool hasTagFilter = _currentTagRootSelected ||
+                           _currentUntaggedSelected ||
                            (_currentTagFilters is not null && _currentTagFilters.Count > 0);
         bool hasFlagFilter = _currentFlaggedSelected;
 
@@ -239,7 +241,9 @@ public partial class ImageGridViewModel : ObservableObject
         HashSet<long>? taggedImageIds = null;
         if (hasTagFilter)
         {
-            var taggedImages = await _imageRepo.GetFilteredAsync(_currentTagRootSelected, _currentTagFilters, _currentSortBy, SortDescending);
+            var taggedImages = _currentUntaggedSelected
+                ? await _imageRepo.GetUntaggedAsync(_currentSortBy, SortDescending)
+                : await _imageRepo.GetFilteredAsync(_currentTagRootSelected, _currentTagFilters, _currentSortBy, SortDescending);
             taggedImageIds = new HashSet<long>(taggedImages.Select(i => i.Id));
             DebugLog.WriteLine($"LoadImagesAsync: Loaded {taggedImageIds.Count} images matching tag filters");
         }
@@ -894,10 +898,11 @@ public partial class ImageGridViewModel : ObservableObject
         List<long>? personIds,
         bool tagRootSelected,
         List<string>? tags,
+        bool untaggedSelected,
         bool flaggedSelected = false)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        DebugLog.WriteLine($"FilterByMultipleCriteriaAsync: folders={folderPaths?.Count ?? 0}, years={years?.Count ?? 0}, months={months?.Count ?? 0}, people={personIds?.Count ?? 0}, tags={tags?.Count ?? 0}, flagged={flaggedSelected}");
+        DebugLog.WriteLine($"FilterByMultipleCriteriaAsync: folders={folderPaths?.Count ?? 0}, years={years?.Count ?? 0}, months={months?.Count ?? 0}, people={personIds?.Count ?? 0}, tags={tags?.Count ?? 0}, untagged={untaggedSelected}, flagged={flaggedSelected}");
         
         // Pause background indexing while user is browsing
         _main.PauseBackgroundIndexing();
@@ -910,6 +915,7 @@ public partial class ImageGridViewModel : ObservableObject
         _currentPersonFilters = personIds;
         _currentTagRootSelected = tagRootSelected;
         _currentTagFilters = tags;
+        _currentUntaggedSelected = untaggedSelected;
         _currentFlaggedSelected = flaggedSelected;
         
         DebugLog.WriteLine($"  T+{sw.ElapsedMilliseconds}ms: Starting LoadImagesAsync");
