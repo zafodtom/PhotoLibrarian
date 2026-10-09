@@ -440,9 +440,25 @@ public sealed partial class FolderNavigationPanel : UserControl
             Spacing = 10,
             MinWidth = 560
         };
+        var rootDropZone = new Border
+        {
+            Padding = new Thickness(10, 6, 10, 6),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Gray),
+            AllowDrop = true,
+            Child = new TextBlock
+            {
+                Text = "Přesunout do kořene alba",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Opacity = 0.8
+            }
+        };
+
         content.Children.Add(toolbar);
         content.Children.Add(hint);
         content.Children.Add(managerStatus);
+        content.Children.Add(rootDropZone);
         content.Children.Add(list);
 
         var dialog = new ContentDialog
@@ -565,14 +581,15 @@ public sealed partial class FolderNavigationPanel : UserControl
                 return;
             }
 
-            // Row containers handle their own drag-over. The ListView itself is
-            // therefore only the target for empty space = move to root.
             args.AcceptedOperation = DataPackageOperation.Move;
             args.DragUIOverride.Caption = "Přesunout do kořene";
+            args.Handled = true;
         }
 
         async void OnCatalogRootDrop(object sender, DragEventArgs args)
         {
+            args.Handled = true;
+
             if (draggedRow is null)
                 return;
 
@@ -850,8 +867,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             draggedRow = null;
         };
 
-        list.DragOver += OnCatalogRootDragOver;
-        list.Drop += OnCatalogRootDrop;
+        rootDropZone.DragOver += OnCatalogRootDragOver;
+        rootDropZone.Drop += OnCatalogRootDrop;
 
         ReloadRows();
         await dialog.ShowAsync();
