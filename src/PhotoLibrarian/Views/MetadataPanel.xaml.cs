@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Media;
 using PhotoLibrarian.ViewModels;
 using System;
 using System.Globalization;
+using System.Linq;
 
 namespace PhotoLibrarian.Views;
 
@@ -46,6 +47,7 @@ public sealed partial class MetadataPanel : UserControl
         if (ViewModel is null) return;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         TagsList.ItemsSource = ViewModel.Tags;
+        NewTagBox.ItemsSource = ViewModel.AvailableTags;
         PeopleTagsList.ItemsSource = ViewModel.PeopleTags;
     }
 
@@ -287,6 +289,27 @@ public sealed partial class MetadataPanel : UserControl
     // --- Tags ---
 
     private void OnAddTagClick(object sender, RoutedEventArgs e) => AddCurrentTag();
+
+    private void OnTagSuggestionTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (ViewModel is null || args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+
+        var query = sender.Text?.Trim() ?? "";
+        sender.ItemsSource = string.IsNullOrEmpty(query)
+            ? ViewModel.AvailableTags.Take(50).ToList()
+            : ViewModel.AvailableTags
+                .Where(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Take(50)
+                .ToList();
+    }
+
+    private void OnTagSuggestionSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (args.ChosenSuggestion is string chosen)
+            sender.Text = chosen;
+
+        AddCurrentTag();
+    }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
     {
