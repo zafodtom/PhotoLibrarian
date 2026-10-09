@@ -461,7 +461,7 @@ public partial class MetadataPanelViewModel : ObservableObject
 
         var destination = Normalize(proposedPath);
         if (string.IsNullOrWhiteSpace(destination))
-            return "Název tagu nebo skupiny nesmí být prázdný.";
+            return "Název tagu nesmí být prázdný.";
 
         var parts = destination.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Any(part => part is "." or ".."))
@@ -474,7 +474,7 @@ public partial class MetadataPanelViewModel : ObservableObject
         if (source is not null &&
             destination.StartsWith(source + "/", StringComparison.OrdinalIgnoreCase))
         {
-            return "Skupinu nelze přesunout do její vlastní podskupiny.";
+            return "Tag nelze přesunout pod sebe ani pod některého ze svých potomků.";
         }
 
         var outsidePaths = AvailableTags
