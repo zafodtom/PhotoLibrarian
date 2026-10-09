@@ -475,16 +475,27 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         CatalogManagerRow? GetDropTarget(DragEventArgs args)
         {
-            DependencyObject? current = args.OriginalSource as DependencyObject;
-            while (current is not null && !ReferenceEquals(current, list))
+            try
             {
-                if (current is ListViewItem item &&
-                    item.Content is CatalogManagerRow row)
-                {
-                    return row;
-                }
+                var elements = VisualTreeHelper.FindElementsInHostCoordinates(
+                    args.GetPosition(list),
+                    list);
 
-                current = VisualTreeHelper.GetParent(current);
+                foreach (var element in elements)
+                {
+                    if (element is not ListViewItem container)
+                        continue;
+
+                    if (container.Content is CatalogManagerRow row)
+                        return row;
+
+                    if (list.ItemFromContainer(container) is CatalogManagerRow itemRow)
+                        return itemRow;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.WriteLine($"Tag catalog drop hit-test failed: {ex.Message}");
             }
 
             return null;
@@ -738,6 +749,8 @@ public sealed partial class FolderNavigationPanel : UserControl
                 return;
             }
 
+            args.Handled = true;
+
             var target = GetDropTarget(args);
             if (target is not null && !target.Item.IsGroup)
             {
@@ -767,8 +780,12 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         list.Drop += async (_, args) =>
         {
+            args.Handled = true;
+
             if (draggedRow is null)
                 return;
+
+            DebugLog.WriteLine($"Tag catalog drop: moving '{draggedRow.Item.Tag}'");
 
             var moving = draggedRow;
             draggedRow = null;
