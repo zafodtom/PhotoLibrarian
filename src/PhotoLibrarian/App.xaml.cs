@@ -11,6 +11,8 @@ public partial class App : Application
     private Window? _window;
 
     public static MainViewModel ViewModel { get; private set; } = null!;
+    public static string? CurrentAlbumPath { get; private set; }
+    public static bool HasActiveAlbum => !string.IsNullOrWhiteSpace(CurrentAlbumPath);
 
     /// <summary>
     /// Global logging control. Set to false to disable debug logging.
@@ -35,11 +37,18 @@ public partial class App : Application
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
-        // Set up data directory
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var dataDir = Path.Combine(appData, "PhotoLibrarian");
-        Directory.CreateDirectory(dataDir);
-        var dbPath = Path.Combine(dataDir, "cache.db");
+        CurrentAlbumPath = AlbumService.GetAlbumPathFromCommandLine();
+
+        string dbPath;
+        if (CurrentAlbumPath is not null)
+        {
+            CurrentAlbumPath = AlbumService.EnsureAlbum(CurrentAlbumPath);
+            dbPath = AlbumService.GetAlbumCachePath(CurrentAlbumPath);
+        }
+        else
+        {
+            dbPath = AlbumService.PrepareCleanSessionCache();
+        }
 
         // Create services
         var db = new CacheDatabase(dbPath);
@@ -111,14 +120,14 @@ public partial class App : Application
 
         await ViewModel.InitializeAsync();
 
-        var commandLineArgs = Environment.GetCommandLineArgs();
-        var albumArgIndex = Array.FindIndex(
-            commandLineArgs,
-            arg => string.Equals(arg, "--album", StringComparison.OrdinalIgnoreCase));
-
-        if (albumArgIndex >= 0 && albumArgIndex + 1 < commandLineArgs.Length)
+        if (CurrentAlbumPath is not null)
         {
-            await ViewModel.FolderNav.AddOrSelectFolderAsync(commandLineArgs[albumArgIndex + 1]);
+            await ViewModel.FolderNav.AddOrSelectFolderAsync(CurrentAlbumPath);
+            ViewModel.StatusText = $"Album: {CurrentAlbumPath}";
+        }
+        else
+        {
+            ViewModel.StatusText = "Open or create an album";
         }
     }
 
