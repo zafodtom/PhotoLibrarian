@@ -117,6 +117,7 @@ public partial class MetadataPanelViewModel : ObservableObject
     public partial bool IsCaptionMixed { get; set; }
 
     public ObservableCollection<TagDisplayItem> Tags { get; } = [];
+    public ObservableCollection<string> AvailableTags { get; } = [];
     public ObservableCollection<PersonTagDisplayItem> PeopleTags { get; } = [];
 
     /// <summary>Date taken common to all selected entries; null if mixed or unset.</summary>
@@ -354,7 +355,22 @@ public partial class MetadataPanelViewModel : ObservableObject
             }
         }
 
+        await ReloadAvailableTagsAsync();
         await ReloadPeopleTagsAsync();
+    }
+
+    public async Task ReloadAvailableTagsAsync()
+    {
+        AvailableTags.Clear();
+        if (_tagRepo == null) return;
+
+        var allTags = await _tagRepo.GetAllTagsWithCountAsync();
+        foreach (var (tag, _) in allTags
+                     .Where(x => !string.IsNullOrWhiteSpace(x.Tag))
+                     .OrderBy(x => x.Tag, StringComparer.OrdinalIgnoreCase))
+        {
+            AvailableTags.Add(tag);
+        }
     }
 
     [ObservableProperty]
@@ -589,7 +605,8 @@ public partial class MetadataPanelViewModel : ObservableObject
             }
         }
 
-        // Refresh the tag navigation tree so counts and new tags show up immediately
+        // Refresh the tag navigation tree and picker so counts and new tags show up immediately
+        await ReloadAvailableTagsAsync();
         if (_main != null) await _main.RefreshTagsTreeAsync();
     }
 
