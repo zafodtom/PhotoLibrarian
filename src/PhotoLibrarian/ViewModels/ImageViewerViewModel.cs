@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using PhotoLibrarian.Core.Models;
 using PhotoLibrarian.Core.Services;
 using System.Collections.ObjectModel;
+using Windows.Storage.Streams;
 
 namespace PhotoLibrarian.ViewModels;
 
@@ -172,6 +173,34 @@ public partial class ImageViewerViewModel : ObservableObject
         }
         catch
         {
+            if (HeifFallbackDecoder.IsHeifFamily(entry.FilePath))
+            {
+                try
+                {
+                    var bytes = await HeifFallbackDecoder.DecodeToJpegAsync(entry.FilePath);
+                    if (bytes is not null)
+                    {
+                        using var stream = new InMemoryRandomAccessStream();
+                        using (var writer = new DataWriter(stream))
+                        {
+                            writer.WriteBytes(bytes);
+                            await writer.StoreAsync();
+                        }
+                        stream.Seek(0);
+
+                        var bmp = new BitmapImage();
+                        await bmp.SetSourceAsync(stream);
+                        CurrentImage = bmp;
+                        ZoomFactor = 1.0;
+                        return;
+                    }
+                }
+                catch
+                {
+                    // Fall through to the normal unsupported-image state.
+                }
+            }
+
             CurrentImage = null;
         }
     }
