@@ -58,6 +58,31 @@
             <views:MetadataPanel x:Name="MetadataDetailPanel" Grid.Column="4" />
         </Grid>
 
+        <!-- Start screen shown when no album was supplied. -->
+        <Grid x:Name="AlbumStartOverlay"
+              Grid.Row="1"
+              Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+              Visibility="Collapsed">
+            <StackPanel Width="420"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="16">
+                <TextBlock Text="PhotoLibrarian"
+                           FontSize="32"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="Vyber složku s existujícím albem, nebo běžnou složku fotografií. Pokud v ní album ještě není, vytvoří se automaticky."
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Button Content="Otevřít / vytvořit album"
+                        Click="OnOpenAlbumClick"
+                        HorizontalAlignment="Stretch"
+                        Padding="16,10"
+                        Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
+        </Grid>
+
         <!-- Overlay: Image Editor -->
         <views:ImageEditorView x:Name="EditorOverlay" Grid.Row="0" Grid.RowSpan="2"
                                 Visibility="Collapsed" />
