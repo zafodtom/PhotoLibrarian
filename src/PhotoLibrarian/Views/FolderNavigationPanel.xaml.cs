@@ -475,7 +475,10 @@ public sealed partial class FolderNavigationPanel : UserControl
                 XamlRoot = XamlRoot
             };
 
-            if (await createDialog.ShowAsync() != ContentDialogResult.Primary)
+            dialog.Hide();
+            var createGroupResult = await createDialog.ShowAsync();
+            _ = dialog.ShowAsync();
+            if (createGroupResult != ContentDialogResult.Primary)
                 return;
 
             var group = nameBox.Text?.Trim().Trim('/');
@@ -522,7 +525,10 @@ public sealed partial class FolderNavigationPanel : UserControl
                 XamlRoot = XamlRoot
             };
 
-            if (await createDialog.ShowAsync() != ContentDialogResult.Primary)
+            dialog.Hide();
+            var createTagResult = await createDialog.ShowAsync();
+            _ = dialog.ShowAsync();
+            if (createTagResult != ContentDialogResult.Primary)
                 return;
 
             var name = nameBox.Text?.Trim().Trim('/');
@@ -598,7 +604,10 @@ public sealed partial class FolderNavigationPanel : UserControl
                 XamlRoot = XamlRoot
             };
 
-            if (await editDialog.ShowAsync() != ContentDialogResult.Primary)
+            dialog.Hide();
+            var editResult = await editDialog.ShowAsync();
+            _ = dialog.ShowAsync();
+            if (editResult != ContentDialogResult.Primary)
                 return;
 
             var name = nameBox.Text?.Trim().Trim('/');
@@ -649,7 +658,10 @@ public sealed partial class FolderNavigationPanel : UserControl
                 XamlRoot = XamlRoot
             };
 
-            if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+            dialog.Hide();
+            var removeResult = await confirm.ShowAsync();
+            _ = dialog.ShowAsync();
+            if (removeResult != ContentDialogResult.Primary)
                 return;
 
             await metadata.RemoveCatalogItemAsync(item);
