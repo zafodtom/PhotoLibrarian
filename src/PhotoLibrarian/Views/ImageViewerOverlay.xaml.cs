@@ -243,7 +243,8 @@ public sealed partial class ImageViewerOverlay : UserControl
         // Wire up mouse wheel to root grid for capture (handles all wheel events including over ScrollViewer)
         RootGrid.AddHandler(UIElement.PointerWheelChangedEvent,
             new PointerEventHandler(OnPointerWheelChanged), true);
-        DebugLog.WriteLine("ImageViewerOverlay: Wheel handler attached to RootGrid");
+        AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(OnKeyDown), true);
+        DebugLog.WriteLine("ImageViewerOverlay: Wheel and keyboard handlers attached");
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -396,11 +397,33 @@ public sealed partial class ImageViewerOverlay : UserControl
         _zoomPan?.HandleSizeChanged(e.PreviousSize);
     }
 
-    private void OnPointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    private async void OnPointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
-        if (IsCropping || IsStraightening) return;
-        DebugLog.WriteLine($"ImageViewerOverlay: Wheel changed, delta={e.GetCurrentPoint(RootGrid).Properties.MouseWheelDelta}");
-        _zoomPan?.HandlePointerWheelChanged(e);
+        if (IsCropping || IsStraightening || IsRedEyeRemoving || _isManualFaceTagging) return;
+
+        var delta = e.GetCurrentPoint(RootGrid).Properties.MouseWheelDelta;
+        var controlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+            Windows.System.VirtualKey.Control);
+        var controlDown = (controlState & Windows.UI.Core.CoreVirtualKeyStates.Down)
+            == Windows.UI.Core.CoreVirtualKeyStates.Down;
+
+        DebugLog.WriteLine($"ImageViewerOverlay: Wheel changed, delta={delta}, ctrl={controlDown}");
+
+        if (controlDown)
+        {
+            _zoomPan?.HandlePointerWheelChanged(e);
+            e.Handled = true;
+            return;
+        }
+
+        if (ViewModel is null || delta == 0) return;
+
+        if (delta > 0)
+            await ViewModel.PreviousImageCommand.ExecuteAsync(null);
+        else
+            await ViewModel.NextImageCommand.ExecuteAsync(null);
+
+        e.Handled = true;
     }
 
     private void ImageScrollViewer_PointerPressed(object sender, PointerRoutedEventArgs e)
