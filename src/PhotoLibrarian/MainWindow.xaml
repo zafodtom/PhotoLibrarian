@@ -139,7 +139,7 @@
                     ToolTipService.ToolTip="Settings">
                 <FontIcon Glyph="&#xE713;" FontSize="14" />
             </Button>
-            <Button x:Name="BenchmarkButton" 
+            <Button x:Name="BenchmarkButton" Visibility="Collapsed" 
                     AutomationProperties.AutomationId="BenchmarkButton"
                     AutomationProperties.Name="Run benchmark"
                     Grid.Column="2"
