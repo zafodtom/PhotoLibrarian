@@ -284,6 +284,13 @@ public sealed partial class FolderNavigationPanel : UserControl
         try
         {
             await App.ViewModel.TagNav.LoadTagsAsync(GetSelectedFolderScope());
+
+            var validTagPaths = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var root in App.ViewModel.TagNav.RootTags)
+                CollectTagPaths(root, validTagPaths);
+            _selectedTagPaths.RemoveWhere(path => !validTagPaths.Contains(path));
+
             var completion =
                 new TaskCompletionSource(
                     TaskCreationOptions.RunContinuationsAsynchronously);
@@ -331,6 +338,15 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             _tagRefreshGate.Release();
         }
+    }
+
+    private static void CollectTagPaths(
+        TagNode node,
+        ISet<string> paths)
+    {
+        paths.Add(node.FullPath);
+        foreach (var child in node.Children)
+            CollectTagPaths(child, paths);
     }
 
     private void CollectTagTreeState(
@@ -409,7 +425,6 @@ public sealed partial class FolderNavigationPanel : UserControl
             _selectedTagPaths.Remove(path);
 
         UpdateGridFromSelection();
-        e.Handled = true;
     }
 
     private async void OnManageTagCatalogClick(object sender, RoutedEventArgs e)
