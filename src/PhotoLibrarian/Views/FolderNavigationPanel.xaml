@@ -94,7 +94,7 @@
                         </StackPanel>
                     </Grid>
                     <TreeView x:Name="TagsTree"
-                              SelectionMode="Multiple"
+                              SelectionMode="Single"
                               CanDragItems="False"
                               CanReorderItems="False"
                               ItemInvoked="OnTagsItemInvoked"
