@@ -452,7 +452,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             await ViewModel.RefreshCommand.ExecuteAsync(null);
     }
 
-    private void OnLibraryItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
+    private async void OnLibraryItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
     {
         // When user clicks on a folder (not checkbox), toggle its selection
         if (args.InvokedItem is TreeViewNode node)
@@ -469,8 +469,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
 
             // Programmatic selection changes do not always raise SelectionChanged.
-            _ = RefreshTagsTreeAsync().ContinueWith(
-                _ => DispatcherQueue.TryEnqueue(UpdateGridFromSelection));
+            await RefreshTagsTreeAsync();
+            UpdateGridFromSelection();
         }
     }
 
