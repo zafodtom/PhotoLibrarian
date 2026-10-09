@@ -620,6 +620,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         // Collect selected tags
         var selectedTags = new List<string>();
         bool tagRootSelected = false;
+        bool untaggedSelected = false;
         foreach (var node in TagsTree.SelectedNodes)
         {
             if (node.Content is TagNodeWrapper wrapper)
@@ -628,6 +629,10 @@ public sealed partial class FolderNavigationPanel : UserControl
                 {
                     // Root "Tags" node - show all tagged images
                     tagRootSelected = true;
+                }
+                else if (wrapper.TagNode.IsUntagged)
+                {
+                    untaggedSelected = true;
                 }
                 else
                 {
@@ -648,14 +653,14 @@ public sealed partial class FolderNavigationPanel : UserControl
                 selectedPeople.Add(personId);
         }
 
-        DebugLog.WriteLine($"UpdateGridFromSelection: PhotoLibraryRoot={photoLibraryRootSelected}, Folders={selectedFolders.Count}, DateRoot={dateRootSelected}, Years={selectedYears.Count}, Months={selectedMonths.Count}, PeopleRoot={peopleRootSelected}, People={selectedPeople.Count}, TagRoot={tagRootSelected}, Tags={selectedTags.Count}");
+        DebugLog.WriteLine($"UpdateGridFromSelection: PhotoLibraryRoot={photoLibraryRootSelected}, Folders={selectedFolders.Count}, DateRoot={dateRootSelected}, Years={selectedYears.Count}, Months={selectedMonths.Count}, PeopleRoot={peopleRootSelected}, People={selectedPeople.Count}, TagRoot={tagRootSelected}, Untagged={untaggedSelected}, Tags={selectedTags.Count}");
 
         // Flagged working set
         bool flaggedSelected = FlagsTree.SelectedNodes.Any(n => n.Content is FlagNavigationViewModel);
 
         // If nothing selected anywhere, clear filters to show empty grid
         if (!photoLibraryRootSelected && !dateRootSelected && !peopleRootSelected &&
-            !tagRootSelected && !flaggedSelected &&
+            !tagRootSelected && !untaggedSelected && !flaggedSelected &&
             selectedFolders.Count == 0 && selectedYears.Count == 0 && 
             selectedMonths.Count == 0 && selectedPeople.Count == 0 &&
             selectedTags.Count == 0)
@@ -682,6 +687,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             selectedPeople.Count > 0 ? selectedPeople : null,
             tagRootSelected,
             selectedTags.Count > 0 ? selectedTags : null,
+            untaggedSelected,
             flaggedSelected);
     }
 
