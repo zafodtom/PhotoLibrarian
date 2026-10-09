@@ -41,11 +41,11 @@
                     <ComboBoxItem Content="None" Tag="None" />
                     <ComboBoxItem Content="File Type" Tag="FileType" />
                     <ComboBoxItem Content="Media Type" Tag="MediaType" />
-                    <ComboBoxItem Content="Year Taken" Tag="YearTaken" />
-                    <ComboBoxItem Content="Month Taken" Tag="MonthTaken" />
+                    <ComboBoxItem Content="Year Taken" Tag="YearTaken" Visibility="Collapsed" />
+                    <ComboBoxItem Content="Month Taken" Tag="MonthTaken" Visibility="Collapsed" />
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
                     <ComboBoxItem Content="Image Size" Tag="ImageSize" />
-                    <ComboBoxItem Content="Rating" Tag="Rating" />
+                    <ComboBoxItem Content="Rating" Tag="Rating" Visibility="Collapsed" />
                     <ComboBoxItem Content="Camera" Tag="Camera" />
                 </ComboBox>
             </StackPanel>
@@ -61,7 +61,7 @@
                     <ComboBoxItem Content="Date Taken" Tag="DateTaken" />
                     <ComboBoxItem Content="Date Modified" Tag="DateModified" />
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
-                    <ComboBoxItem Content="Rating" Tag="Rating" />
+                    <ComboBoxItem Content="Rating" Tag="Rating" Visibility="Collapsed" />
                 </ComboBox>
                 <Button x:Name="SortOrderBtn" Click="OnToggleSortOrder" Padding="6" ToolTipService.ToolTip="Toggle sort order">
                     <FontIcon x:Name="SortOrderIcon" Glyph="&#xE014;" FontSize="12" />
@@ -102,8 +102,10 @@
                                     </Grid.RowDefinitions>
                                     <TextBlock Text="Rating"
                                                VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                               Style="{StaticResource BodyStrongTextBlockStyle}"
+                                               Visibility="Collapsed" />
                                     <ComboBox x:Name="RatingCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterRating"
                                               AutomationProperties.Name="Rating"
                                               Grid.Column="1"
@@ -116,6 +118,7 @@
                                         <ComboBoxItem Content="5 stars" Tag="5" />
                                     </ComboBox>
                                     <ComboBox x:Name="RatingModeCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterRatingMode"
                                               AutomationProperties.Name="Rating comparison"
                                               Grid.Column="2"
