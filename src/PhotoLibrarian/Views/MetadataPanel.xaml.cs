@@ -161,9 +161,7 @@ public sealed partial class MetadataPanel : UserControl
         InfoLatitude.Text = ViewModel.GpsLatitude;
         InfoLongitude.Text = ViewModel.GpsLongitude;
         InfoFilePath.Text = ViewModel.FilePath;
-        AddPeopleTagsButton.Visibility = ViewModel.IsMultiSelect
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        AddPeopleTagsButton.Visibility = Visibility.Collapsed;
         UpdateAddPeopleTagsButtonState();
 
         InfoCameraRow.Visibility = string.IsNullOrEmpty(ViewModel.Camera) ? Visibility.Collapsed : Visibility.Visible;
@@ -171,8 +169,8 @@ public sealed partial class MetadataPanel : UserControl
         InfoApertureRow.Visibility = string.IsNullOrEmpty(ViewModel.Aperture) ? Visibility.Collapsed : Visibility.Visible;
         InfoFocalLengthRow.Visibility = string.IsNullOrEmpty(ViewModel.FocalLength) ? Visibility.Collapsed : Visibility.Visible;
         InfoIsoRow.Visibility = string.IsNullOrEmpty(ViewModel.Iso) ? Visibility.Collapsed : Visibility.Visible;
-        InfoLatRow.Visibility = string.IsNullOrEmpty(ViewModel.GpsLatitude) ? Visibility.Collapsed : Visibility.Visible;
-        InfoLonRow.Visibility = string.IsNullOrEmpty(ViewModel.GpsLongitude) ? Visibility.Collapsed : Visibility.Visible;
+        InfoLatRow.Visibility = Visibility.Collapsed;
+        InfoLonRow.Visibility = Visibility.Collapsed;
         InfoDimensionsRow.Visibility = string.IsNullOrEmpty(ViewModel.Dimensions) ? Visibility.Collapsed : Visibility.Visible;
 
         UpdateStars();
