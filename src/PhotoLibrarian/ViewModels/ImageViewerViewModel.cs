@@ -162,6 +162,35 @@ public partial class ImageViewerViewModel : ObservableObject
         IsVideo = false;
         VideoPath = null;
 
+        if (HeifFallbackDecoder.IsHeifFamily(entry.FilePath))
+        {
+            try
+            {
+                var bytes = await HeifFallbackDecoder.DecodeToJpegAsync(entry.FilePath);
+                if (bytes is not null)
+                {
+                    using var memoryStream = new InMemoryRandomAccessStream();
+                    using (var writer = new DataWriter(memoryStream))
+                    {
+                        writer.WriteBytes(bytes);
+                        await writer.StoreAsync();
+                    }
+                    memoryStream.Seek(0);
+
+                    var heifBitmap = new BitmapImage();
+                    await heifBitmap.SetSourceAsync(memoryStream);
+                    CurrentImage = heifBitmap;
+                    ZoomFactor = 1.0;
+                    return;
+                }
+            }
+            catch
+            {
+                CurrentImage = null;
+                return;
+            }
+        }
+
         try
         {
             var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(entry.FilePath);
