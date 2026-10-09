@@ -361,6 +361,13 @@ public sealed partial class MetadataPanel : UserControl
         if (string.IsNullOrWhiteSpace(group))
             return;
 
+        var groupValidation = ViewModel.ValidateCatalogPath(group);
+        if (groupValidation is not null)
+        {
+            App.ViewModel.StatusText = groupValidation;
+            return;
+        }
+
         AlbumService.AddGroup(group);
         await ViewModel.ReloadAvailableTagsAsync();
         ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
@@ -417,6 +424,13 @@ public sealed partial class MetadataPanel : UserControl
         var fullTag = string.IsNullOrWhiteSpace(parent)
             ? name
             : $"{parent}/{name}";
+
+        var tagValidation = ViewModel.ValidateCatalogPath(fullTag);
+        if (tagValidation is not null)
+        {
+            App.ViewModel.StatusText = tagValidation;
+            return;
+        }
 
         AlbumService.AddSelectedTag(fullTag);
         await ViewModel.ReloadAvailableTagsAsync();
@@ -517,9 +531,10 @@ public sealed partial class MetadataPanel : UserControl
             ? name
             : $"{parent}/{name}";
 
-        if (newFullPath.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+        var pathValidation = ViewModel.ValidateCatalogPath(newFullPath, item.Tag);
+        if (pathValidation is not null)
         {
-            App.ViewModel.StatusText = "Skupinu nelze přesunout do její vlastní podskupiny.";
+            App.ViewModel.StatusText = pathValidation;
             return;
         }
 
