@@ -32,6 +32,9 @@ public sealed class CacheDatabase : IDisposable
 
     public async Task InitializeAsync()
     {
+        if (_initConnection is not null)
+            return;
+
         // Keep one connection open to hold the shared cache alive
         _initConnection = new SqliteConnection(_connectionString);
         await _initConnection.OpenAsync();
