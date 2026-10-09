@@ -40,8 +40,8 @@
                               SelectionChanged="OnLibrarySelectionChanged" />
                 </StackPanel>
 
-                <!-- Date Section -->
-                <StackPanel>
+                <!-- Date navigation retained in code, hidden for the current album UI. -->
+                <StackPanel Visibility="Collapsed">
                     <TextBlock Text="Date" FontWeight="SemiBold" Margin="0,0,0,8" />
                     <TreeView x:Name="DateTree"
                               SelectionMode="Multiple"
@@ -74,8 +74,8 @@
                               Drop="OnTagsTreeDrop" />
                 </StackPanel>
 
-                <!-- Flags Section -->
-                <StackPanel>
+                <!-- Flags retained in code, hidden for the current album UI. -->
+                <StackPanel Visibility="Collapsed">
                     <TextBlock Text="Flags" FontWeight="SemiBold" Margin="0,0,0,8" />
                     <TreeView x:Name="FlagsTree"
                               SelectionMode="Multiple"
