@@ -109,8 +109,8 @@
                             Padding="8,4"
                             Margin="0,2,0,0" />
 
-                    <TextBlock Text="Geotag" Style="{StaticResource SectionHeaderStyle}" />
-                    <TextBlock x:Name="GeotagText" Style="{StaticResource PlaceholderStyle}" Margin="0,2,0,0" />
+                    <TextBlock Text="Geotag" Style="{StaticResource SectionHeaderStyle}" Visibility="Collapsed" />
+                    <TextBlock x:Name="GeotagText" Style="{StaticResource PlaceholderStyle}" Margin="0,2,0,0" Visibility="Collapsed" />
 
                     <TextBlock Text="Caption" Style="{StaticResource SectionHeaderStyle}" />
                     <TextBox x:Name="CaptionBox"
@@ -251,7 +251,7 @@
                     </Grid>
 
                     <!-- Date taken — compact inline editor matching Photo Gallery -->
-                    <StackPanel x:Name="DateEditPanel" Spacing="2" Margin="0,10,0,0">
+                    <StackPanel x:Name="DateEditPanel" Spacing="2" Margin="0,10,0,0" Visibility="Collapsed">
                         <StackPanel x:Name="DateAbsoluteMode" Spacing="2">
                             <Grid ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
@@ -405,7 +405,7 @@
                             <TextBlock Grid.Column="0" Text="Size:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoFileSize" Style="{StaticResource InfoValueStyle}" />
                         </Grid>
-                        <Grid>
+                        <Grid Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Rating:" Style="{StaticResource InfoLabelStyle}" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" x:Name="StarPanel">
@@ -426,7 +426,7 @@
                                 </Button>
                             </StackPanel>
                         </Grid>
-                        <Grid>
+                        <Grid Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Flag:" Style="{StaticResource InfoLabelStyle}" />
                             <Button Grid.Column="1" x:Name="FlagButton" Click="OnFlagClick"
@@ -474,12 +474,12 @@
                             <TextBlock Grid.Column="0" Text="ISO:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoIso" Style="{StaticResource InfoValueStyle}" />
                         </Grid>
-                        <Grid x:Name="InfoLatRow">
+                        <Grid x:Name="InfoLatRow" Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Latitude:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoLatitude" Style="{StaticResource InfoValueStyle}" />
                         </Grid>
-                        <Grid x:Name="InfoLonRow">
+                        <Grid x:Name="InfoLonRow" Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Longitude:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoLongitude" Style="{StaticResource InfoValueStyle}" />
