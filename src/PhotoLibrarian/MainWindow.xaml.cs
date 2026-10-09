@@ -82,7 +82,12 @@ public sealed partial class MainWindow : Window
 
         var appWindow = this.AppWindow;
         appWindow.Resize(new Windows.Graphics.SizeInt32(1600, 900));
-        appWindow.Title = "PhotoLibrarian";
+        appWindow.Title = App.HasActiveAlbum
+            ? $"PhotoLibrarian — {System.IO.Path.GetFileName(App.CurrentAlbumPath)}"
+            : "PhotoLibrarian";
+
+        MainLayout.Visibility = App.HasActiveAlbum ? Visibility.Visible : Visibility.Collapsed;
+        AlbumStartOverlay.Visibility = App.HasActiveAlbum ? Visibility.Collapsed : Visibility.Visible;
 
         // Set the window icon (title bar + taskbar)
         try
@@ -124,6 +129,27 @@ public sealed partial class MainWindow : Window
 
         // Cleanup on window close
         this.Closed += OnWindowClosed;
+    }
+
+    private async void OnOpenAlbumClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var albumPath = await AlbumService.PickAlbumFolderAsync(this);
+            if (albumPath is not null)
+                AlbumService.RestartForAlbum(albumPath);
+        }
+        catch (Exception ex)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Album se nepodařilo otevřít",
+                Content = ex.Message,
+                CloseButtonText = "OK",
+                XamlRoot = AppRoot.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
     }
 
     private void OnMainViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
