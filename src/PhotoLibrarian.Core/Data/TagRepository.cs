@@ -334,6 +334,11 @@ public sealed class TagRepository : IAutoTagStore
         await insert.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    private static string EscapeLikePattern(string value) =>
+        value.Replace("\\", "\\\\")
+             .Replace("%", "\\%")
+             .Replace("_", "\\_");
+
     public async Task<List<long>> RenameTagPrefixAsync(string oldPrefix, string newPrefix)
     {
         oldPrefix = oldPrefix.Trim().Trim('/');
