@@ -199,6 +199,27 @@ public sealed class ImageRepository
         return results;
     }
 
+    public async Task<List<ImageEntry>> GetByIdsAsync(IReadOnlyCollection<long> imageIds)
+    {
+        if (imageIds.Count == 0) return [];
+
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        var ids = imageIds.Distinct().ToList();
+        var parameters = ids.Select((_, index) => $"$id{index}").ToList();
+        cmd.CommandText = $"SELECT * FROM images WHERE id IN ({string.Join(",", parameters)})";
+
+        for (var index = 0; index < ids.Count; index++)
+            cmd.Parameters.AddWithValue(parameters[index], ids[index]);
+
+        var results = new List<ImageEntry>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            results.Add(ReadImageEntry(reader));
+
+        return results;
+    }
+
     public async Task<int> GetCountAsync()
     {
         using var conn = _db.CreateConnection();
