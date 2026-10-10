@@ -1244,6 +1244,35 @@ public partial class MainViewModel : ObservableObject
         await RefreshKnownLibraryStateAsync(refreshFolderTree);
     }
 
+    public async Task<bool> DeleteDirectoryAsync(string directoryPath)
+    {
+        var deletedPaths =
+            await PhotoOps.DeleteDirectoryToRecycleBinAsync(directoryPath);
+        if (deletedPaths is null)
+            return false;
+
+        if (deletedPaths.Count > 0)
+        {
+            await ImageViewer.RemoveDeletedPathsAsync(deletedPaths);
+            await ImageGrid.RemoveDeletedPathsAsync(deletedPaths);
+        }
+
+        TotalImages = await _imageRepo.GetCountAsync();
+        await FolderNav.LoadWatchedFoldersAsync();
+        await DateNav.LoadDatesAsync();
+        await PeopleNav.LoadPeopleAsync();
+        await TagNav.LoadTagsAsync();
+        await FlagNav.LoadAsync();
+
+        if (App.MainWindow is MainWindow window)
+            await window.RefreshAllNavigationAsync();
+
+        ImageViewer.UpdateLibraryImages(
+            ImageGrid.Images.Select(image => image.Entry).ToList());
+        StatusText = "Folder moved to Recycle Bin";
+        return true;
+    }
+
     public async Task RefreshFolderStructureAsync()
     {
         await FolderNav.LoadWatchedFoldersAsync();
