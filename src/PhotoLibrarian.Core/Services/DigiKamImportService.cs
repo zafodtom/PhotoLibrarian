@@ -82,7 +82,7 @@ public sealed class DigiKamImportService
         var unmatched = 0;
         var ambiguous = 0;
         var tagAssignments = 0;
-        var ratings = 0;
+        var captions = 0;
         var persistentWrites = 0;
         var persistentWriteFailures = 0;
         var matchedTargetIds = new HashSet<long>();
@@ -134,13 +134,6 @@ public sealed class DigiKamImportService
                 tagAssignments++;
             }
 
-            if (sourceImage.Rating is >= 1 and <= 5)
-            {
-                await _images.UpdateRatingAsync(target.Id, sourceImage.Rating);
-                target.Rating = sourceImage.Rating;
-                ratings++;
-            }
-
             // Persist migrated metadata so cache.db remains disposable.
             try
             {
@@ -154,15 +147,16 @@ public sealed class DigiKamImportService
                             .Distinct(StringComparer.OrdinalIgnoreCase));
                 }
 
-                if (sourceImage.Rating is >= 1 and <= 5)
+                if (!string.IsNullOrWhiteSpace(sourceImage.Caption))
                 {
-                    await MetadataWriterService.WriteRatingAsync(
+                    await MetadataWriterService.WriteCaptionAsync(
                         target.FilePath,
-                        sourceImage.Rating);
+                        sourceImage.Caption);
+                    captions++;
                 }
 
                 if (sourceImage.Tags.Count > 0 ||
-                    sourceImage.Rating is >= 1 and <= 5)
+                    !string.IsNullOrWhiteSpace(sourceImage.Caption))
                 {
                     persistentWrites++;
                 }
@@ -191,7 +185,7 @@ public sealed class DigiKamImportService
             unmatched,
             ambiguous,
             tagAssignments,
-            ratings,
+            captions,
             persistentWrites,
             persistentWriteFailures,
             catalogTags,
@@ -378,7 +372,7 @@ public sealed class DigiKamImportService
             }
         }
 
-        var ratings = await ReadRatingsAsync(connection, cancellationToken);
+        var captions = await ReadCaptionsAsync(connection, cancellationToken);
         var results = new List<DigiKamImage>();
 
         await using var imageCommand = connection.CreateCommand();
@@ -411,44 +405,73 @@ public sealed class DigiKamImportService
                     .ToArray()
                 : [];
 
-            ratings.TryGetValue(id, out var rating);
+            captions.TryGetValue(id, out var caption);
             results.Add(new DigiKamImage(
                 id,
                 relative,
                 name,
                 imageTags,
-                rating is >= 1 and <= 5 ? rating : null));
+                caption));
         }
 
         return results;
     }
 
-    private static async Task<Dictionary<long, int>> ReadRatingsAsync(
+    private static async Task<Dictionary<long, string>> ReadCaptionsAsync(
         SqliteConnection connection,
         CancellationToken cancellationToken)
     {
-        var result = new Dictionary<long, int>();
+        var result = new Dictionary<long, string>();
 
         if (!await TableHasColumnsAsync(
                 connection,
-                "ImageInformation",
-                ["imageid", "rating"],
+                "ImageComments",
+                ["imageid", "type", "language", "comment"],
                 cancellationToken))
         {
             return result;
         }
 
         await using var command = connection.CreateCommand();
-        command.CommandText =
-            "SELECT imageid, rating FROM ImageInformation WHERE rating BETWEEN 1 AND 5";
+        command.CommandText = """
+            SELECT imageid, comment
+            FROM ImageComments
+            WHERE type = 1
+              AND TRIM(COALESCE(comment, '')) <> ''
+            ORDER BY
+                CASE WHEN language = 'x-default' THEN 0 ELSE 1 END,
+                id
+            """;
+
         await using var reader =
             await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            if (!reader.IsDBNull(0) && !reader.IsDBNull(1))
-                result[reader.GetInt64(0)] = reader.GetInt32(1);
+            if (reader.IsDBNull(0) || reader.IsDBNull(1))
+                continue;
+
+            var imageId = reader.GetInt64(0);
+            var value = reader.GetString(1).Trim();
+            if (string.IsNullOrWhiteSpace(value) ||
+                IsTechnicalCodecComment(value) ||
+                result.ContainsKey(imageId))
+            {
+                continue;
+            }
+
+            result[imageId] = value;
         }
+
         return result;
+    }
+
+    private static bool IsTechnicalCodecComment(string value)
+    {
+        var trimmed = value.Trim();
+        return trimmed.StartsWith("Lavc", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.StartsWith("Lavf", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.StartsWith("libavcodec", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.StartsWith("libavformat", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<bool> TableHasColumnsAsync(
@@ -568,7 +591,7 @@ public sealed class DigiKamImportService
         string RelativePath,
         string FileName,
         IReadOnlyList<string> Tags,
-        int? Rating);
+        string? Caption);
 
     private sealed record TargetResolution(MatchKind Kind, ImageEntry? Image);
 
@@ -595,7 +618,7 @@ public sealed record DigiKamImportResult(
     int UnmatchedImages,
     int AmbiguousImages,
     int TagAssignments,
-    int RatingsImported,
+    int CaptionsImported,
     int PersistentWrites,
     int PersistentWriteFailures,
     IReadOnlyList<string> CatalogTags,
