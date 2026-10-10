@@ -6,11 +6,6 @@
     Background="Black"
     IsTabStop="True">
 
-    <UserControl.KeyboardAccelerators>
-        <KeyboardAccelerator Key="Delete"
-                             Invoked="OnDeleteAccelerator" />
-    </UserControl.KeyboardAccelerators>
-
     <Grid x:Name="RootGrid" Background="Black">
         <Grid.Resources>
             <Flyout x:Name="ManualFaceTagFlyout"
