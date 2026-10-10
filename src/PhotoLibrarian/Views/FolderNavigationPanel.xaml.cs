@@ -86,6 +86,13 @@ public sealed partial class FolderNavigationPanel : UserControl
         var expandedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         CollectFolderExpansionState(LibraryTree.RootNodes, expandedPaths);
 
+        _selectedFolderPaths.RemoveWhere(path =>
+            !string.Equals(
+                path,
+                LibraryRootSelectionKey,
+                StringComparison.OrdinalIgnoreCase) &&
+            !Directory.Exists(path));
+
         LibraryTree.RootNodes.Clear();
 
         var photoLibraryRoot = new TreeViewNode
@@ -510,8 +517,8 @@ public sealed partial class FolderNavigationPanel : UserControl
         };
 
         var addTagButton = new Button { Content = "New tag", Padding = new Thickness(10, 5, 10, 5) };
-        var editButton = new Button { Content = "Upravit", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
-        var removeButton = new Button { Content = "Odebrat z katalogu", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
+        var editButton = new Button { Content = "Edit", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
+        var removeButton = new Button { Content = "Remove from catalog", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
 
         var toolbar = new StackPanel
         {
@@ -823,7 +830,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             var editDialog = new ContentDialog
             {
-                Title = "Upravit tag",
+                Title = "Edit tag",
                 Content = panel,
                 PrimaryButtonText = "Save",
                 CloseButtonText = "Cancel",
@@ -876,11 +883,11 @@ public sealed partial class FolderNavigationPanel : UserControl
             var item = row.Item;
             var confirm = new ContentDialog
             {
-                Title = "Odebrat tag z katalogu?",
+                Title = "Remove tag from catalog?",
                 Content = item.IsUsedInAlbum
                     ? "This tag is used on photos. Removing it from the catalog will keep those assignments."
                     : "The tag will be removed from the album catalog.",
-                PrimaryButtonText = "Odebrat",
+                PrimaryButtonText = "Remove",
                 CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
