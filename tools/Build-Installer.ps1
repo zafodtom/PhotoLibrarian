@@ -38,7 +38,7 @@ dotnet publish $project `
     --self-contained true `
     -p:Platform=x64 `
     -p:WindowsPackageType=None `
-    -p:EnableMsixTooling=false `
+    -p:EnableMsixTooling=true `
     -p:PublishTrimmed=false `
     -p:PublishReadyToRun=false `
     -p:Version=$Version `
