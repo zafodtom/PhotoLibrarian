@@ -282,7 +282,7 @@ public sealed partial class SettingsPanel : UserControl
             {
                 $"{result.MatchedImages:N0} of {result.SourceImages:N0} digiKam items matched",
                 $"{result.TagAssignments:N0} tag assignments imported",
-                $"{result.RatingsImported:N0} ratings imported"
+                $"{result.CaptionsImported:N0} captions imported"
             };
 
             if (result.UnmatchedImages > 0)
