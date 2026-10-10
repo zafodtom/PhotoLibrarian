@@ -367,6 +367,27 @@ public static class AlbumService
         SaveTagCatalog(App.CurrentAlbumPath, catalog);
     }
 
+    public static void AddSelectedTags(IEnumerable<string> tags)
+    {
+        if (!App.HasActiveAlbum ||
+            string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+        {
+            return;
+        }
+
+        var catalog = LoadTagCatalog(App.CurrentAlbumPath);
+        var merged = catalog.SelectedTags
+            .Concat(tags)
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Select(tag => tag.Trim().Trim('/'))
+            .Where(tag => tag.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        catalog.SelectedTags = merged;
+        SaveTagCatalog(App.CurrentAlbumPath, catalog);
+    }
+
     public static string PrepareCleanSessionCache()
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
