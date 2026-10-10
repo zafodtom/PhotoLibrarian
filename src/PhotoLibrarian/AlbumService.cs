@@ -11,24 +11,108 @@ public static class AlbumService
     public const string AlbumManifestName = "album.json";
     public const string AlbumCacheName = "cache.db";
     public const string AlbumTagsName = "tags.json";
+    public const string AlbumLauncherExtension = ".pla";
+    public const int AlbumLauncherVersion = 1;
 
     public static string? GetAlbumPathFromCommandLine()
     {
         var args = Environment.GetCommandLineArgs();
-        var index = Array.FindIndex(
+
+        var albumIndex = Array.FindIndex(
             args,
-            arg => string.Equals(arg, "--album", StringComparison.OrdinalIgnoreCase));
+            arg => string.Equals(
+                arg,
+                "--album",
+                StringComparison.OrdinalIgnoreCase));
 
-        if (index < 0 || index + 1 >= args.Length)
-            return null;
+        if (albumIndex >= 0 && albumIndex + 1 < args.Length)
+        {
+            var candidate = args[albumIndex + 1]
+                .Trim()
+                .Trim('"');
 
-        var candidate = args[index + 1].Trim().Trim('"');
-        if (string.IsNullOrWhiteSpace(candidate))
-            return null;
+            if (!string.IsNullOrWhiteSpace(candidate))
+            {
+                return NormalizeAlbumRoot(candidate);
+            }
+        }
 
-        return Path.GetFullPath(candidate)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        // Windows file association launches the application as:
+        // PhotoLibrarian.exe "D:\Photos\My Album\My Album.pla"
+        // Accept the first PLA argument regardless of its position so the same
+        // behavior also works when launching manually from PowerShell.
+        foreach (var arg in args.Skip(1))
+        {
+            var candidate = arg.Trim().Trim('"');
+            if (!candidate.EndsWith(
+                    AlbumLauncherExtension,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var resolved = TryResolveAlbumLauncher(candidate);
+            if (resolved is not null)
+                return resolved;
+        }
+
+        return null;
     }
+
+    public static string? TryResolveAlbumLauncher(string launcherPath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(launcherPath))
+                return null;
+
+            var fullLauncherPath = Path.GetFullPath(
+                launcherPath.Trim().Trim('"'));
+
+            if (!File.Exists(fullLauncherPath) ||
+                !string.Equals(
+                    Path.GetExtension(fullLauncherPath),
+                    AlbumLauncherExtension,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var json = File.ReadAllText(fullLauncherPath);
+            var launcher = JsonSerializer.Deserialize<AlbumLauncherFile>(json);
+            if (launcher is null ||
+                launcher.Version != AlbumLauncherVersion ||
+                string.IsNullOrWhiteSpace(launcher.Album))
+            {
+                return null;
+            }
+
+            var launcherDirectory = Path.GetDirectoryName(fullLauncherPath);
+            if (string.IsNullOrWhiteSpace(launcherDirectory))
+                return null;
+
+            var albumRoot = Path.IsPathRooted(launcher.Album)
+                ? launcher.Album
+                : Path.Combine(launcherDirectory, launcher.Album);
+
+            albumRoot = NormalizeAlbumRoot(albumRoot);
+            return Directory.Exists(albumRoot)
+                ? albumRoot
+                : null;
+        }
+        catch
+        {
+            // A damaged launcher must not prevent the application from starting.
+            // The ordinary album picker remains available.
+            return null;
+        }
+    }
+
+    private static string NormalizeAlbumRoot(string path) =>
+        Path.GetFullPath(path)
+            .TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
 
     public static string EnsureAlbum(string rootPath)
     {
@@ -68,7 +152,63 @@ public static class AlbumService
                     new JsonSerializerOptions { WriteIndented = true }));
         }
 
+        EnsureAlbumLauncher(root);
         return root;
+    }
+
+    public static string EnsureAlbumLauncher(string albumRoot)
+    {
+        var root = NormalizeAlbumRoot(albumRoot);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(
+                $"Album folder not found: {root}");
+
+        // Keep an existing PLA in the root untouched. This lets a user rename
+        // the launcher without PhotoLibrarian creating duplicates.
+        var existing = Directory.EnumerateFiles(
+                root,
+                "*" + AlbumLauncherExtension,
+                SearchOption.TopDirectoryOnly)
+            .FirstOrDefault();
+
+        if (existing is not null)
+            return existing;
+
+        var folderName = new DirectoryInfo(root).Name;
+        var fileBaseName = SanitizeLauncherFileName(folderName);
+        if (string.IsNullOrWhiteSpace(fileBaseName))
+            fileBaseName = "PhotoLibrarian Album";
+
+        var launcherPath = Path.Combine(
+            root,
+            fileBaseName + AlbumLauncherExtension);
+
+        var launcher = new AlbumLauncherFile
+        {
+            Version = AlbumLauncherVersion,
+            Album = "."
+        };
+
+        File.WriteAllText(
+            launcherPath,
+            JsonSerializer.Serialize(
+                launcher,
+                new JsonSerializerOptions { WriteIndented = true }));
+
+        return launcherPath;
+    }
+
+    private static string SanitizeLauncherFileName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+        var chars = value
+            .Select(ch => invalid.Contains(ch) ? '_' : ch)
+            .ToArray();
+
+        return new string(chars).Trim().TrimEnd('.');
     }
 
     public static string GetAlbumCachePath(string albumRoot) =>
@@ -393,6 +533,15 @@ public static class AlbumService
     }
 }
 
+
+public sealed class AlbumLauncherFile
+{
+    [JsonPropertyName("version")]
+    public int Version { get; set; } = AlbumService.AlbumLauncherVersion;
+
+    [JsonPropertyName("album")]
+    public string Album { get; set; } = ".";
+}
 
 public sealed class AlbumTagCatalog
 {
