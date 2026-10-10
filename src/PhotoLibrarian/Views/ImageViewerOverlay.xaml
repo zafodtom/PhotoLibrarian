@@ -96,6 +96,14 @@
                         Click="OnZoomFit" ToolTipService.ToolTip="Fit to window" Padding="8">
                     <FontIcon Glyph="&#xE9A6;" FontSize="14" Foreground="White" />
                 </Button>
+                <Button x:Name="ZoomActualSizeButton"
+                        AutomationProperties.AutomationId="ViewerZoomActualSize"
+                        AutomationProperties.Name="Actual size 100 percent"
+                        Click="OnZoomActualSize"
+                        ToolTipService.ToolTip="Actual size (100%)"
+                        Padding="8,6">
+                    <TextBlock Text="100 %" FontSize="12" Foreground="White" />
+                </Button>
                 <Button x:Name="ZoomInButton"
                         AutomationProperties.AutomationId="ViewerZoomIn"
                         AutomationProperties.Name="Zoom in"
