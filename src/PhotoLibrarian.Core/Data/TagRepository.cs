@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using PhotoLibrarian.Core.Models;
+using PhotoLibrarian.Core.Services;
 
 namespace PhotoLibrarian.Core.Data;
 
@@ -84,21 +85,95 @@ public sealed class TagRepository : IAutoTagStore
     }
 
     /// <summary>
-    /// Gets all unique tags with their usage count.
+    /// Gets all unique tags with their usage count, optionally scoped to selected album folders.
     /// </summary>
-    public async Task<List<(string Tag, int Count)>> GetAllTagsWithCountAsync()
+    public async Task<List<(string Tag, int Count)>> GetAllTagsWithCountAsync(
+        IReadOnlyCollection<string>? folderPaths = null)
     {
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT tag, COUNT(*) as cnt FROM tags GROUP BY tag ORDER BY cnt DESC";
+        var scope = AddFolderScope(cmd, folderPaths, "i");
+        cmd.CommandText = $"""
+            SELECT t.tag, COUNT(DISTINCT t.image_id) as cnt
+            FROM tags t
+            JOIN images i ON i.id = t.image_id
+            {scope}
+            GROUP BY t.tag
+            ORDER BY cnt DESC
+            """;
 
         var results = new List<(string, int)>();
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
-        {
             results.Add((reader.GetString(0), reader.GetInt32(1)));
-        }
+
         return results;
+    }
+
+    public async Task<int> GetTaggedImageCountAsync(
+        IReadOnlyCollection<string>? folderPaths = null)
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        var scope = AddFolderScope(cmd, folderPaths, "i");
+        cmd.CommandText = $"""
+            SELECT COUNT(DISTINCT t.image_id)
+            FROM tags t
+            JOIN images i ON i.id = t.image_id
+            {scope}
+            """;
+        var result = await cmd.ExecuteScalarAsync();
+        return Convert.ToInt32(result);
+    }
+
+    public async Task<int> GetUntaggedImageCountAsync(
+        IReadOnlyCollection<string>? folderPaths = null)
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        var scope = AddFolderScope(cmd, folderPaths, "i");
+        var connector = string.IsNullOrWhiteSpace(scope) ? "WHERE" : "AND";
+        cmd.CommandText = $"""
+            SELECT COUNT(*)
+            FROM images i
+            {scope}
+            {connector} NOT EXISTS (
+                SELECT 1 FROM tags t WHERE t.image_id = i.id
+            )
+            """;
+        var result = await cmd.ExecuteScalarAsync();
+        return Convert.ToInt32(result);
+    }
+
+    private static string AddFolderScope(
+        SqliteCommand command,
+        IReadOnlyCollection<string>? folderPaths,
+        string imageAlias)
+    {
+        if (folderPaths is null || folderPaths.Count == 0)
+            return "";
+
+        var storedFolders = folderPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(AlbumPathStorage.ToStoragePath)
+            .Select(path => path.Trim().TrimEnd('/', '\\'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // The album root is stored as ".". Selecting it means the whole album.
+        if (storedFolders.Count == 0 ||
+            storedFolders.Any(path => path is "." or ""))
+            return "";
+
+        var conditions = new List<string>();
+        for (var index = 0; index < storedFolders.Count; index++)
+        {
+            var parameter = $"$folder{index}";
+            conditions.Add($"{imageAlias}.file_path LIKE {parameter} || '/%'");
+            command.Parameters.AddWithValue(parameter, storedFolders[index].Replace('\\', '/'));
+        }
+
+        return "WHERE (" + string.Join(" OR ", conditions) + ")";
     }
 
     /// <summary>
@@ -308,6 +383,102 @@ public sealed class TagRepository : IAutoTagStore
         insert.Parameters.AddWithValue("$source", (int)TagSource.AutoML);
         insert.Parameters.AddWithValue("$confidence", confidence);
         await insert.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static string EscapeLikePattern(string value) =>
+        value.Replace("\\", "\\\\")
+             .Replace("%", "\\%")
+             .Replace("_", "\\_");
+
+    public async Task<List<long>> RenameTagPrefixAsync(string oldPrefix, string newPrefix)
+    {
+        oldPrefix = oldPrefix.Trim().Trim('/');
+        newPrefix = newPrefix.Trim().Trim('/');
+        if (oldPrefix.Length == 0 || newPrefix.Length == 0)
+            return [];
+
+        if (newPrefix.StartsWith(oldPrefix + "/", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("A tag branch cannot be moved inside itself.");
+
+        using var conn = _db.CreateConnection();
+        using var transaction = conn.BeginTransaction();
+
+        var affected = new List<long>();
+        using (var find = conn.CreateCommand())
+        {
+            find.Transaction = transaction;
+            find.CommandText = """
+                SELECT DISTINCT image_id
+                FROM tags
+                WHERE tag = $old OR tag LIKE $prefix ESCAPE '\'
+                """;
+            find.Parameters.AddWithValue("$old", oldPrefix);
+            find.Parameters.AddWithValue("$prefix", EscapeLikePattern(oldPrefix) + "/%");
+            using var reader = await find.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                affected.Add(reader.GetInt64(0));
+        }
+
+        foreach (var imageId in affected)
+        {
+            var rows = new List<(string Tag, TagSource Source, float Confidence)>();
+            using (var read = conn.CreateCommand())
+            {
+                read.Transaction = transaction;
+                read.CommandText = """
+                    SELECT tag, source, confidence
+                    FROM tags
+                    WHERE image_id = $id
+                      AND (tag = $old OR tag LIKE $prefix ESCAPE '\')
+                    """;
+                read.Parameters.AddWithValue("$id", imageId);
+                read.Parameters.AddWithValue("$old", oldPrefix);
+                read.Parameters.AddWithValue("$prefix", EscapeLikePattern(oldPrefix) + "/%");
+                using var reader = await read.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    rows.Add((
+                        reader.GetString(0),
+                        (TagSource)reader.GetInt32(1),
+                        reader.GetFloat(2)));
+                }
+            }
+
+            foreach (var row in rows.OrderBy(r => r.Tag.Length))
+            {
+                var suffix = row.Tag.Length == oldPrefix.Length
+                    ? ""
+                    : row.Tag[oldPrefix.Length..];
+                var replacement = newPrefix + suffix;
+
+                using var insert = conn.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = """
+                    INSERT OR REPLACE INTO tags (image_id, tag, source, confidence)
+                    VALUES ($id, $tag, $source, $confidence)
+                    """;
+                insert.Parameters.AddWithValue("$id", imageId);
+                insert.Parameters.AddWithValue("$tag", replacement);
+                insert.Parameters.AddWithValue("$source", (int)row.Source);
+                insert.Parameters.AddWithValue("$confidence", row.Confidence);
+                await insert.ExecuteNonQueryAsync();
+            }
+
+            using var delete = conn.CreateCommand();
+            delete.Transaction = transaction;
+            delete.CommandText = """
+                DELETE FROM tags
+                WHERE image_id = $id
+                  AND (tag = $old OR tag LIKE $prefix ESCAPE '\')
+                """;
+            delete.Parameters.AddWithValue("$id", imageId);
+            delete.Parameters.AddWithValue("$old", oldPrefix);
+            delete.Parameters.AddWithValue("$prefix", EscapeLikePattern(oldPrefix) + "/%");
+            await delete.ExecuteNonQueryAsync();
+        }
+
+        transaction.Commit();
+        return affected;
     }
 
     /// <summary>

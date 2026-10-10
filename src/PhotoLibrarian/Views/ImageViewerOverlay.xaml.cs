@@ -32,6 +32,7 @@ public sealed partial class ImageViewerOverlay : UserControl
     private bool _isRedEyeRemoving;
     private bool _isDrawingRedEye;
     private Point _redEyeStart;
+    private UIElement? _windowKeyRoot;
     public bool IsCropping { get; private set; }
     public bool IsStraightening { get; private set; }
     public bool IsRedEyeRemoving => _isRedEyeRemoving;
@@ -218,11 +219,24 @@ public sealed partial class ImageViewerOverlay : UserControl
     {
         this.InitializeComponent();
         this.Loaded += OnLoaded;
+        this.Unloaded += OnUnloaded;
+        RootGrid.RightTapped += OnViewerRightTapped;
         ImageHost.SizeChanged += (_, _) =>
         {
             if (IsStraightening)
                 UpdateStraightenClip();
         };
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_windowKeyRoot is not null)
+        {
+            _windowKeyRoot.RemoveHandler(
+                UIElement.KeyDownEvent,
+                new KeyEventHandler(OnWindowKeyDown));
+            _windowKeyRoot = null;
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -241,9 +255,23 @@ public sealed partial class ImageViewerOverlay : UserControl
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         
         // Wire up mouse wheel to root grid for capture (handles all wheel events including over ScrollViewer)
-        RootGrid.AddHandler(UIElement.PointerWheelChangedEvent,
-            new PointerEventHandler(OnPointerWheelChanged), true);
-        DebugLog.WriteLine("ImageViewerOverlay: Wheel handler attached to RootGrid");
+        RootGrid.AddHandler(
+            UIElement.PointerWheelChangedEvent,
+            new PointerEventHandler(OnPointerWheelChanged),
+            true);
+
+        // Key focus can live in a ScrollViewer, media control, toolbar button,
+        // or even another element in the window while the overlay is open.
+        // Listen at the window-content root so viewer shortcuts remain reliable
+        // without using a KeyboardAccelerator (which renders an unwanted key hint).
+        _windowKeyRoot = App.MainWindow?.Content as UIElement;
+        _windowKeyRoot?.AddHandler(
+            UIElement.KeyDownEvent,
+            new KeyEventHandler(OnWindowKeyDown),
+            true);
+
+        DebugLog.WriteLine(
+            "ImageViewerOverlay: Wheel and window keyboard handlers attached");
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -276,6 +304,7 @@ public sealed partial class ImageViewerOverlay : UserControl
                         _currentImagePixelHeight = (uint)bmp.PixelHeight;
                         _zoomPan?.SetImageSize(bmp.PixelWidth, bmp.PixelHeight);
                         _zoomPan?.ApplyBestFit();
+                        UpdateZoomPercent();
                         if (_pendingManualFaceTagging) EnterManualFaceTagging();
                     }
                     break;
@@ -322,22 +351,111 @@ public sealed partial class ImageViewerOverlay : UserControl
         await (ViewModel?.NextImageCommand.ExecuteAsync(null) ?? Task.CompletedTask);
     private async void OnPrevious(object sender, RoutedEventArgs e) =>
         await (ViewModel?.PreviousImageCommand.ExecuteAsync(null) ?? Task.CompletedTask);
+
+    private async void OnDeleteCurrent(object sender, RoutedEventArgs e) =>
+        await DeleteCurrentAsync();
+
+    private async Task DeleteCurrentAsync()
+    {
+        var entry = ViewModel?.CurrentEntry;
+        if (entry is null || App.ViewModel is null)
+            return;
+
+        // Release a video source before asking Windows to move the file.
+        if (entry.MediaType == MediaType.Video)
+            StopVideo();
+
+        await App.ViewModel.DeleteEntriesAsync([entry]);
+        Focus(FocusState.Programmatic);
+    }
+
+    private void OnViewerRightTapped(
+        object sender,
+        Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var entry = ViewModel?.CurrentEntry;
+        if (entry is null ||
+            IsCropping ||
+            IsStraightening ||
+            IsRedEyeRemoving ||
+            _isManualFaceTagging)
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+
+        var reveal = new MenuFlyoutItem { Text = "Open file location" };
+        reveal.Click += (_, _) =>
+            Services.PhotoOperationsService.RevealInExplorer(entry.FilePath);
+        menu.Items.Add(reveal);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var delete = new MenuFlyoutItem { Text = "Delete" };
+        delete.Click += async (_, _) => await DeleteCurrentAsync();
+        menu.Items.Add(delete);
+
+        var source = sender as FrameworkElement ?? RootGrid;
+        menu.ShowAt(source, e.GetPosition(source));
+        e.Handled = true;
+    }
+    private void OnViewerDoubleTapped(
+        object sender,
+        Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        if (ViewModel?.IsOpen != true ||
+            IsCropping ||
+            IsStraightening ||
+            IsRedEyeRemoving ||
+            _isManualFaceTagging)
+        {
+            return;
+        }
+
+        ViewModel.CloseCommand.Execute(null);
+        e.Handled = true;
+    }
+
+    private void UpdateZoomPercent()
+    {
+        var zoom = _zoomPan?.ZoomFactor ?? 1.0;
+        ZoomPercentText.Text =
+            $"{Math.Round(zoom * 100, MidpointRounding.AwayFromZero):0} %";
+    }
+
+    private void OnToggleFullscreen(object sender, RoutedEventArgs e)
+    {
+        (App.MainWindow as MainWindow)?.ToggleViewerFullscreen();
+        Focus(FocusState.Programmatic);
+    }
+
+    private void OnZoomActualSize(object sender, RoutedEventArgs e)
+    {
+        if (IsStraightening) return;
+        _zoomPan?.ApplyActualSize();
+        UpdateZoomPercent();
+    }
+
     private void OnZoomIn(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
         _zoomPan?.ZoomIn();
+        UpdateZoomPercent();
     }
     
     private void OnZoomOut(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
         _zoomPan?.ZoomOut();
+        UpdateZoomPercent();
     }
     
     private void OnZoomFit(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
         _zoomPan?.ApplyBestFit();
+        UpdateZoomPercent();
     }
 
     private void OnImageOpened(object sender, RoutedEventArgs e)
@@ -372,6 +490,7 @@ public sealed partial class ImageViewerOverlay : UserControl
         
         _zoomPan.SetImageSize(width, height);
         _zoomPan.ApplyBestFit();
+        UpdateZoomPercent();
         _currentImagePixelWidth = (uint)width;
         _currentImagePixelHeight = (uint)height;
         DebugLog.WriteLine("ImageViewerOverlay: Applied best fit");
@@ -384,27 +503,56 @@ public sealed partial class ImageViewerOverlay : UserControl
         {
             // Keep the inset fit so the crop handles stay inside the viewport after a resize.
             _zoomPan?.ApplyBestFit(CropInset);
+            UpdateZoomPercent();
             return;
         }
         if (IsStraightening)
         {
             _zoomPan?.ApplyBestFit();
+            UpdateZoomPercent();
             UpdateStraightenClip();
             return;
         }
 
         _zoomPan?.HandleSizeChanged(e.PreviousSize);
+        UpdateZoomPercent();
     }
 
-    private void OnPointerWheelChanged(object sender, PointerRoutedEventArgs e)
+    private async void OnPointerWheelChanged(object sender, PointerRoutedEventArgs e)
     {
-        if (IsCropping || IsStraightening) return;
-        DebugLog.WriteLine($"ImageViewerOverlay: Wheel changed, delta={e.GetCurrentPoint(RootGrid).Properties.MouseWheelDelta}");
-        _zoomPan?.HandlePointerWheelChanged(e);
+        if (IsCropping || IsStraightening || IsRedEyeRemoving || _isManualFaceTagging) return;
+
+        var delta = e.GetCurrentPoint(RootGrid).Properties.MouseWheelDelta;
+        var controlState = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(
+            Windows.System.VirtualKey.Control);
+        var controlDown = (controlState & Windows.UI.Core.CoreVirtualKeyStates.Down)
+            == Windows.UI.Core.CoreVirtualKeyStates.Down;
+
+        DebugLog.WriteLine($"ImageViewerOverlay: Wheel changed, delta={delta}, ctrl={controlDown}");
+
+        if (controlDown)
+        {
+            _zoomPan?.HandlePointerWheelChanged(e);
+            UpdateZoomPercent();
+            e.Handled = true;
+            return;
+        }
+
+        if (ViewModel is null || delta == 0) return;
+
+        if (delta > 0)
+            await ViewModel.PreviousImageCommand.ExecuteAsync(null);
+        else
+            await ViewModel.NextImageCommand.ExecuteAsync(null);
+
+        e.Handled = true;
     }
 
     private void ImageScrollViewer_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        if (!IsCropping && !IsStraightening && !_isManualFaceTagging && !IsRedEyeRemoving)
+            Focus(FocusState.Programmatic);
+
         if (IsCropping || IsStraightening || _isManualFaceTagging) return;
         _zoomPan?.HandlePointerPressed(ImageScrollViewer, e);
     }
@@ -441,9 +589,12 @@ public sealed partial class ImageViewerOverlay : UserControl
         // Kept for backwards compatibility, but not used with new zoom controller
     }
 
-    private async void OnKeyDown(object sender, KeyRoutedEventArgs e)
+    private async void OnWindowKeyDown(
+        object sender,
+        KeyRoutedEventArgs e)
     {
-        if (ViewModel is null) return;
+        if (ViewModel?.IsOpen != true)
+            return;
 
         if (IsCropping)
         {
@@ -485,8 +636,20 @@ public sealed partial class ImageViewerOverlay : UserControl
 
         switch (e.Key)
         {
+            case Windows.System.VirtualKey.F11:
+                (App.MainWindow as MainWindow)?.ToggleViewerFullscreen();
+                e.Handled = true;
+                break;
             case Windows.System.VirtualKey.Escape:
-                ViewModel.CloseCommand.Execute(null);
+                if (App.MainWindow is MainWindow mainWindow &&
+                    mainWindow.IsViewerFullscreen)
+                {
+                    mainWindow.ExitViewerFullscreen();
+                }
+                else
+                {
+                    ViewModel.CloseCommand.Execute(null);
+                }
                 e.Handled = true;
                 break;
             case Windows.System.VirtualKey.Right:
@@ -497,6 +660,10 @@ public sealed partial class ImageViewerOverlay : UserControl
                 await ViewModel.PreviousImageCommand.ExecuteAsync(null);
                 e.Handled = true;
                 break;
+            case Windows.System.VirtualKey.Delete:
+                e.Handled = true;
+                await DeleteCurrentAsync();
+                break;
             case Windows.System.VirtualKey.Add:
                 ViewModel.ZoomInCommand.Execute(null);
                 e.Handled = true;
@@ -505,10 +672,7 @@ public sealed partial class ImageViewerOverlay : UserControl
                 ViewModel.ZoomOutCommand.Execute(null);
                 e.Handled = true;
                 break;
-            case Windows.System.VirtualKey.F:
-                await ToggleFlagAsync();
-                e.Handled = true;
-                break;
+            // Flag shortcut intentionally disabled in the current album UI.
         }
     }
 
@@ -673,6 +837,7 @@ public sealed partial class ImageViewerOverlay : UserControl
     {
         ZoomOutButton.IsEnabled = isEnabled;
         ZoomFitButton.IsEnabled = isEnabled;
+        ZoomActualSizeButton.IsEnabled = isEnabled;
         ZoomInButton.IsEnabled = isEnabled;
     }
 

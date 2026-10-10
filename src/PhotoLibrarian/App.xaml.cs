@@ -1,8 +1,11 @@
 using Microsoft.UI.Xaml;
+using PhotoLibrarian.Diagnostics;
 using PhotoLibrarian.Core.Data;
 using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.ML.Services;
 using PhotoLibrarian.ViewModels;
+using System;
+using System.Threading.Tasks;
 
 namespace PhotoLibrarian;
 
@@ -11,6 +14,8 @@ public partial class App : Application
     private Window? _window;
 
     public static MainViewModel ViewModel { get; private set; } = null!;
+    public static string? CurrentAlbumPath { get; private set; }
+    public static bool HasActiveAlbum => !string.IsNullOrWhiteSpace(CurrentAlbumPath);
 
     /// <summary>
     /// Global logging control. Set to false to disable debug logging.
@@ -28,21 +33,60 @@ public partial class App : Application
     public App()
     {
         this.InitializeComponent();
-        
+
         // Enable debug logging by default (set to false to disable)
         EnableDebugLogging = true;
+
+        UnhandledException += OnUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
+
+    private void OnUnhandledException(
+        object sender,
+        Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    {
+        CrashLog.Write("WinUI UnhandledException", e.Exception, CurrentAlbumPath);
+    }
+
+    private void OnAppDomainUnhandledException(
+        object sender,
+        System.UnhandledExceptionEventArgs e)
+    {
+        CrashLog.Write("AppDomain.UnhandledException", e.ExceptionObject, CurrentAlbumPath);
+    }
+
+    private void OnUnobservedTaskException(
+        object? sender,
+        UnobservedTaskExceptionEventArgs e)
+    {
+        CrashLog.Write("TaskScheduler.UnobservedTaskException", e.Exception, CurrentAlbumPath);
     }
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
-        // Set up data directory
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var dataDir = Path.Combine(appData, "PhotoLibrarian");
-        Directory.CreateDirectory(dataDir);
-        var dbPath = Path.Combine(dataDir, "cache.db");
+        try
+        {
+            CurrentAlbumPath = AlbumService.GetAlbumPathFromCommandLine();
+
+        string dbPath;
+        if (CurrentAlbumPath is not null)
+        {
+            CurrentAlbumPath = AlbumService.EnsureAlbum(CurrentAlbumPath);
+            dbPath = AlbumService.GetAlbumCachePath(CurrentAlbumPath);
+        }
+        else
+        {
+            dbPath = AlbumService.PrepareCleanSessionCache();
+        }
+
+        AlbumPathStorage.Configure(CurrentAlbumPath);
 
         // Create services
         var db = new CacheDatabase(dbPath);
+        await db.InitializeAsync();
+        if (CurrentAlbumPath is not null)
+            await db.MigrateAlbumPathsToRelativeAsync(CurrentAlbumPath);
         var imageRepo = new ImageRepository(db);
         var tagRepo = new TagRepository(db);
         var faceRepo = new FaceRepository(db);
@@ -110,6 +154,27 @@ public partial class App : Application
         _window.Activate();
 
         await ViewModel.InitializeAsync();
+
+        if (CurrentAlbumPath is not null)
+        {
+            await ViewModel.FolderNav.AddOrSelectFolderAsync(CurrentAlbumPath);
+
+            // RootFolders is populated only after AddOrSelectFolderAsync. Starting
+            // the startup scan before this point silently did nothing for existing
+            // albums because StartBackgroundIndexing saw an empty folder list.
+            ViewModel.StartBackgroundIndexing();
+            ViewModel.StatusText = $"Album: {CurrentAlbumPath}";
+        }
+        else
+        {
+            ViewModel.StatusText = "Open or create an album";
+        }
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("App.OnLaunched", ex, CurrentAlbumPath);
+            throw;
+        }
     }
 
     public static new App Current => (App)Application.Current;

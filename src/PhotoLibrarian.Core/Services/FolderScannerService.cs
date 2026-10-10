@@ -12,7 +12,7 @@ public sealed class FolderScannerService : IDisposable
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".gif", ".webp",
-        ".heic", ".heif", ".cr2", ".cr3", ".nef", ".arw", ".dng", ".orf", ".rw2"
+        ".heic", ".heif", ".avif", ".cr2", ".cr3", ".nef", ".arw", ".dng", ".orf", ".rw2"
     };
 
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -20,9 +20,10 @@ public sealed class FolderScannerService : IDisposable
         ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".webm"
     };
 
-    public event EventHandler<FileDiscoveredEventArgs>? FileDiscovered;
     public event EventHandler<FileChangedEventArgs>? FileChanged;
     public event EventHandler<FileChangedEventArgs>? DirectoryChanged;
+    public event EventHandler<PathRenamedEventArgs>? FileRenamed;
+    public event EventHandler<PathRenamedEventArgs>? DirectoryRenamed;
     public event EventHandler<ScanProgressEventArgs>? ScanProgress;
 
     /// <summary>
@@ -33,33 +34,210 @@ public sealed class FolderScannerService : IDisposable
         bool includeSubfolders = true,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
-        var options = new EnumerationOptions
-        {
-            RecurseSubdirectories = includeSubfolders,
-            IgnoreInaccessible = true,
-            ReturnSpecialDirectories = false
-        };
+        var root = Path.GetFullPath(folderPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         int count = 0;
-        await Task.Yield(); // Release UI thread
+        await Task.Yield();
 
-        foreach (var file in Directory.EnumerateFiles(folderPath, "*.*", options))
+        var pending = new Stack<string>();
+        pending.Push(root);
+
+        while (pending.Count > 0)
         {
             ct.ThrowIfCancellationRequested();
+            var current = pending.Pop();
 
-            var ext = Path.GetExtension(file);
-            if (ImageExtensions.Contains(ext) || VideoExtensions.Contains(ext))
+            IEnumerable<string> files;
+            try
             {
+                files = Directory.EnumerateFiles(
+                    current,
+                    "*.*",
+                    SearchOption.TopDirectoryOnly);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+
+            foreach (var file in files)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (!IsSupportedFile(file))
+                    continue;
+
                 count++;
                 if (count % 100 == 0)
-                    ScanProgress?.Invoke(this, new ScanProgressEventArgs(count, folderPath));
+                    ScanProgress?.Invoke(
+                        this,
+                        new ScanProgressEventArgs(count, root));
 
                 yield return file;
             }
+
+            if (!includeSubfolders)
+                continue;
+
+            IEnumerable<string> directories;
+            try
+            {
+                directories = Directory.EnumerateDirectories(
+                    current,
+                    "*",
+                    SearchOption.TopDirectoryOnly);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+
+            foreach (var directory in directories)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (IsAlbumMetadataDirectory(directory))
+                    continue;
+
+                // The current scan root belongs to this album, but any descendant
+                // directory containing its own .album marker is a nested album and
+                // therefore an indexing boundary.
+                if (HasAlbumMarker(directory))
+                    continue;
+
+                pending.Push(directory);
+            }
         }
 
-        ScanProgress?.Invoke(this, new ScanProgressEventArgs(count, folderPath, isComplete: true));
+        ScanProgress?.Invoke(
+            this,
+            new ScanProgressEventArgs(count, root, isComplete: true));
     }
+
+    public static IReadOnlyList<string> FindNestedAlbumRoots(string folderPath)
+    {
+        var root = Path.GetFullPath(folderPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var results = new List<string>();
+        var pending = new Stack<string>();
+        pending.Push(root);
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+
+            IEnumerable<string> directories;
+            try
+            {
+                directories = Directory.EnumerateDirectories(
+                    current,
+                    "*",
+                    SearchOption.TopDirectoryOnly);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+
+            foreach (var directory in directories)
+            {
+                if (IsAlbumMetadataDirectory(directory))
+                    continue;
+
+                if (HasAlbumMarker(directory))
+                {
+                    results.Add(Path.GetFullPath(directory));
+                    continue;
+                }
+
+                pending.Push(directory);
+            }
+        }
+
+        return results;
+    }
+
+    public static bool HasAlbumMarker(string directoryPath) =>
+        Directory.Exists(directoryPath) &&
+        Directory.Exists(Path.Combine(directoryPath, ".album"));
+
+    public static bool IsAlbumMetadataDirectory(string directoryPath) =>
+        string.Equals(
+            Path.GetFileName(
+                directoryPath.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar)),
+            ".album",
+            StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsPathOwnedByAlbumRoot(
+        string albumRoot,
+        string path)
+    {
+        var root = Path.GetFullPath(albumRoot)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var fullPath = Path.GetFullPath(path);
+
+        var candidateDirectory = Directory.Exists(fullPath)
+            ? fullPath
+            : Path.GetDirectoryName(fullPath);
+
+        if (candidateDirectory is null)
+            return false;
+
+        var current = Path.GetFullPath(candidateDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        while (!string.Equals(
+                   current,
+                   root,
+                   StringComparison.OrdinalIgnoreCase))
+        {
+            if (!current.StartsWith(
+                    root + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (HasAlbumMarker(current))
+                return false;
+
+            var parent = Path.GetDirectoryName(current);
+            if (string.IsNullOrWhiteSpace(parent) ||
+                string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            current = parent.TrimEnd(
+                Path.DirectorySeparatorChar,
+                Path.AltDirectorySeparatorChar);
+        }
+
+        return true;
+    }
+
+    private static bool IsAlbumMarkerPath(string path) =>
+        string.Equals(
+            Path.GetFileName(
+                path.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar)),
+            ".album",
+            StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Starts watching a folder for file changes.
@@ -152,41 +330,190 @@ public sealed class FolderScannerService : IDisposable
 
     private void OnFileCreated(object sender, FileSystemEventArgs e)
     {
-        if (Directory.Exists(e.FullPath))
+        if (sender is not FileSystemWatcher watcher)
+            return;
+
+        if (IsAlbumMarkerPath(e.FullPath))
         {
-            DirectoryChanged?.Invoke(this, new FileChangedEventArgs(e.FullPath, FileChangeType.Created));
+            DirectoryChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    watcher.Path,
+                    FileChangeType.Modified));
             return;
         }
+
+        if (!IsPathOwnedByAlbumRoot(watcher.Path, e.FullPath))
+            return;
+
+        if (Directory.Exists(e.FullPath))
+        {
+            DirectoryChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    e.FullPath,
+                    FileChangeType.Created));
+            return;
+        }
+
         if (IsSupportedFile(e.FullPath) || IsSidecar(e.FullPath))
-            FileChanged?.Invoke(this, new FileChangedEventArgs(e.FullPath, FileChangeType.Created));
+            FileChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    e.FullPath,
+                    FileChangeType.Created));
     }
 
     private void OnFileModified(object sender, FileSystemEventArgs e)
     {
+        if (sender is not FileSystemWatcher watcher)
+            return;
+
+        if (IsAlbumMarkerPath(e.FullPath))
+        {
+            DirectoryChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    watcher.Path,
+                    FileChangeType.Modified));
+            return;
+        }
+
+        if (!IsPathOwnedByAlbumRoot(watcher.Path, e.FullPath))
+            return;
+
         if (IsSupportedFile(e.FullPath) || IsSidecar(e.FullPath))
-            FileChanged?.Invoke(this, new FileChangedEventArgs(e.FullPath, FileChangeType.Modified));
+            FileChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    e.FullPath,
+                    FileChangeType.Modified));
     }
 
     private void OnFileDeleted(object sender, FileSystemEventArgs e)
     {
+        if (sender is not FileSystemWatcher watcher)
+            return;
+
+        if (IsAlbumMarkerPath(e.FullPath))
+        {
+            DirectoryChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    watcher.Path,
+                    FileChangeType.Modified));
+            return;
+        }
+
+        if (!IsPathOwnedByAlbumRoot(watcher.Path, e.FullPath))
+            return;
+
         if (IsSupportedFile(e.FullPath) || IsSidecar(e.FullPath))
-            FileChanged?.Invoke(this, new FileChangedEventArgs(e.FullPath, FileChangeType.Deleted));
+        {
+            FileChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    e.FullPath,
+                    FileChangeType.Deleted));
+        }
         else
-            DirectoryChanged?.Invoke(this, new FileChangedEventArgs(e.FullPath, FileChangeType.Deleted));
+        {
+            DirectoryChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    e.FullPath,
+                    FileChangeType.Deleted));
+        }
     }
 
     private void OnFileRenamed(object sender, RenamedEventArgs e)
     {
-        if (Directory.Exists(e.FullPath))
+        if (sender is not FileSystemWatcher watcher)
+            return;
+
+        if (IsAlbumMarkerPath(e.OldFullPath) ||
+            IsAlbumMarkerPath(e.FullPath))
         {
-            DirectoryChanged?.Invoke(this, new FileChangedEventArgs(e.OldFullPath, FileChangeType.Deleted));
-            DirectoryChanged?.Invoke(this, new FileChangedEventArgs(e.FullPath, FileChangeType.Created));
+            DirectoryChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    watcher.Path,
+                    FileChangeType.Modified));
             return;
         }
-        if (IsSupportedFile(e.OldFullPath) || IsSidecar(e.OldFullPath))
-            FileChanged?.Invoke(this, new FileChangedEventArgs(e.OldFullPath, FileChangeType.Deleted));
-        if (IsSupportedFile(e.FullPath) || IsSidecar(e.FullPath))
-            FileChanged?.Invoke(this, new FileChangedEventArgs(e.FullPath, FileChangeType.Created));
+
+        var oldOwned = IsPathOwnedByAlbumRoot(
+            watcher.Path,
+            e.OldFullPath);
+        var newOwned = IsPathOwnedByAlbumRoot(
+            watcher.Path,
+            e.FullPath);
+
+        if (!oldOwned && !newOwned)
+            return;
+
+        if (Directory.Exists(e.FullPath))
+        {
+            if (oldOwned && newOwned)
+            {
+                DirectoryRenamed?.Invoke(
+                    this,
+                    new PathRenamedEventArgs(
+                        e.OldFullPath,
+                        e.FullPath));
+            }
+            else if (oldOwned)
+            {
+                DirectoryChanged?.Invoke(
+                    this,
+                    new FileChangedEventArgs(
+                        e.OldFullPath,
+                        FileChangeType.Deleted));
+            }
+            else
+            {
+                DirectoryChanged?.Invoke(
+                    this,
+                    new FileChangedEventArgs(
+                        e.FullPath,
+                        FileChangeType.Created));
+            }
+
+            return;
+        }
+
+        var oldIsMedia = IsSupportedFile(e.OldFullPath);
+        var newIsMedia = IsSupportedFile(e.FullPath);
+
+        if (oldOwned && newOwned && oldIsMedia && newIsMedia)
+        {
+            FileRenamed?.Invoke(
+                this,
+                new PathRenamedEventArgs(
+                    e.OldFullPath,
+                    e.FullPath));
+            return;
+        }
+
+        if (oldOwned &&
+            (oldIsMedia || IsSidecar(e.OldFullPath)))
+        {
+            FileChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    e.OldFullPath,
+                    FileChangeType.Deleted));
+        }
+
+        if (newOwned &&
+            (newIsMedia || IsSidecar(e.FullPath)))
+        {
+            FileChanged?.Invoke(
+                this,
+                new FileChangedEventArgs(
+                    e.FullPath,
+                    FileChangeType.Created));
+        }
     }
 
     private static bool IsSidecar(string path) =>
@@ -206,6 +533,14 @@ public sealed class FolderScannerService : IDisposable
 public sealed class FileDiscoveredEventArgs(string filePath) : EventArgs
 {
     public string FilePath { get; } = filePath;
+}
+
+public sealed class PathRenamedEventArgs(
+    string oldPath,
+    string newPath) : EventArgs
+{
+    public string OldPath { get; } = oldPath;
+    public string NewPath { get; } = newPath;
 }
 
 public sealed class FileChangedEventArgs(string filePath, FileChangeType changeType) : EventArgs

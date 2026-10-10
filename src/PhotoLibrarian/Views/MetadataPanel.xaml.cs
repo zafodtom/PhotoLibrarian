@@ -1,10 +1,12 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using PhotoLibrarian.ViewModels;
 using System;
 using System.Globalization;
+using System.Linq;
 
 namespace PhotoLibrarian.Views;
 
@@ -20,6 +22,7 @@ public sealed partial class MetadataPanel : UserControl
     private string _lastLoadedCaption = "";
     private bool _suppressDateBoxLostFocus;
     private string _lastLoadedDateText = "";
+    private bool _suppressTagSuggestions;
 
     // Accepted date formats (in order). M/d/yyyy h:mm tt is the canonical one shown to user.
     private static readonly string[] AcceptedDateFormats = new[]
@@ -158,9 +161,7 @@ public sealed partial class MetadataPanel : UserControl
         InfoLatitude.Text = ViewModel.GpsLatitude;
         InfoLongitude.Text = ViewModel.GpsLongitude;
         InfoFilePath.Text = ViewModel.FilePath;
-        AddPeopleTagsButton.Visibility = ViewModel.IsMultiSelect
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        AddPeopleTagsButton.Visibility = Visibility.Collapsed;
         UpdateAddPeopleTagsButtonState();
 
         InfoCameraRow.Visibility = string.IsNullOrEmpty(ViewModel.Camera) ? Visibility.Collapsed : Visibility.Visible;
@@ -168,8 +169,8 @@ public sealed partial class MetadataPanel : UserControl
         InfoApertureRow.Visibility = string.IsNullOrEmpty(ViewModel.Aperture) ? Visibility.Collapsed : Visibility.Visible;
         InfoFocalLengthRow.Visibility = string.IsNullOrEmpty(ViewModel.FocalLength) ? Visibility.Collapsed : Visibility.Visible;
         InfoIsoRow.Visibility = string.IsNullOrEmpty(ViewModel.Iso) ? Visibility.Collapsed : Visibility.Visible;
-        InfoLatRow.Visibility = string.IsNullOrEmpty(ViewModel.GpsLatitude) ? Visibility.Collapsed : Visibility.Visible;
-        InfoLonRow.Visibility = string.IsNullOrEmpty(ViewModel.GpsLongitude) ? Visibility.Collapsed : Visibility.Visible;
+        InfoLatRow.Visibility = Visibility.Collapsed;
+        InfoLonRow.Visibility = Visibility.Collapsed;
         InfoDimensionsRow.Visibility = string.IsNullOrEmpty(ViewModel.Dimensions) ? Visibility.Collapsed : Visibility.Visible;
 
         UpdateStars();
@@ -288,11 +289,267 @@ public sealed partial class MetadataPanel : UserControl
 
     private void OnAddTagClick(object sender, RoutedEventArgs e) => AddCurrentTag();
 
+    private void OnShowAllTagsClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null) return;
+
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+        NewTagBox.Focus(FocusState.Programmatic);
+    }
+
+    private void OnTagTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_suppressTagSuggestions || ViewModel is null) return;
+
+        var query = NewTagBox.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(query))
+        {
+            HideTagSuggestions();
+            return;
+        }
+
+        var matches = ViewModel.AvailableTags
+            .Where(item => item.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Take(50)
+            .ToList();
+
+        if (matches.Count == 0)
+        {
+            HideTagSuggestions();
+            return;
+        }
+
+        ShowTagSuggestions(matches);
+    }
+
+    private void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not AvailableTagItem chosen) return;
+
+        _suppressTagSuggestions = true;
+        NewTagBox.Text = chosen.Tag;
+        _suppressTagSuggestions = false;
+
+        AddCurrentTag();
+    }
+
+    private async void OnNewCatalogTagClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null) return;
+
+        HideTagSuggestions();
+
+        var parentTags = ViewModel.AvailableTags
+            .Select(item => item.Tag)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var parentBox = new ComboBox
+        {
+            Header = "Parent tag",
+            PlaceholderText = "Catalog root",
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        parentBox.Items.Add("(root)");
+        foreach (var parentTag in parentTags)
+            parentBox.Items.Add(parentTag);
+        parentBox.SelectedIndex = 0;
+
+        var nameBox = new TextBox
+        {
+            Header = "Tag name",
+            PlaceholderText = "For example: Red"
+        };
+
+        var panel = new StackPanel { Spacing = 10 };
+        panel.Children.Add(parentBox);
+        panel.Children.Add(nameBox);
+
+        var dialog = new ContentDialog
+        {
+            Title = "New tag",
+            Content = panel,
+            PrimaryButtonText = "Create",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var name = nameBox.Text?.Trim().Trim('/');
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        var parent = parentBox.SelectedIndex > 0
+            ? parentBox.SelectedItem?.ToString()
+            : null;
+        var fullTag = string.IsNullOrWhiteSpace(parent)
+            ? name
+            : $"{parent}/{name}";
+
+        var tagValidation = ViewModel.ValidateCatalogPath(fullTag);
+        if (tagValidation is not null)
+        {
+            App.ViewModel.StatusText = tagValidation;
+            return;
+        }
+
+        AlbumService.AddSelectedTag(fullTag);
+        await ViewModel.ReloadAvailableTagsAsync();
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+    }
+
+    private async void OnManageCatalogItemClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null ||
+            sender is not Button { Tag: AvailableTagItem item })
+            return;
+
+        HideTagSuggestions();
+
+        var parentTags = ViewModel.AvailableTags
+            .Where(candidate =>
+                !string.Equals(candidate.Tag, item.Tag, StringComparison.OrdinalIgnoreCase) &&
+                !candidate.Tag.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+            .Select(candidate => candidate.Tag)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var currentParent = "";
+        var slash = item.Tag.LastIndexOf('/');
+        if (slash > 0)
+            currentParent = item.Tag[..slash];
+
+        var parentBox = new ComboBox
+        {
+            Header = "Parent tag",
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        parentBox.Items.Add("(root)");
+        foreach (var parentTag in parentTags)
+            parentBox.Items.Add(parentTag);
+
+        parentBox.SelectedIndex = 0;
+        for (var index = 0; index < parentTags.Count; index++)
+        {
+            if (string.Equals(parentTags[index], currentParent, StringComparison.OrdinalIgnoreCase))
+            {
+                parentBox.SelectedIndex = index + 1;
+                break;
+            }
+        }
+
+        var nameBox = new TextBox
+        {
+            Header = "Tag name",
+            Text = item.Name
+        };
+
+        var info = new TextBlock
+        {
+            Text = item.IsUsedInAlbum
+                ? "Renaming also updates photos that use this tag."
+                : "This tag is not currently used by any photo.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(
+                Microsoft.UI.Colors.Gray)
+        };
+
+        var panel = new StackPanel { Spacing = 10 };
+        panel.Children.Add(parentBox);
+        panel.Children.Add(nameBox);
+        panel.Children.Add(info);
+
+        var dialog = new ContentDialog
+        {
+            Title = "Manage tag",
+            Content = panel,
+            PrimaryButtonText = "Save changes",
+            SecondaryButtonText = "Remove from catalog",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+
+        if (result == ContentDialogResult.Secondary)
+        {
+            await ViewModel.RemoveCatalogItemAsync(item);
+            ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+            return;
+        }
+
+        if (result != ContentDialogResult.Primary)
+            return;
+
+        var name = nameBox.Text?.Trim().Trim('/');
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        var parent = parentBox.SelectedIndex > 0
+            ? parentBox.SelectedItem?.ToString()
+            : null;
+
+        var newFullPath = string.IsNullOrWhiteSpace(parent)
+            ? name
+            : $"{parent}/{name}";
+
+        var pathValidation = ViewModel.ValidateCatalogPath(newFullPath, item.Tag);
+        if (pathValidation is not null)
+        {
+            App.ViewModel.StatusText = pathValidation;
+            return;
+        }
+
+        try
+        {
+            await ViewModel.RenameCatalogItemAsync(item, newFullPath);
+            App.ViewModel.StatusText =
+                $"Tag přejmenován na '{newFullPath}'.";
+        }
+        catch (Exception ex)
+        {
+            App.ViewModel.StatusText = $"Přejmenování se nezdařilo: {ex.Message}";
+        }
+
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+    }
+
+    private async void OnToggleAlbumTagSelectionClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is null ||
+            sender is not Button { Tag: AvailableTagItem item })
+            return;
+
+        await ViewModel.ToggleAlbumTagSelectionAsync(item);
+
+        // Keep the picker open and refresh its current contents after toggling.
+        var query = NewTagBox.Text?.Trim() ?? "";
+        var visible = string.IsNullOrEmpty(query)
+            ? ViewModel.AvailableTags.Take(100).ToList()
+            : ViewModel.AvailableTags
+                .Where(tag => tag.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Take(50)
+                .ToList();
+
+        ShowTagSuggestions(visible);
+    }
+
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
             AddCurrentTag();
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            HideTagSuggestions();
             e.Handled = true;
         }
     }
@@ -302,8 +559,31 @@ public sealed partial class MetadataPanel : UserControl
         if (ViewModel is null) return;
         var tag = NewTagBox.Text?.Trim();
         if (string.IsNullOrEmpty(tag)) return;
+
         ViewModel.AddTagCommand.Execute(tag);
+
+        _suppressTagSuggestions = true;
         NewTagBox.Text = "";
+        _suppressTagSuggestions = false;
+        HideTagSuggestions();
+    }
+
+    private void ShowTagSuggestions(IEnumerable<AvailableTagItem> tags)
+    {
+        var items = tags.ToList();
+        if (items.Count == 0)
+        {
+            HideTagSuggestions();
+            return;
+        }
+
+        TagSuggestionsList.ItemsSource = items;
+        TagSuggestionsPanel.Visibility = Visibility.Visible;
+    }
+
+    private void HideTagSuggestions()
+    {
+        TagSuggestionsPanel.Visibility = Visibility.Collapsed;
     }
 
     private void OnRemoveTagClick(object sender, RoutedEventArgs e)

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using PhotoLibrarian.Core.Models;
 using PhotoLibrarian.Core.Services;
 using System.Collections.ObjectModel;
+using Windows.Storage.Streams;
 
 namespace PhotoLibrarian.ViewModels;
 
@@ -11,6 +12,7 @@ public partial class ImageViewerViewModel : ObservableObject
 {
     private List<ImageEntry> _allImages = [];
     private int _currentIndex;
+    private InMemoryRandomAccessStream? _heifImageStream;
 
     [ObservableProperty]
     public partial bool IsOpen { get; set; }
@@ -89,11 +91,54 @@ public partial class ImageViewerViewModel : ObservableObject
         RaiseCurrentEntryChanged();
     }
 
+    public async Task RemoveDeletedPathsAsync(
+        IReadOnlyCollection<string> deletedPaths)
+    {
+        if (deletedPaths.Count == 0)
+            return;
+
+        var deleted = deletedPaths.ToHashSet(
+            StringComparer.OrdinalIgnoreCase);
+        var currentPath = CurrentEntry?.FilePath;
+        var oldIndex = _currentIndex;
+
+        _allImages.RemoveAll(image => deleted.Contains(image.FilePath));
+
+        if (_allImages.Count == 0)
+        {
+            Close();
+            return;
+        }
+
+        if (currentPath is not null && !deleted.Contains(currentPath))
+        {
+            _currentIndex = _allImages.FindIndex(image =>
+                string.Equals(
+                    image.FilePath,
+                    currentPath,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            _currentIndex = Math.Clamp(oldIndex, 0, _allImages.Count - 1);
+        }
+
+        if (_currentIndex < 0)
+            _currentIndex = 0;
+
+        if (IsOpen)
+            await LoadCurrentImageAsync();
+        else
+            RaiseCurrentEntryChanged();
+    }
+
     [RelayCommand]
     private void Close()
     {
         IsOpen = false;
         CurrentImage = null;
+        _heifImageStream?.Dispose();
+        _heifImageStream = null;
         VideoPath = null;
         IsVideo = false;
         RaiseCurrentEntryChanged();
@@ -160,6 +205,39 @@ public partial class ImageViewerViewModel : ObservableObject
 
         IsVideo = false;
         VideoPath = null;
+
+        _heifImageStream?.Dispose();
+        _heifImageStream = null;
+
+        if (HeifFallbackDecoder.IsHeifFamily(entry.FilePath))
+        {
+            try
+            {
+                var bytes = await HeifFallbackDecoder.DecodeToJpegAsync(entry.FilePath);
+                if (bytes is not null)
+                {
+                    _heifImageStream = new InMemoryRandomAccessStream();
+                    using (var writer = new DataWriter(_heifImageStream))
+                    {
+                        writer.WriteBytes(bytes);
+                        await writer.StoreAsync();
+                        writer.DetachStream();
+                    }
+                    _heifImageStream.Seek(0);
+
+                    var heifBitmap = new BitmapImage();
+                    await heifBitmap.SetSourceAsync(_heifImageStream);
+                    CurrentImage = heifBitmap;
+                    ZoomFactor = 1.0;
+                    return;
+                }
+            }
+            catch
+            {
+                CurrentImage = null;
+                return;
+            }
+        }
 
         try
         {

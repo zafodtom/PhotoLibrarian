@@ -13,6 +13,8 @@ public sealed class WatchedFolderChangeService : IDisposable
     private readonly object _sync = new();
     private readonly HashSet<string> _pending = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _pendingDirectories = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<PathRenamedEventArgs> _pendingFileRenames = [];
+    private readonly List<PathRenamedEventArgs> _pendingDirectoryRenames = [];
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Timer _timer;
     private bool _processing;
@@ -35,6 +37,8 @@ public sealed class WatchedFolderChangeService : IDisposable
             Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _scanner.FileChanged += OnFileChanged;
         _scanner.DirectoryChanged += OnDirectoryChanged;
+        _scanner.FileRenamed += OnFileRenamed;
+        _scanner.DirectoryRenamed += OnDirectoryRenamed;
     }
 
     private void OnFileChanged(object? sender, FileChangedEventArgs e)
@@ -57,6 +61,30 @@ public sealed class WatchedFolderChangeService : IDisposable
         }
     }
 
+    private void OnFileRenamed(object? sender, PathRenamedEventArgs e)
+    {
+        lock (_sync)
+        {
+            if (_disposed) return;
+            _pendingFileRenames.Add(e);
+            _pending.Remove(e.OldPath);
+            _pending.Remove(e.NewPath);
+            _timer.Change(_quietPeriod, Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    private void OnDirectoryRenamed(object? sender, PathRenamedEventArgs e)
+    {
+        lock (_sync)
+        {
+            if (_disposed) return;
+            _pendingDirectoryRenames.Add(e);
+            _pendingDirectories.Remove(e.OldPath);
+            _pendingDirectories.Remove(e.NewPath);
+            _timer.Change(_quietPeriod, Timeout.InfiniteTimeSpan);
+        }
+    }
+
     private async Task ProcessPendingAsync()
     {
         lock (_sync)
@@ -69,6 +97,8 @@ public sealed class WatchedFolderChangeService : IDisposable
         {
             string[] paths;
             string[] directories;
+            PathRenamedEventArgs[] fileRenames;
+            PathRenamedEventArgs[] directoryRenames;
             lock (_sync)
             {
                 if (_disposed) return;
@@ -76,16 +106,72 @@ public sealed class WatchedFolderChangeService : IDisposable
                 _pending.Clear();
                 directories = _pendingDirectories.ToArray();
                 _pendingDirectories.Clear();
+                fileRenames = _pendingFileRenames.ToArray();
+                _pendingFileRenames.Clear();
+                directoryRenames = _pendingDirectoryRenames.ToArray();
+                _pendingDirectoryRenames.Clear();
             }
 
             var changed = false;
-            foreach (var directory in directories)
+
+            foreach (var rename in directoryRenames)
+            {
+                try
+                {
+                    changed |= await ProcessDirectoryRenameAsync(
+                        rename.OldPath,
+                        rename.NewPath,
+                        _shutdown.Token);
+                }
+                catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.WriteLine(
+                        $"Watched directory rename sync failed '{rename.OldPath}' -> '{rename.NewPath}': {ex}");
+                    SyncFailed?.Invoke(this, ex);
+                }
+            }
+
+            foreach (var rename in fileRenames)
+            {
+                try
+                {
+                    changed |= await ProcessFileRenameAsync(
+                        rename.OldPath,
+                        rename.NewPath,
+                        _shutdown.Token);
+                }
+                catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.WriteLine(
+                        $"Watched file rename sync failed '{rename.OldPath}' -> '{rename.NewPath}': {ex}");
+                    SyncFailed?.Invoke(this, ex);
+                }
+            }
+            // Some Explorer operations arrive as create+delete instead of rename.
+            // Always index the new/existing side first so SHA-256 reconciliation can
+            // claim the old cache record before missing paths are deleted.
+            foreach (var directory in directories
+                         .OrderByDescending(Directory.Exists))
             {
                 try
                 {
                     if (Directory.Exists(directory))
                     {
-                        await _indexer.IndexFolderAsync(directory, true, _shutdown.Token);
+                        await _indexer.IndexFolderAsync(
+                            directory,
+                            true,
+                            _shutdown.Token);
+                        // IndexFolderAsync also purges records below newly created
+                        // nested-album boundaries, so every successful directory
+                        // rescan is a visible library change.
                         changed = true;
                     }
                     else
@@ -104,23 +190,26 @@ public sealed class WatchedFolderChangeService : IDisposable
                 }
             }
 
-            foreach (var path in paths)
+            var resolvedPaths = paths
+                .SelectMany(ResolveImagePaths)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(File.Exists)
+                .ToList();
+
+            foreach (var imagePath in resolvedPaths)
             {
-                foreach (var imagePath in ResolveImagePaths(path))
+                try
                 {
-                    try
-                    {
-                        changed |= await ProcessFileAsync(imagePath, _shutdown.Token);
-                    }
-                    catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
-                    {
-                        return;
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugLog.WriteLine($"Watched file sync failed for '{imagePath}': {ex}");
-                        SyncFailed?.Invoke(this, ex);
-                    }
+                    changed |= await ProcessFileAsync(imagePath, _shutdown.Token);
+                }
+                catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.WriteLine($"Watched file sync failed for '{imagePath}': {ex}");
+                    SyncFailed?.Invoke(this, ex);
                 }
             }
 
@@ -140,9 +229,85 @@ public sealed class WatchedFolderChangeService : IDisposable
             lock (_sync)
             {
                 _processing = false;
-                if (!_disposed && (_pending.Count > 0 || _pendingDirectories.Count > 0))
+                if (!_disposed &&
+                    (_pending.Count > 0 ||
+                     _pendingDirectories.Count > 0 ||
+                     _pendingFileRenames.Count > 0 ||
+                     _pendingDirectoryRenames.Count > 0))
+                {
                     _timer.Change(_quietPeriod, Timeout.InfiniteTimeSpan);
+                }
             }
+        }
+    }
+
+    private async Task<bool> ProcessFileRenameAsync(
+        string oldPath,
+        string newPath,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!File.Exists(newPath))
+        {
+            var stale = await _images.GetByPathAsync(oldPath);
+            if (stale is null) return false;
+            await _images.DeleteByPathAsync(oldPath);
+            return true;
+        }
+
+        var existing = await _images.GetByPathAsync(oldPath);
+        if (existing is not null)
+        {
+            MoveSidecarIfNeeded(oldPath, newPath);
+            await _images.UpdatePathAsync(existing.Id, newPath);
+            await _indexer.IndexFileAsync(newPath, cancellationToken);
+            DebugLog.WriteLine(
+                $"Preserved photo id {existing.Id} for rename/move '{oldPath}' -> '{newPath}'");
+            return true;
+        }
+
+        // If the old path was not in cache (for example after an app restart/race),
+        // IndexFileAsync falls back to SHA-256 reconciliation.
+        return await _indexer.IndexFileAsync(newPath, cancellationToken);
+    }
+
+    private async Task<bool> ProcessDirectoryRenameAsync(
+        string oldPath,
+        string newPath,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!Directory.Exists(newPath))
+        {
+            return await _images.DeleteMissingInDirectoryAsync(oldPath) > 0;
+        }
+
+        var updated = await _images.UpdatePathPrefixAsync(oldPath, newPath);
+        await _indexer.IndexFolderAsync(newPath, true, cancellationToken);
+        DebugLog.WriteLine(
+            $"Preserved {updated} cached photo path(s) for directory move '{oldPath}' -> '{newPath}'");
+        return updated > 0;
+    }
+
+    private static void MoveSidecarIfNeeded(string oldImagePath, string newImagePath)
+    {
+        try
+        {
+            var oldSidecar = FaceMetadataStore.GetSidecarPathForImage(oldImagePath);
+            var newSidecar = FaceMetadataStore.GetSidecarPathForImage(newImagePath);
+            if (!File.Exists(oldSidecar) || File.Exists(newSidecar))
+                return;
+
+            var directory = Path.GetDirectoryName(newSidecar);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+            File.Move(oldSidecar, newSidecar);
+        }
+        catch (Exception ex)
+        {
+            DebugLog.WriteLine($"Could not move renamed photo sidecar: {ex.Message}");
         }
     }
 
@@ -212,10 +377,14 @@ public sealed class WatchedFolderChangeService : IDisposable
             _disposed = true;
             _scanner.FileChanged -= OnFileChanged;
             _scanner.DirectoryChanged -= OnDirectoryChanged;
+            _scanner.FileRenamed -= OnFileRenamed;
+            _scanner.DirectoryRenamed -= OnDirectoryRenamed;
             _shutdown.Cancel();
             _timer.Dispose();
             _pending.Clear();
             _pendingDirectories.Clear();
+            _pendingFileRenames.Clear();
+            _pendingDirectoryRenames.Clear();
         }
     }
 }

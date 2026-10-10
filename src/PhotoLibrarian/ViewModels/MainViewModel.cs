@@ -28,7 +28,7 @@ public partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _recognitionCts;
     private Task? _recognitionTask;
     private readonly object _recognitionLock = new();
-    private bool _faceDetectionEnabled = true;
+    private bool _faceDetectionEnabled = false;
     private bool _autoTaggingEnabled;
     private bool _recognitionRescanRequested;
     private int _lastAutoTagTreeRefresh;
@@ -137,8 +137,10 @@ public partial class MainViewModel : ObservableObject
             autoTaggingSettingsStore,
             autoTagModelManager,
             autoTagBenchmarkProcessor);
-        _autoTaggingEnabled =
-            Settings.CurrentAutoTaggingSettings.CanRun;
+        // Recognition infrastructure stays available for future content tagging,
+        // but the current album workflow keeps it disabled unless a future UI
+        // explicitly re-enables it.
+        _autoTaggingEnabled = false;
         PhotoOps = new Services.PhotoOperationsService(imageRepo, backupService);
 
         _indexingService.Progress += OnIndexingProgress;
@@ -199,10 +201,8 @@ public partial class MainViewModel : ObservableObject
         TotalImages = await _imageRepo.GetCountAsync();
         StatusText = TotalImages > 0 ? "Select a folder to view photos" : "Add folders to get started";
 
-        // Start background indexing to populate metadata (tags, dates)
-        StartBackgroundIndexing();
-        StartBackgroundFaceDetection();
-        StartBackgroundAutoTagging();
+        // The active album root is attached immediately after initialization.
+        // Its startup rescan is deliberately started only after RootFolders is populated.
     }
 
     public void SyncWatchedFolders()
@@ -266,6 +266,54 @@ public partial class MainViewModel : ObservableObject
 
     public Task EnsureFaceMetadataPersistedAsync() =>
         _indexingService.ExportPendingFaceMetadataAsync();
+
+    public async Task<DigiKamImportResult> ImportFromDigiKamAsync(
+        string databasePath,
+        IProgress<DigiKamImportProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!App.HasActiveAlbum ||
+            string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+        {
+            throw new InvalidOperationException(
+                "Open a PhotoLibrarian album before importing from digiKam.");
+        }
+
+        // The importer matches digiKam records against PhotoLibrarian's
+        // indexed album. Finish a complete synchronous scan first; otherwise an
+        // import started immediately after opening a large album would only see
+        // the subset already reached by the background indexer.
+        PauseBackgroundIndexing();
+        StatusText = "Preparing album index for digiKam import…";
+        await _indexingService.IndexFolderAsync(
+            App.CurrentAlbumPath,
+            includeSubfolders: true,
+            cancellationToken);
+        await RefreshAfterIndexAsync();
+
+        StatusText = "Importing metadata from digiKam…";
+        var importer = new DigiKamImportService(_imageRepo, _tagRepo);
+        var result = await importer.ImportAsync(
+            databasePath,
+            App.CurrentAlbumPath,
+            progress,
+            cancellationToken);
+
+        AlbumService.AddSelectedTags(result.CatalogTags);
+
+        await RefreshTagsTreeAsync();
+        await MetadataPanel.ReloadTagsAsync();
+        await MetadataPanel.ReloadAvailableTagsAsync();
+        await ImageGrid.LoadImagesAsync();
+        TotalImages = await _imageRepo.GetCountAsync();
+
+        StatusText =
+            $"digiKam import: {result.MatchedImages:N0} matched, " +
+            $"{result.UnmatchedImages:N0} unmatched, " +
+            $"{result.AmbiguousImages:N0} ambiguous.";
+
+        return result;
+    }
 
     public void StartManualFaceTagging(ImageEntry entry)
     {
@@ -499,10 +547,12 @@ public partial class MainViewModel : ObservableObject
 
         _ = Task.Run(async () =>
         {
-            // Wait a bit before starting to let UI settle
-            await Task.Delay(2000, ct);
-            
-            DebugLog.WriteLine($"StartBackgroundIndexing: Starting scan of {FolderNav.RootFolders.Count} folders");
+            DebugLog.WriteLine($"StartBackgroundIndexing: Starting immediate scan of {FolderNav.RootFolders.Count} folders");
+            App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!ct.IsCancellationRequested)
+                    StatusText = "Checking album for changes…";
+            });
 
             foreach (var folder in FolderNav.RootFolders)
             {
@@ -536,6 +586,15 @@ public partial class MainViewModel : ObservableObject
             }
             
             DebugLog.WriteLine($"StartBackgroundIndexing: All folders complete");
+
+            if (!ct.IsCancellationRequested)
+            {
+                App.MainWindow?.DispatcherQueue.TryEnqueue(async () =>
+                {
+                    if (!ct.IsCancellationRequested)
+                        await RefreshAfterIndexAsync();
+                });
+            }
         }, ct);
     }
 
@@ -1060,6 +1119,50 @@ public partial class MainViewModel : ObservableObject
         StatusText = $"Created copy {copyEntry.FileName}; edits will not change the original";
     }
 
+    public async Task<StashImportResult> ImportFromStashAsync(
+        string sourcePath,
+        IProgress<StashImportProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!App.HasActiveAlbum ||
+            string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+        {
+            throw new InvalidOperationException(
+                "Open a PhotoLibrarian album before importing from Stash.");
+        }
+
+        PauseBackgroundIndexing();
+        StatusText = "Preparing album index for Stash import…";
+        await _indexingService.IndexFolderAsync(
+            App.CurrentAlbumPath,
+            includeSubfolders: true,
+            cancellationToken);
+        await RefreshAfterIndexAsync();
+
+        StatusText = "Importing tags from Stash…";
+        var importer = new StashImportService(_imageRepo, _tagRepo);
+        var result = await importer.ImportAsync(
+            sourcePath,
+            App.CurrentAlbumPath,
+            progress,
+            cancellationToken);
+
+        AlbumService.AddSelectedTags(result.CatalogTags);
+
+        await RefreshTagsTreeAsync();
+        await MetadataPanel.ReloadTagsAsync();
+        await MetadataPanel.ReloadAvailableTagsAsync();
+        await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
+        TotalImages = await _imageRepo.GetCountAsync();
+
+        StatusText =
+            $"Stash import: {result.MatchedImages:N0} matched, " +
+            $"{result.UnmatchedImages:N0} unmatched, " +
+            $"{result.AmbiguousImages:N0} ambiguous.";
+
+        return result;
+    }
+
     public async Task RefreshAfterIndexAsync()
     {
         await ImageGrid.LoadImagesAsync();
@@ -1081,6 +1184,177 @@ public partial class MainViewModel : ObservableObject
                 await window.RefreshMetadataTreesAsync();
             }
         });
+    }
+
+    public async Task<IReadOnlyList<string>> DeleteEntriesAsync(
+        IEnumerable<ImageEntry> entries)
+    {
+        var materialized = entries
+            .Where(entry => entry is not null)
+            .DistinctBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (materialized.Count == 0)
+            return [];
+
+        StatusText = materialized.Count == 1
+            ? $"Deleting {materialized[0].FileName}…"
+            : $"Deleting {materialized.Count:N0} items…";
+
+        var deleted = await PhotoOps.DeleteToRecycleBinAsync(materialized);
+        if (deleted.Count == 0)
+        {
+            StatusText = "Nothing was deleted";
+            return deleted;
+        }
+
+        // PhotoOperationsService already removed the exact DB rows. Do not run
+        // RefreshFilesystemUiAsync here: that method intentionally rescans every
+        // watched folder and is far too expensive for a known single-file change.
+        await ImageViewer.RemoveDeletedPathsAsync(deleted);
+        await ImageGrid.RemoveDeletedPathsAsync(deleted);
+
+        TotalImages = await _imageRepo.GetCountAsync();
+        await TagNav.LoadTagsAsync();
+        await DateNav.LoadDatesAsync();
+        await PeopleNav.LoadPeopleAsync();
+        await FlagNav.LoadAsync();
+        await MetadataPanel.ReloadTagsAsync();
+        await MetadataPanel.ReloadAvailableTagsAsync();
+
+        if (App.MainWindow is MainWindow window)
+            await window.RefreshMetadataTreesAsync();
+
+        StatusText = deleted.Count == 1
+            ? "Moved 1 item to Recycle Bin"
+            : $"Moved {deleted.Count:N0} items to Recycle Bin";
+
+        return deleted;
+    }
+
+    public async Task RefreshKnownLibraryStateAsync(
+        bool refreshFolderTree = false)
+    {
+        if (refreshFolderTree)
+            await FolderNav.LoadWatchedFoldersAsync();
+
+        await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
+        TotalImages = await _imageRepo.GetCountAsync();
+        await DateNav.LoadDatesAsync();
+        await PeopleNav.LoadPeopleAsync();
+        await TagNav.LoadTagsAsync();
+        await FlagNav.LoadAsync();
+
+        if (App.MainWindow is MainWindow window)
+        {
+            if (refreshFolderTree)
+                await window.RefreshAllNavigationAsync();
+            else
+                await window.RefreshMetadataTreesAsync();
+        }
+
+        ImageViewer.UpdateLibraryImages(
+            ImageGrid.Images.Select(image => image.Entry).ToList());
+        StatusText = $"{TotalImages:N0} items";
+    }
+
+    public async Task RefreshKnownFilesystemChangesAsync(
+        IEnumerable<string> changedPaths,
+        bool refreshFolderTree = true)
+    {
+        foreach (var path in changedPaths
+                     .Where(path => !string.IsNullOrWhiteSpace(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    await _indexingService.IndexFolderAsync(
+                        path,
+                        includeSubfolders: true);
+                }
+                else if (File.Exists(path) &&
+                         FolderScannerService.IsSupportedFile(path))
+                {
+                    await _indexingService.IndexFileAsync(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.WriteLine(
+                    $"Targeted refresh failed for '{path}': {ex.Message}");
+            }
+        }
+
+        await RefreshKnownLibraryStateAsync(refreshFolderTree);
+    }
+
+    public async Task<bool> DeleteDirectoryAsync(string directoryPath)
+    {
+        var deletedPaths =
+            await PhotoOps.DeleteDirectoryToRecycleBinAsync(directoryPath);
+        if (deletedPaths is null)
+            return false;
+
+        if (deletedPaths.Count > 0)
+        {
+            await ImageViewer.RemoveDeletedPathsAsync(deletedPaths);
+            await ImageGrid.RemoveDeletedPathsAsync(deletedPaths);
+        }
+
+        TotalImages = await _imageRepo.GetCountAsync();
+        await FolderNav.LoadWatchedFoldersAsync();
+        await DateNav.LoadDatesAsync();
+        await PeopleNav.LoadPeopleAsync();
+        await TagNav.LoadTagsAsync();
+        await FlagNav.LoadAsync();
+
+        if (App.MainWindow is MainWindow window)
+            await window.RefreshAllNavigationAsync();
+
+        ImageViewer.UpdateLibraryImages(
+            ImageGrid.Images.Select(image => image.Entry).ToList());
+        StatusText = "Folder moved to Recycle Bin";
+        return true;
+    }
+
+    public async Task RefreshFolderStructureAsync()
+    {
+        await FolderNav.LoadWatchedFoldersAsync();
+        if (App.MainWindow is MainWindow window)
+            await window.RefreshAllNavigationAsync();
+    }
+
+    public async Task RefreshFilesystemUiAsync()
+    {
+        var folders = FolderNav.RootFolders
+            .Select(folder => (folder.Path, folder.IncludeSubfolders))
+            .ToList();
+
+        foreach (var folder in folders)
+        {
+            if (!Directory.Exists(folder.Path))
+                continue;
+
+            try
+            {
+                await _indexingService.IndexFolderAsync(
+                    folder.Path,
+                    folder.IncludeSubfolders);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.WriteLine(
+                    $"RefreshFilesystemUiAsync: scan failed for '{folder.Path}': {ex.Message}");
+            }
+        }
+
+        await FolderNav.LoadWatchedFoldersAsync();
+        await RefreshAfterIndexAsync();
+
+        if (App.MainWindow is MainWindow window)
+            await window.RefreshAllNavigationAsync();
     }
 
     public async Task CleanupAsync()

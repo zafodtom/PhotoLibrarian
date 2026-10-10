@@ -66,7 +66,8 @@ public partial class ImageGridViewModel : ObservableObject
     private List<(int Year, int Month)>? _currentMonthFilters;
     private bool _currentPeopleRootSelected;
     private List<long>? _currentPersonFilters;
-    private bool _currentTagRootSelected; // Root "Tags" node selected (show all tagged images)
+    private bool _currentTagRootSelected;
+    private bool _currentUntaggedSelected; // Root "Tags" node selected (show all tagged images)
     private List<string>? _currentTagFilters;
     private bool _currentFlaggedSelected; // "Flagged" node selected (show flagged working set)
     private string? _currentSortBy = "date_taken";
@@ -82,8 +83,13 @@ public partial class ImageGridViewModel : ObservableObject
     private const int ScrollReorderThrottleMs = 150; // Don't reorder more than every 150ms
     private Task? _backgroundLoadTask;
     
-    // Limit concurrent thumbnail loading to prevent memory exhaustion
-    internal static readonly SemaphoreSlim s_thumbnailLoadSemaphore = new(8, 8);
+    // Thumbnail cache reads benefit from parallelism, but decoding still
+    // marshals to the UI thread. Scale with the machine without flooding storage
+    // or creating dozens of pending UI bitmap operations on high-core-count PCs.
+    private static readonly int ThumbnailWorkerCount =
+        Math.Clamp(Environment.ProcessorCount / 2, 4, 12);
+    internal static readonly SemaphoreSlim s_thumbnailLoadSemaphore =
+        new(ThumbnailWorkerCount, ThumbnailWorkerCount);
 
     public ObservableCollection<ImageThumbnailViewModel> Images { get; } = [];
     public ObservableCollection<PhotoGroup> GroupedImages { get; } = [];
@@ -162,7 +168,7 @@ public partial class ImageGridViewModel : ObservableObject
         }
     }
     
-    public async Task LoadImagesAsync()
+    public async Task LoadImagesAsync(bool scanDiskForMissingFiles = true)
     {
         // Cancel any pending thumbnail loads from previous folder
         _loadCts?.Cancel();
@@ -223,7 +229,8 @@ public partial class ImageGridViewModel : ObservableObject
         bool hasDateFilter = _currentDateRootSelected || 
                             (_currentYearFilters is not null && _currentYearFilters.Count > 0) ||
                             (_currentMonthFilters is not null && _currentMonthFilters.Count > 0);
-        bool hasTagFilter = _currentTagRootSelected || 
+        bool hasTagFilter = _currentTagRootSelected ||
+                           _currentUntaggedSelected ||
                            (_currentTagFilters is not null && _currentTagFilters.Count > 0);
         bool hasFlagFilter = _currentFlaggedSelected;
 
@@ -239,7 +246,9 @@ public partial class ImageGridViewModel : ObservableObject
         HashSet<long>? taggedImageIds = null;
         if (hasTagFilter)
         {
-            var taggedImages = await _imageRepo.GetFilteredAsync(_currentTagRootSelected, _currentTagFilters, _currentSortBy, SortDescending);
+            var taggedImages = _currentUntaggedSelected
+                ? await _imageRepo.GetUntaggedAsync(_currentSortBy, SortDescending)
+                : await _imageRepo.GetFilteredAsync(_currentTagRootSelected, _currentTagFilters, _currentSortBy, SortDescending);
             taggedImageIds = new HashSet<long>(taggedImages.Select(i => i.Id));
             DebugLog.WriteLine($"LoadImagesAsync: Loaded {taggedImageIds.Count} images matching tag filters");
         }
@@ -251,53 +260,46 @@ public partial class ImageGridViewModel : ObservableObject
 
         DebugLog.WriteLine($"LoadImagesAsync: Total images from DB: {allImages.Count}, FolderFilters: {folderFilters?.Count ?? 0}, DateFilters: {hasDateFilter}, TagFilters: {hasTagFilter}");
         DebugLog.WriteLine(
-            "  UNION logic: Show images matching ANY filter " +
-            "(folder OR date OR people OR tag OR flag)");
+            "  Album filter logic: folder scopes tags; legacy date/people/flag filters remain OR-composed.");
 
         int matchCount = 0;
         int skipCount = 0;
         int index = 0;
         foreach (var img in allImages)
         {
-            bool matchesAnyFilter = false;
+            var matchesFolder = !hasFolderFilter ||
+                (folderFilters is not null &&
+                 folderFilters.Any(folder =>
+                     img.FilePath.StartsWith(folder, StringComparison.OrdinalIgnoreCase)));
 
-            // Check folder filter
-            if (hasFolderFilter && folderFilters is not null)
-            {
-                bool matchesFolder = folderFilters.Any(f => 
-                    img.FilePath.StartsWith(f, StringComparison.OrdinalIgnoreCase));
-                
-                if (matchesFolder)
-                {
-                    matchesAnyFilter = true;
-                }
-            }
+            var matchesTag = !hasTagFilter ||
+                (taggedImageIds is not null && taggedImageIds.Contains(img.Id));
 
-            // Check date filter
+            // Folder selection is the scope for tag filtering:
+            // selecting "Folder A" + "Tag X" means Tag X inside Folder A,
+            // not the previous Folder A OR Tag X across the whole album.
+            bool matchesAnyFilter =
+                (hasFolderFilter && !hasTagFilter && matchesFolder) ||
+                (hasTagFilter && matchesTag && matchesFolder);
+
+            // Legacy navigation filters remain OR-composed. They are currently hidden
+            // in the album-focused UI, but keeping their behavior makes the change reversible.
             if (!matchesAnyFilter && hasDateFilter && img.DateTaken.HasValue)
             {
                 if (_currentDateRootSelected)
                 {
-                    // Date root selected - matches all dated images
                     matchesAnyFilter = true;
                 }
                 else
                 {
-                    // Check year/month filters
                     int year = img.DateTaken.Value.Year;
                     var yearMonth = (year, img.DateTaken.Value.Month);
-
-                    bool matchesYear = _currentYearFilters?.Contains(year) ?? false;
-                    bool matchesMonth = _currentMonthFilters?.Contains(yearMonth) ?? false;
-
-                    if (matchesYear || matchesMonth)
-                    {
-                        matchesAnyFilter = true;
-                    }
+                    matchesAnyFilter =
+                        (_currentYearFilters?.Contains(year) ?? false) ||
+                        (_currentMonthFilters?.Contains(yearMonth) ?? false);
                 }
             }
 
-            // Check people filter
             if (!matchesAnyFilter && hasPeopleFilter &&
                 personIdsByImageId is not null &&
                 personIdsByImageId.TryGetValue(img.Id, out var navigationPersonIds))
@@ -306,20 +308,8 @@ public partial class ImageGridViewModel : ObservableObject
                     (_currentPersonFilters?.Any(navigationPersonIds.Contains) ?? false);
             }
 
-            // Check tag filter
-            if (!matchesAnyFilter && hasTagFilter && taggedImageIds is not null)
-            {
-                if (taggedImageIds.Contains(img.Id))
-                {
-                    matchesAnyFilter = true;
-                }
-            }
-
-            // Check flag filter
             if (!matchesAnyFilter && hasFlagFilter && img.IsFlagged)
-            {
                 matchesAnyFilter = true;
-            }
 
             HashSet<string>? imageTags = null;
             HashSet<long>? imagePersonIds = null;
@@ -341,7 +331,7 @@ public partial class ImageGridViewModel : ObservableObject
                 skipCount++;
             }
         }
-        
+
         if (skipCount > 2)
             DebugLog.WriteLine($"  ... and {skipCount - 2} more skipped");
         
@@ -359,7 +349,7 @@ public partial class ImageGridViewModel : ObservableObject
 
         // HYBRID APPROACH: Scan folders to find any missing/new files not in database
         // This ensures we show all images even if database is stale/incomplete
-        if (hasFolderFilter && folderFilters is not null)
+        if (scanDiskForMissingFiles && hasFolderFilter && !hasTagFilter && folderFilters is not null)
         {
             // Get indexed file paths for quick lookup
             var indexedPaths = new HashSet<string>(Images.Select(i => i.Entry.FilePath), StringComparer.OrdinalIgnoreCase);
@@ -553,42 +543,41 @@ public partial class ImageGridViewModel : ObservableObject
     
     private void StartBackgroundLoadingIfNeeded()
     {
-        if (_backgroundLoadTask?.IsCompleted == false) return; // Already running
-        
+        if (_backgroundLoadTask?.IsCompleted == false)
+            return;
+
         var ct = _loadCts?.Token ?? CancellationToken.None;
-        _backgroundLoadTask = Task.Run(async () =>
-        {
-            while (true)
-            {
-                if (ct.IsCancellationRequested) break;
-                
-                ImageThumbnailViewModel? vm = null;
-                lock (_queueLock)
+        var workers = Enumerable
+            .Range(0, ThumbnailWorkerCount)
+            .Select(workerId => Task.Run(
+                async () =>
                 {
-                    if (_loadQueue.Count == 0)
+                    while (!ct.IsCancellationRequested)
                     {
-                        DebugLog.WriteLine($"[QUEUE] Queue empty, exiting");
-                        break;
+                        ImageThumbnailViewModel? vm = null;
+                        lock (_queueLock)
+                        {
+                            if (_loadQueue.Count == 0)
+                                break;
+
+                            vm = _loadQueue.Dequeue();
+                            _queuedItems.Remove(vm);
+                        }
+
+                        if (vm is null || vm.Thumbnail is not null)
+                            continue;
+
+                        DebugLog.WriteLine(
+                            $"[QUEUE] Worker {workerId}: {vm.Entry.FileName}");
+                        await LoadSingleThumbnailAsync(vm, ct);
                     }
-                    vm = _loadQueue.Dequeue();
-                    _queuedItems.Remove(vm);
-                    DebugLog.WriteLine($"[QUEUE] Dequeued item: {vm?.Entry?.FileName ?? "null"}, Thumbnail={vm?.Thumbnail != null}, IsLoading={vm?.IsLoading}");
-                }
-                
-                if (vm != null && vm.Thumbnail == null)
-                {
-                    await LoadSingleThumbnailAsync(vm, ct);
-                }
-                else if (vm != null)
-                {
-                    DebugLog.WriteLine($"[QUEUE] Skipping {vm.Entry?.FileName}: Thumbnail already set");
-                }
-            }
-            
-            DebugLog.WriteLine($"[QUEUE] Background loading completed");
-        }, ct);
+                },
+                ct))
+            .ToArray();
+
+        _backgroundLoadTask = Task.WhenAll(workers);
     }
-    
+
     private async Task LoadSingleThumbnailAsync(ImageThumbnailViewModel vm, CancellationToken ct)
     {
         try
@@ -784,8 +773,10 @@ public partial class ImageGridViewModel : ObservableObject
         var thumbGenSw = System.Diagnostics.Stopwatch.StartNew();
         var thumbnailData = await Task.Run(async () =>
         {
-            // Use semaphore to limit concurrent operations (8 is optimal)
-            var semaphore = new SemaphoreSlim(8, 8);
+            // Use the same bounded concurrency policy as viewport loading.
+            var semaphore = new SemaphoreSlim(
+                ThumbnailWorkerCount,
+                ThumbnailWorkerCount);
             var tasks = new List<Task<(ImageThumbnailViewModel vm, byte[]? streamBytes)>>();
             
             foreach (var vm in viewModels)
@@ -894,10 +885,11 @@ public partial class ImageGridViewModel : ObservableObject
         List<long>? personIds,
         bool tagRootSelected,
         List<string>? tags,
+        bool untaggedSelected,
         bool flaggedSelected = false)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        DebugLog.WriteLine($"FilterByMultipleCriteriaAsync: folders={folderPaths?.Count ?? 0}, years={years?.Count ?? 0}, months={months?.Count ?? 0}, people={personIds?.Count ?? 0}, tags={tags?.Count ?? 0}, flagged={flaggedSelected}");
+        DebugLog.WriteLine($"FilterByMultipleCriteriaAsync: folders={folderPaths?.Count ?? 0}, years={years?.Count ?? 0}, months={months?.Count ?? 0}, people={personIds?.Count ?? 0}, tags={tags?.Count ?? 0}, untagged={untaggedSelected}, flagged={flaggedSelected}");
         
         // Pause background indexing while user is browsing
         _main.PauseBackgroundIndexing();
@@ -910,6 +902,7 @@ public partial class ImageGridViewModel : ObservableObject
         _currentPersonFilters = personIds;
         _currentTagRootSelected = tagRootSelected;
         _currentTagFilters = tags;
+        _currentUntaggedSelected = untaggedSelected;
         _currentFlaggedSelected = flaggedSelected;
         
         DebugLog.WriteLine($"  T+{sw.ElapsedMilliseconds}ms: Starting LoadImagesAsync");
@@ -952,6 +945,63 @@ public partial class ImageGridViewModel : ObservableObject
         return refinementDependsOnChangedMetadata
             ? LoadImagesAsync()
             : ApplyGroupingAsync();
+    }
+
+    public async Task RemoveDeletedPathsAsync(
+        IReadOnlyCollection<string> deletedPaths)
+    {
+        if (deletedPaths.Count == 0)
+            return;
+
+        var deleted = deletedPaths.ToHashSet(
+            StringComparer.OrdinalIgnoreCase);
+
+        var toRemove = Images
+            .Where(vm => deleted.Contains(vm.Entry.FilePath))
+            .ToList();
+
+        foreach (var vm in toRemove)
+        {
+            vm.Thumbnail = null;
+            Images.Remove(vm);
+        }
+
+        SelectedImages.RemoveAll(vm =>
+            deleted.Contains(vm.Entry.FilePath));
+        _selectedPaths.RemoveWhere(path => deleted.Contains(path));
+
+        if (SelectedImage is not null &&
+            deleted.Contains(SelectedImage.Entry.FilePath))
+        {
+            SelectedImage = SelectedImages.FirstOrDefault();
+        }
+
+        if (_primarySelectedPath is not null &&
+            deleted.Contains(_primarySelectedPath))
+        {
+            _primarySelectedPath =
+                SelectedImage?.Entry.FilePath;
+        }
+
+        lock (_queueLock)
+        {
+            if (_loadQueue.Count > 0)
+            {
+                var retained = _loadQueue
+                    .Where(vm => !deleted.Contains(vm.Entry.FilePath))
+                    .ToList();
+                _loadQueue.Clear();
+                foreach (var vm in retained)
+                    _loadQueue.Enqueue(vm);
+            }
+
+            _queuedItems.RemoveWhere(vm =>
+                deleted.Contains(vm.Entry.FilePath));
+        }
+
+        await ApplyGroupingAsync();
+        ResultsChanged?.Invoke(this, EventArgs.Empty);
+        RefreshMetadataFromSelection();
     }
 
     /// <summary>
@@ -1320,10 +1370,20 @@ public partial class ImageGridViewModel : ObservableObject
     [RelayCommand]
     private void OpenViewer()
     {
-        if (SelectedImage is not null)
-        {
-            _main.ImageViewer.OpenImage(SelectedImage.Entry, Images.Select(i => i.Entry).ToList());
-        }
+        if (SelectedImage is null) return;
+
+        // Navigate in exactly the same order the user sees in the grid.
+        // GroupedImages is the rendered/sorted representation; Images is only the
+        // underlying working collection and can differ after sorting/grouping.
+        var visibleOrder = GroupedImages
+            .SelectMany(group => group.Items)
+            .Select(item => item.Entry)
+            .ToList();
+
+        if (visibleOrder.Count == 0)
+            visibleOrder = Images.Select(item => item.Entry).ToList();
+
+        _main.ImageViewer.OpenImage(SelectedImage.Entry, visibleOrder);
     }
 
     /// <summary>
@@ -1517,7 +1577,14 @@ public partial class ImageThumbnailViewModel : ObservableObject
         
         try
         {
-            App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+            var mainWindow = App.MainWindow;
+            if (mainWindow is null)
+            {
+                IsLoading = false;
+                return;
+            }
+
+            mainWindow.DispatcherQueue.TryEnqueue(() =>
             {
                 using (profiler.StartTimer("UI_CREATE_WRITEABLEBITMAP", FileName))
                 {

@@ -47,8 +47,14 @@ public sealed partial class ImageGridView : UserControl
         // Right-click context menu
         PhotoGrid.ContextMenuRequested += OnContextMenuRequested;
 
-        // F key → toggle flag on the current selection
-        PhotoGrid.FlagToggleRequested += OnFlagToggleRequested;
+        // Keyboard file operations. Register handledEventsToo so Delete works
+        // while the custom virtualized grid owns keyboard focus.
+        AddHandler(
+            UIElement.KeyDownEvent,
+            new Microsoft.UI.Xaml.Input.KeyEventHandler(OnGridKeyDown),
+            true);
+
+        // Flag support is retained internally but intentionally hidden in the album UI.
         
         // Listen for GroupedImages changes — the inner grid already self-subscribes to the same
         // ObservableCollection for layout, so we do NOT re-call PhotoGrid.SetGroups here.
@@ -555,9 +561,109 @@ public sealed partial class ImageGridView : UserControl
         SizeSlider.Value = Math.Min(SizeSlider.Value + 40, 400);
     }
 
+    private async void OnGridKeyDown(
+        object sender,
+        Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Delete ||
+            ViewModel is null)
+        {
+            return;
+        }
+
+        // Do not hijack Delete while the user is editing a filter/text field.
+        if (e.OriginalSource is TextBox or
+            RichEditBox or
+            PasswordBox or
+            NumberBox or
+            ComboBox)
+        {
+            return;
+        }
+
+        var selected = ViewModel.SelectedImages.Count > 0
+            ? ViewModel.SelectedImages
+                .Select(item => item.Entry)
+                .ToList()
+            : ViewModel.SelectedImage is not null
+                ? [ViewModel.SelectedImage.Entry]
+                : [];
+
+        if (selected.Count == 0)
+            return;
+
+        e.Handled = true;
+        await App.ViewModel.DeleteEntriesAsync(selected);
+    }
+
     // =================================================================
     //  Right-click context menu
     // =================================================================
+
+    private void OnGridBackgroundRightTapped(
+        object sender,
+        Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (e.Handled)
+            return;
+
+        var targetDirectory =
+            (App.MainWindow as MainWindow)?.GetPreferredFileOperationDirectory();
+        if (string.IsNullOrWhiteSpace(targetDirectory) ||
+            !System.IO.Directory.Exists(targetDirectory))
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+
+        var paste = new MenuFlyoutItem { Text = "Paste" };
+        paste.Click += async (_, _) =>
+        {
+            var pasted = await App.ViewModel.PhotoOps
+                .PasteClipboardToDirectoryAsync(targetDirectory);
+            if (pasted.Count > 0)
+                await App.ViewModel.RefreshKnownFilesystemChangesAsync(
+                    pasted,
+                    refreshFolderTree: true);
+        };
+        menu.Items.Add(paste);
+
+        var newFolder = new MenuFlyoutItem { Text = "New Folder" };
+        newFolder.Click += async (_, _) =>
+        {
+            Services.PhotoOperationsService.CreateNewFolder(targetDirectory);
+            await App.ViewModel.RefreshFolderStructureAsync();
+        };
+        menu.Items.Add(newFolder);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var open = new MenuFlyoutItem { Text = "Open in File Explorer" };
+        open.Click += (_, _) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{targetDirectory}\"",
+                        UseShellExecute = true
+                    });
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText =
+                    $"File Explorer failed to open: {ex.Message}";
+            }
+        };
+        menu.Items.Add(open);
+
+        var source = sender as FrameworkElement ?? PhotoGrid;
+        menu.ShowAt(source, e.GetPosition(source));
+        e.Handled = true;
+    }
 
     private void OnContextMenuRequested(object? sender, Controls.ContextMenuRequestedEventArgs e)
     {
@@ -600,71 +706,56 @@ public sealed partial class ImageGridView : UserControl
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
-        // Set as desktop background — single only
-        var wallpaper = new MenuFlyoutItem { Text = "Set as desktop background" };
-        wallpaper.Click += (_, _) => Services.PhotoOperationsService.SetAsDesktopBackground(primary.Entry.FilePath);
-        wallpaper.IsEnabled = !isMulti;
-        menu.Items.Add(wallpaper);
-
-        var rotateRight = new MenuFlyoutItem { Text = "Rotate right" };
-        rotateRight.Click += async (_, _) =>
-        {
-            foreach (var vm in selected)
-            {
-                var size = await ops.RotateAsync(vm.Entry, clockwise: true);
-                await App.ViewModel!.RefreshAfterPixelEditAsync(
-                    vm.Entry.FilePath, size.Width, size.Height, "Rotated");
-            }
-        };
-        menu.Items.Add(rotateRight);
-
-        var rotateLeft = new MenuFlyoutItem { Text = "Rotate left" };
-        rotateLeft.Click += async (_, _) =>
-        {
-            foreach (var vm in selected)
-            {
-                var size = await ops.RotateAsync(vm.Entry, clockwise: false);
-                await App.ViewModel!.RefreshAfterPixelEditAsync(
-                    vm.Entry.FilePath, size.Width, size.Height, "Rotated");
-            }
-        };
-        menu.Items.Add(rotateLeft);
-
-        menu.Items.Add(new MenuFlyoutSeparator());
-
-        // Flag / Unflag — mirrors the F shortcut. A mixed selection is flagged first.
-        bool allFlagged = selected.All(vm => vm.Entry.IsFlagged);
-        var flagItem = new MenuFlyoutItem
-        {
-            Text = allFlagged
-                ? (isMulti ? $"Unflag ({selected.Count})" : "Unflag")
-                : (isMulti ? $"Flag ({selected.Count})" : "Flag"),
-            Icon = new FontIcon { Glyph = "\uE129" },
-            KeyboardAcceleratorTextOverride = "F"
-        };
-        flagItem.Click += async (_, _) => await ViewModel.SetFlagAsync(selected, !allFlagged);
-        menu.Items.Add(flagItem);
-
-        menu.Items.Add(new MenuFlyoutSeparator());
+        // Rotate and flag actions are intentionally hidden for the current album UI.
+        // Their implementation is retained for a later editor/batch-actions version.
 
         // Copy
         var copy = new MenuFlyoutItem { Text = isMulti ? $"Copy ({selected.Count} files)" : "Copy" };
         copy.Click += async (_, _) =>
         {
-            await Services.PhotoOperationsService.CopyFilesToClipboardAsync(selected.Select(vm => vm.Entry.FilePath));
+            await Services.PhotoOperationsService.CopyFilesToClipboardAsync(
+                selected.Select(vm => vm.Entry.FilePath));
         };
         menu.Items.Add(copy);
+
+        var cut = new MenuFlyoutItem { Text = isMulti ? $"Cut ({selected.Count} files)" : "Cut" };
+        cut.Click += async (_, _) =>
+        {
+            await Services.PhotoOperationsService.CutFilesToClipboardAsync(
+                selected.Select(vm => vm.Entry.FilePath));
+        };
+        menu.Items.Add(cut);
+
+        var targetDirectory = System.IO.Path.GetDirectoryName(primary.Entry.FilePath);
+        if (!string.IsNullOrWhiteSpace(targetDirectory))
+        {
+            var paste = new MenuFlyoutItem { Text = "Paste into this folder" };
+            paste.Click += async (_, _) =>
+            {
+                var pasted = await App.ViewModel.PhotoOps
+                    .PasteClipboardToDirectoryAsync(targetDirectory);
+                if (pasted.Count > 0)
+                    await App.ViewModel.RefreshKnownFilesystemChangesAsync(
+                        pasted,
+                        refreshFolderTree: true);
+            };
+            menu.Items.Add(paste);
+
+            var newFolder = new MenuFlyoutItem { Text = "New Folder here" };
+            newFolder.Click += async (_, _) =>
+            {
+                Services.PhotoOperationsService.CreateNewFolder(targetDirectory);
+                await App.ViewModel.RefreshFolderStructureAsync();
+            };
+            menu.Items.Add(newFolder);
+        }
 
         // Delete
         var delete = new MenuFlyoutItem { Text = isMulti ? $"Delete ({selected.Count})" : "Delete" };
         delete.Click += async (_, _) =>
         {
-            var deleted = await ops.DeleteToRecycleBinAsync(selected.Select(vm => vm.Entry));
-            if (deleted.Count > 0)
-            {
-                // Refresh the grid; deleted IDs are gone from DB already
-                await ViewModel.LoadImagesAsync();
-            }
+            await App.ViewModel.DeleteEntriesAsync(
+                selected.Select(vm => vm.Entry));
         };
         menu.Items.Add(delete);
 
@@ -779,10 +870,11 @@ public sealed partial class ImageGridView : UserControl
             return;
         }
 
+        await App.ViewModel.RefreshKnownLibraryStateAsync(
+            refreshFolderTree: false);
+
         // Refresh the metadata panel for the renamed entry
         if (ViewModel.SelectedImage?.Entry == entry)
-        {
             App.ViewModel.MetadataPanel.ShowMetadata(entry);
-        }
     }
 }

@@ -16,6 +16,19 @@ public static class WindowsThumbnailService
     /// </summary>
     public static async Task<byte[]?> GetThumbnailStreamAsync(string filePath, int size)
     {
+        if (HeifFallbackDecoder.IsHeifFamily(filePath))
+        {
+            try
+            {
+                return await HeifFallbackDecoder.DecodeToJpegAsync(filePath, size);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"HEIF thumbnail decode failed for {System.IO.Path.GetFileName(filePath)}: {ex.Message}");
+                return null;
+            }
+        }
+
         try
         {
             var file = await StorageFile.GetFileFromPathAsync(filePath);
@@ -27,7 +40,12 @@ public static class WindowsThumbnailService
                 ThumbnailOptions.UseCurrentScale);
             
             if (thumb == null || thumb.Size == 0)
+            {
+                if (HeifFallbackDecoder.IsHeifFamily(filePath))
+                    return await HeifFallbackDecoder.DecodeToJpegAsync(filePath, size);
+
                 return null;
+            }
             
             // Return the encoded stream bytes (PNG/BMP from cache)
             var bytes = new byte[thumb.Size];
@@ -37,6 +55,19 @@ public static class WindowsThumbnailService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"WindowsThumbnailService.GetThumbnailStreamAsync failed for {System.IO.Path.GetFileName(filePath)}: {ex.Message}");
+
+            if (HeifFallbackDecoder.IsHeifFamily(filePath))
+            {
+                try
+                {
+                    return await HeifFallbackDecoder.DecodeToJpegAsync(filePath, size);
+                }
+                catch (Exception fallbackEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"HEIF thumbnail fallback failed for {System.IO.Path.GetFileName(filePath)}: {fallbackEx.Message}");
+                }
+            }
+
             return null;
         }
     }

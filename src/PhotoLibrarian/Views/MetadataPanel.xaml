@@ -58,8 +58,8 @@
                                    FontWeight="SemiBold" FontSize="13" />
                     </Border>
 
-                    <TextBlock Text="People tags" Style="{StaticResource SectionHeaderStyle}" />
-                    <ItemsRepeater x:Name="PeopleTagsList" Margin="0,2,0,0">
+                    <TextBlock Text="People tags" Style="{StaticResource SectionHeaderStyle}" Visibility="Collapsed" />
+                    <ItemsRepeater x:Name="PeopleTagsList" Margin="0,2,0,0" Visibility="Collapsed">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Vertical" Spacing="4" />
                         </ItemsRepeater.Layout>
@@ -100,6 +100,7 @@
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
                     <Button x:Name="AddPeopleTagsButton"
+                            Visibility="Collapsed"
                             AutomationProperties.AutomationId="AddPeopleTagsButton"
                             AutomationProperties.Name="Add people tags"
                             Content="Add people tags"
@@ -108,8 +109,8 @@
                             Padding="8,4"
                             Margin="0,2,0,0" />
 
-                    <TextBlock Text="Geotag" Style="{StaticResource SectionHeaderStyle}" />
-                    <TextBlock x:Name="GeotagText" Style="{StaticResource PlaceholderStyle}" Margin="0,2,0,0" />
+                    <TextBlock Text="Geotag" Style="{StaticResource SectionHeaderStyle}" Visibility="Collapsed" />
+                    <TextBlock x:Name="GeotagText" Style="{StaticResource PlaceholderStyle}" Margin="0,2,0,0" Visibility="Collapsed" />
 
                     <TextBlock Text="Caption" Style="{StaticResource SectionHeaderStyle}" />
                     <TextBox x:Name="CaptionBox"
@@ -126,7 +127,7 @@
                                Foreground="{ThemeResource SystemAccentColorLight2}"
                                Margin="0,2,0,0" />
 
-                    <TextBlock Text="Descriptive tags" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="Tags" Style="{StaticResource SectionHeaderStyle}" />
                     <ItemsRepeater x:Name="TagsList" Margin="0,4,0,0">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Vertical" Spacing="2" />
@@ -156,23 +157,101 @@
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
-                    <Grid Margin="0,4,0,0" ColumnSpacing="4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="NewTagBox" Grid.Column="0"
-                                 PlaceholderText="Add descriptive tags"
-                                 KeyDown="OnNewTagKeyDown"
-                                 FontSize="13" />
-                        <Button Grid.Column="1" Click="OnAddTagClick" Padding="6,4"
-                                ToolTipService.ToolTip="Add tag to all selected">
-                            <FontIcon Glyph="&#xE109;" FontSize="12" />
-                        </Button>
-                    </Grid>
+                    <StackPanel Margin="0,4,0,0" Spacing="4">
+                        <Grid ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="NewTagBox" Grid.Column="0"
+                                     PlaceholderText="Add or choose tag"
+                                     TextChanged="OnTagTextChanged"
+                                     KeyDown="OnNewTagKeyDown"
+                                     FontSize="13" />
+                            <Button Grid.Column="1"
+                                    Click="OnShowAllTagsClick"
+                                    Padding="6,4"
+                                    ToolTipService.ToolTip="Show all available tags"
+                                    AutomationProperties.Name="Show all available tags">
+                                <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                            </Button>
+                            <Button Grid.Column="2"
+                                    Click="OnAddTagClick"
+                                    Padding="6,4"
+                                    ToolTipService.ToolTip="Add tag to all selected">
+                                <FontIcon Glyph="&#xE109;" FontSize="12" />
+                            </Button>
+                        </Grid>
+
+                        <!-- Inline suggestion dropdown. Keeping it in the visual tree avoids
+                             the Flyout focus hand-off that interrupted typing. -->
+                        <Border x:Name="TagSuggestionsPanel"
+                                Visibility="Collapsed"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="8"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="6">
+                                <Button Content="New tag"
+                                        Click="OnNewCatalogTagClick"
+                                        HorizontalAlignment="Stretch" />
+                                <ListView x:Name="TagSuggestionsList"
+                                          MaxHeight="320"
+                                          IsItemClickEnabled="True"
+                                          ItemClick="OnTagSuggestionItemClick"
+                                          SelectionMode="None">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:AvailableTagItem">
+                                            <Grid ColumnSpacing="8"
+                                                  Padding="4,2"
+                                                  Margin="{x:Bind Indent}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <FontIcon Grid.Column="0"
+                                                          Glyph="{x:Bind TypeGlyph}"
+                                                          FontSize="11"
+                                                          VerticalAlignment="Center"
+                                                          Opacity="0.7" />
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Text="{x:Bind Name}"
+                                                               FontSize="12" />
+                                                    <TextBlock Text="{x:Bind SourceLabel}"
+                                                               FontSize="10"
+                                                               Opacity="0.6" />
+                                                </StackPanel>
+                                                <Button Grid.Column="2"
+                                                        Tag="{x:Bind}"
+                                                        Click="OnToggleAlbumTagSelectionClick"
+                                                        Padding="4,2"
+                                                        Visibility="{x:Bind PinVisibility}"
+                                                        ToolTipService.ToolTip="Pin/unpin in album catalog">
+                                                    <FontIcon Glyph="{x:Bind PinGlyph}"
+                                                              FontSize="11" />
+                                                </Button>
+                                                <Button Grid.Column="3"
+                                                        Tag="{x:Bind}"
+                                                        Click="OnManageCatalogItemClick"
+                                                        Padding="4,2"
+                                                        ToolTipService.ToolTip="Manage tag">
+                                                    <FontIcon Glyph="&#xE70F;"
+                                                              FontSize="11" />
+                                                </Button>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
 
                     <!-- Date taken — compact inline editor matching Photo Gallery -->
-                    <StackPanel x:Name="DateEditPanel" Spacing="2" Margin="0,10,0,0">
+                    <StackPanel x:Name="DateEditPanel" Spacing="2" Margin="0,10,0,0" Visibility="Collapsed">
                         <StackPanel x:Name="DateAbsoluteMode" Spacing="2">
                             <Grid ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
@@ -304,7 +383,7 @@
                 <!-- ═══ Row 2: Information block ═══ -->
                 <StackPanel Grid.Row="2" Spacing="0">
                     <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,8,0,8" />
-                    <TextBlock Text="Information" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
+                    <TextBlock Text="File &amp; EXIF" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
 
                     <StackPanel Spacing="6">
                         <Grid>
@@ -326,7 +405,7 @@
                             <TextBlock Grid.Column="0" Text="Size:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoFileSize" Style="{StaticResource InfoValueStyle}" />
                         </Grid>
-                        <Grid>
+                        <Grid Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Rating:" Style="{StaticResource InfoLabelStyle}" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" x:Name="StarPanel">
@@ -347,7 +426,7 @@
                                 </Button>
                             </StackPanel>
                         </Grid>
-                        <Grid>
+                        <Grid Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Flag:" Style="{StaticResource InfoLabelStyle}" />
                             <Button Grid.Column="1" x:Name="FlagButton" Click="OnFlagClick"
@@ -369,7 +448,7 @@
                             <TextBlock Grid.Column="0" Text="Camera:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoCamera" Style="{StaticResource InfoValueStyle}" />
                         </Grid>
-                        <Grid>
+                        <Grid Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Author:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoAuthor" Style="{StaticResource InfoValueStyle}"
@@ -395,12 +474,12 @@
                             <TextBlock Grid.Column="0" Text="ISO:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoIso" Style="{StaticResource InfoValueStyle}" />
                         </Grid>
-                        <Grid x:Name="InfoLatRow">
+                        <Grid x:Name="InfoLatRow" Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Latitude:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoLatitude" Style="{StaticResource InfoValueStyle}" />
                         </Grid>
-                        <Grid x:Name="InfoLonRow">
+                        <Grid x:Name="InfoLonRow" Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Longitude:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoLongitude" Style="{StaticResource InfoValueStyle}" />

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using PhotoLibrarian.ViewModels;
 using PhotoLibrarian.Diagnostics;
@@ -17,6 +18,11 @@ public sealed partial class FolderNavigationPanel : UserControl
     private readonly SemaphoreSlim _tagRefreshGate = new(1, 1);
     private bool _isRefreshingTagTree;
     private bool _isRefreshingPeopleTree;
+    private readonly HashSet<string> _selectedTagPaths =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _selectedFolderPaths =
+        new(StringComparer.OrdinalIgnoreCase);
+    private const string LibraryRootSelectionKey = "__photo_library_root__";
 
     public FolderNavigationPanel()
     {
@@ -77,23 +83,72 @@ public sealed partial class FolderNavigationPanel : UserControl
     {
         if (ViewModel is null) return;
 
+        var expandedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectFolderExpansionState(LibraryTree.RootNodes, expandedPaths);
+
+        _selectedFolderPaths.RemoveWhere(path =>
+            !string.Equals(
+                path,
+                LibraryRootSelectionKey,
+                StringComparison.OrdinalIgnoreCase) &&
+            !Directory.Exists(path));
+
         LibraryTree.RootNodes.Clear();
 
-        // Create "Photo Library" root node
         var photoLibraryRoot = new TreeViewNode
         {
-            Content = "📚 Photo Library",
+            Content = new FolderNodeWrapper(
+                null,
+                "📚 Photo Library",
+                _selectedFolderPaths.Contains(LibraryRootSelectionKey)),
             IsExpanded = true
         };
 
-        // Add root folders under Photo Library
         foreach (var rootFolder in ViewModel.RootFolders)
         {
-            var rootNode = BuildFolderNode(rootFolder, isRootFolder: true);
+            var rootNode = BuildFolderNode(
+                rootFolder,
+                isRootFolder: true,
+                _selectedFolderPaths);
             photoLibraryRoot.Children.Add(rootNode);
         }
 
         LibraryTree.RootNodes.Add(photoLibraryRoot);
+        RestoreFolderExpansionState(LibraryTree.RootNodes, expandedPaths);
+    }
+
+    private static void CollectFolderExpansionState(
+        IList<TreeViewNode> nodes,
+        ISet<string> expandedPaths)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.IsExpanded &&
+                node.Content is FolderNodeWrapper { FolderNode: not null } wrapper)
+            {
+                expandedPaths.Add(wrapper.FolderNode.Path);
+            }
+
+            if (node.Children.Count > 0)
+                CollectFolderExpansionState(node.Children, expandedPaths);
+        }
+    }
+
+    private static void RestoreFolderExpansionState(
+        IList<TreeViewNode> nodes,
+        ISet<string> expandedPaths)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Content is FolderNodeWrapper { FolderNode: not null } wrapper &&
+                expandedPaths.Contains(wrapper.FolderNode.Path))
+            {
+                node.IsExpanded = true;
+            }
+
+            if (node.Children.Count > 0)
+                RestoreFolderExpansionState(node.Children, expandedPaths);
+        }
     }
 
     private async Task RefreshDateTreeAsync()
@@ -256,6 +311,43 @@ public sealed partial class FolderNavigationPanel : UserControl
         return treeNode;
     }
 
+    private IReadOnlyCollection<string>? GetSelectedFolderScope()
+    {
+        if (_selectedFolderPaths.Contains(LibraryRootSelectionKey))
+            return null;
+
+        var folders = _selectedFolderPaths
+            .Where(path =>
+                !string.Equals(
+                    path,
+                    LibraryRootSelectionKey,
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return folders.Count == 0 ? null : folders;
+    }
+
+    public string? GetPreferredFileOperationDirectory()
+    {
+        var selectedFolders = _selectedFolderPaths
+            .Where(path =>
+                !string.Equals(
+                    path,
+                    LibraryRootSelectionKey,
+                    StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (selectedFolders.Count == 1)
+            return selectedFolders[0];
+
+        return App.HasActiveAlbum &&
+               !string.IsNullOrWhiteSpace(App.CurrentAlbumPath)
+            ? App.CurrentAlbumPath
+            : ViewModel?.RootFolders.FirstOrDefault()?.Path;
+    }
+
     public async Task RefreshTagsTreeAsync()
     {
         if (App.ViewModel?.TagNav is null) return;
@@ -263,7 +355,14 @@ public sealed partial class FolderNavigationPanel : UserControl
         await _tagRefreshGate.WaitAsync();
         try
         {
-            await App.ViewModel.TagNav.LoadTagsAsync();
+            await App.ViewModel.TagNav.LoadTagsAsync(GetSelectedFolderScope());
+
+            var validTagPaths = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var root in App.ViewModel.TagNav.RootTags)
+                CollectTagPaths(root, validTagPaths);
+            _selectedTagPaths.RemoveWhere(path => !validTagPaths.Contains(path));
+
             var completion =
                 new TaskCompletionSource(
                     TaskCreationOptions.RunContinuationsAsynchronously);
@@ -274,24 +373,21 @@ public sealed partial class FolderNavigationPanel : UserControl
                 {
                     var expandedPaths = new HashSet<string>(
                         StringComparer.OrdinalIgnoreCase);
-                    var selectedPaths = new HashSet<string>(
-                        StringComparer.OrdinalIgnoreCase);
                     CollectTagTreeState(
                         TagsTree.RootNodes,
-                        expandedPaths,
-                        selectedPaths);
+                        expandedPaths);
 
-                    TagsTree.SelectedNodes.Clear();
                     TagsTree.RootNodes.Clear();
                     foreach (var tagNode in App.ViewModel.TagNav.RootTags)
                     {
-                        TagsTree.RootNodes.Add(BuildTagNode(tagNode));
+                        TagsTree.RootNodes.Add(BuildTagNode(
+                            tagNode,
+                            _selectedTagPaths));
                     }
 
                     RestoreTagTreeState(
                         TagsTree.RootNodes,
-                        expandedPaths,
-                        selectedPaths);
+                        expandedPaths);
                     completion.SetResult();
                 }
                 catch (Exception exception)
@@ -316,61 +412,570 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
     }
 
+    private static void CollectTagPaths(
+        TagNode node,
+        ISet<string> paths)
+    {
+        paths.Add(node.FullPath);
+        foreach (var child in node.Children)
+            CollectTagPaths(child, paths);
+    }
+
     private void CollectTagTreeState(
         IList<TreeViewNode> nodes,
-        HashSet<string> expanded,
-        HashSet<string> selected)
+        HashSet<string> expanded)
     {
-        foreach (var n in nodes)
+        foreach (var node in nodes)
         {
-            if (n.Content is TagNodeWrapper w)
+            if (node.Content is TagNodeWrapper wrapper &&
+                node.IsExpanded)
             {
-                if (n.IsExpanded) expanded.Add(w.TagNode.FullPath);
-                if (TagsTree.SelectedNodes.Contains(n))
-                    selected.Add(w.TagNode.FullPath);
+                expanded.Add(wrapper.TagNode.FullPath);
             }
-            if (n.Children.Count > 0)
-                CollectTagTreeState(n.Children, expanded, selected);
+
+            if (node.Children.Count > 0)
+                CollectTagTreeState(node.Children, expanded);
         }
     }
 
     private void RestoreTagTreeState(
         IList<TreeViewNode> nodes,
-        HashSet<string> expanded,
-        HashSet<string> selected)
+        HashSet<string> expanded)
     {
-        foreach (var n in nodes)
+        foreach (var node in nodes)
         {
-            if (n.Content is TagNodeWrapper w)
+            if (node.Content is TagNodeWrapper wrapper &&
+                expanded.Contains(wrapper.TagNode.FullPath))
             {
-                if (expanded.Contains(w.TagNode.FullPath))
-                    n.IsExpanded = true;
-                if (selected.Contains(w.TagNode.FullPath))
-                    TagsTree.SelectedNodes.Add(n);
+                node.IsExpanded = true;
             }
-            if (n.Children.Count > 0)
-                RestoreTagTreeState(n.Children, expanded, selected);
+
+            if (node.Children.Count > 0)
+                RestoreTagTreeState(node.Children, expanded);
         }
     }
 
-    private static TreeViewNode BuildTagNode(TagNode tagNode)
+    private static TreeViewNode BuildTagNode(
+        TagNode tagNode,
+        ISet<string> selectedPaths)
     {
         var treeNode = new TreeViewNode
         {
-            Content = new TagNodeWrapper(tagNode),
-            HasUnrealizedChildren = tagNode.Children.Count > 0
+            Content = new TagNodeWrapper(
+                tagNode,
+                selectedPaths.Contains(tagNode.FullPath)),
+            HasUnrealizedChildren = false,
+            IsExpanded = tagNode.IsRoot
         };
 
-        // Add children
         foreach (var child in tagNode.Children)
-        {
-            treeNode.Children.Add(BuildTagNode(child));
-        }
+            treeNode.Children.Add(BuildTagNode(child, selectedPaths));
 
         return treeNode;
     }
 
-    private static TreeViewNode BuildFolderNode(FolderNode folderNode, bool isRootFolder = false)
+    private void OnTagFilterCheckBoxClick(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_isRefreshingTagTree ||
+            sender is not CheckBox
+            {
+                Tag: TagNodeWrapper wrapper
+            } checkBox)
+        {
+            return;
+        }
+
+        var path = wrapper.TagNode.FullPath;
+        var isChecked = checkBox.IsChecked == true;
+        wrapper.IsSelected = isChecked;
+
+        if (isChecked)
+            _selectedTagPaths.Add(path);
+        else
+            _selectedTagPaths.Remove(path);
+
+        UpdateGridFromSelection();
+    }
+
+    private async void OnManageTagCatalogClick(object sender, RoutedEventArgs e)
+    {
+        if (App.ViewModel?.MetadataPanel is not MetadataPanelViewModel metadata)
+            return;
+
+        await metadata.ReloadAvailableTagsAsync();
+
+        var list = new ListView
+        {
+            SelectionMode = ListViewSelectionMode.Single,
+            MinWidth = 520,
+            MaxHeight = 520,
+            CanDragItems = true,
+            CanReorderItems = false,
+            AllowDrop = true
+        };
+
+        var addTagButton = new Button { Content = "New tag", Padding = new Thickness(10, 5, 10, 5) };
+        var editButton = new Button { Content = "Edit", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
+        var removeButton = new Button { Content = "Remove from catalog", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
+
+        var toolbar = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
+        };
+        toolbar.Children.Add(addTagButton);
+        toolbar.Children.Add(editButton);
+        toolbar.Children.Add(removeButton);
+
+        var hint = new TextBlock
+        {
+            Text = "Every item is a tag. Hierarchy is defined by tag paths. Removing a used tag from the catalog keeps its assignments on photos. Drag a tag onto another tag to move it below it, or use the root drop zone.",
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.7
+        };
+
+        var managerStatus = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = Visibility.Collapsed,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed)
+        };
+
+        var content = new StackPanel
+        {
+            Spacing = 10,
+            MinWidth = 560
+        };
+        var rootDropZone = new Border
+        {
+            Padding = new Thickness(10, 6, 10, 6),
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Gray),
+            AllowDrop = true,
+            Child = new TextBlock
+            {
+                Text = "Move to album root",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Opacity = 0.8
+            }
+        };
+
+        content.Children.Add(toolbar);
+        content.Children.Add(hint);
+        content.Children.Add(managerStatus);
+        content.Children.Add(rootDropZone);
+        content.Children.Add(list);
+
+        var dialog = new ContentDialog
+        {
+            Title = "Tag catalog manager",
+            Content = content,
+            CloseButtonText = "Close",
+            XamlRoot = XamlRoot
+        };
+
+        void ShowManagerStatus(string? message)
+        {
+            managerStatus.Text = message ?? "";
+            managerStatus.Visibility = string.IsNullOrWhiteSpace(message)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
+
+        void ReloadRows()
+        {
+            list.ItemsSource = metadata.AvailableTags
+                .Select(item => new CatalogManagerRow(item))
+                .ToList();
+            editButton.IsEnabled = false;
+            removeButton.IsEnabled = false;
+            ShowManagerStatus(null);
+        }
+
+        CatalogManagerRow? draggedRow = null;
+
+        async Task MoveCatalogItemAsync(
+            CatalogManagerRow moving,
+            string? destinationParent)
+        {
+            var newFullPath = string.IsNullOrWhiteSpace(destinationParent)
+                ? moving.Item.Name
+                : $"{destinationParent}/{moving.Item.Name}";
+
+            if (string.Equals(
+                newFullPath,
+                moving.Item.Tag,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var validation = metadata.ValidateCatalogPath(
+                newFullPath,
+                moving.Item.Tag);
+            if (validation is not null)
+            {
+                ShowManagerStatus(validation);
+                return;
+            }
+
+            try
+            {
+                await metadata.RenameCatalogItemAsync(
+                    moving.Item,
+                    newFullPath);
+                await metadata.ReloadAvailableTagsAsync();
+                await RefreshTagsTreeAsync();
+                ReloadRows();
+            }
+            catch (Exception ex)
+            {
+                ShowManagerStatus($"Move failed: {ex.Message}");
+            }
+        }
+
+        void OnCatalogRowDragOver(object sender, DragEventArgs args)
+        {
+            if (draggedRow is null ||
+                sender is not ListViewItem { Content: CatalogManagerRow target })
+            {
+                args.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            if (string.Equals(
+                    target.Item.Tag,
+                    draggedRow.Item.Tag,
+                    StringComparison.OrdinalIgnoreCase) ||
+                target.Item.Tag.StartsWith(
+                    draggedRow.Item.Tag + "/",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                args.AcceptedOperation = DataPackageOperation.None;
+                args.Handled = true;
+                return;
+            }
+
+            args.AcceptedOperation = DataPackageOperation.Move;
+            args.DragUIOverride.Caption = $"Move into '{target.Item.Tag}'";
+            args.Handled = true;
+        }
+
+        async void OnCatalogRowDrop(object sender, DragEventArgs args)
+        {
+            args.Handled = true;
+
+            if (draggedRow is null ||
+                sender is not ListViewItem { Content: CatalogManagerRow target })
+            {
+                return;
+            }
+
+            var moving = draggedRow;
+            draggedRow = null;
+            await MoveCatalogItemAsync(moving, target.Item.Tag);
+        }
+
+        void OnCatalogRootDragOver(object sender, DragEventArgs args)
+        {
+            if (draggedRow is null)
+            {
+                args.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            args.AcceptedOperation = DataPackageOperation.Move;
+            args.DragUIOverride.Caption = "Move to root";
+            args.Handled = true;
+        }
+
+        async void OnCatalogRootDrop(object sender, DragEventArgs args)
+        {
+            args.Handled = true;
+
+            if (draggedRow is null)
+                return;
+
+            var moving = draggedRow;
+            draggedRow = null;
+            await MoveCatalogItemAsync(moving, null);
+        }
+
+        list.SelectionChanged += (_, _) =>
+        {
+            var hasSelection = list.SelectedItem is CatalogManagerRow;
+            editButton.IsEnabled = hasSelection;
+            removeButton.IsEnabled = hasSelection;
+        };
+
+        addTagButton.Click += async (_, _) =>
+        {
+            var parentTags = metadata.AvailableTags
+                .Select(item => item.Tag)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var parentBox = new ComboBox
+            {
+                Header = "Parent tag",
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            parentBox.Items.Add("(root)");
+            foreach (var parentTag in parentTags)
+                parentBox.Items.Add(parentTag);
+            parentBox.SelectedIndex = 0;
+
+            var nameBox = new TextBox
+            {
+                Header = "Tag name",
+                PlaceholderText = "e.g. Red"
+            };
+
+            var panel = new StackPanel { Spacing = 10 };
+            panel.Children.Add(parentBox);
+            panel.Children.Add(nameBox);
+
+            var createDialog = new ContentDialog
+            {
+                Title = "New tag",
+                Content = panel,
+                PrimaryButtonText = "Create",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+
+            dialog.Hide();
+            var createTagResult = await createDialog.ShowAsync();
+            _ = dialog.ShowAsync();
+            if (createTagResult != ContentDialogResult.Primary)
+                return;
+
+            var name = nameBox.Text?.Trim().Trim('/');
+            if (string.IsNullOrWhiteSpace(name))
+                return;
+
+            var parent = parentBox.SelectedIndex > 0
+                ? parentBox.SelectedItem?.ToString()
+                : null;
+            var fullTag = string.IsNullOrWhiteSpace(parent)
+                ? name
+                : $"{parent}/{name}";
+
+            var validation = metadata.ValidateCatalogPath(fullTag);
+            if (validation is not null)
+            {
+                ShowManagerStatus(validation);
+                return;
+            }
+
+            AlbumService.AddSelectedTag(fullTag);
+            await metadata.ReloadAvailableTagsAsync();
+            await RefreshTagsTreeAsync();
+            ReloadRows();
+        };
+
+        editButton.Click += async (_, _) =>
+        {
+            if (list.SelectedItem is not CatalogManagerRow row)
+                return;
+
+            var item = row.Item;
+            var parentTags = metadata.AvailableTags
+                .Where(candidate =>
+                    !string.Equals(candidate.Tag, item.Tag, StringComparison.OrdinalIgnoreCase) &&
+                    !candidate.Tag.StartsWith(item.Tag + "/", StringComparison.OrdinalIgnoreCase))
+                .Select(candidate => candidate.Tag)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var currentParent = "";
+            var slash = item.Tag.LastIndexOf('/');
+            if (slash > 0)
+                currentParent = item.Tag[..slash];
+
+            var parentBox = new ComboBox
+            {
+                Header = "Parent tag",
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            parentBox.Items.Add("(root)");
+            foreach (var parentTag in parentTags)
+                parentBox.Items.Add(parentTag);
+
+            parentBox.SelectedIndex = 0;
+            for (var index = 0; index < parentTags.Count; index++)
+            {
+                if (string.Equals(parentTags[index], currentParent, StringComparison.OrdinalIgnoreCase))
+                {
+                    parentBox.SelectedIndex = index + 1;
+                    break;
+                }
+            }
+
+            var nameBox = new TextBox
+            {
+                Header = "Tag name",
+                Text = item.Name
+            };
+
+            var panel = new StackPanel { Spacing = 10 };
+            panel.Children.Add(parentBox);
+            panel.Children.Add(nameBox);
+
+            var editDialog = new ContentDialog
+            {
+                Title = "Edit tag",
+                Content = panel,
+                PrimaryButtonText = "Save",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot
+            };
+
+            dialog.Hide();
+            var editResult = await editDialog.ShowAsync();
+            _ = dialog.ShowAsync();
+            if (editResult != ContentDialogResult.Primary)
+                return;
+
+            var name = nameBox.Text?.Trim().Trim('/');
+            if (string.IsNullOrWhiteSpace(name))
+                return;
+
+            var parent = parentBox.SelectedIndex > 0
+                ? parentBox.SelectedItem?.ToString()
+                : null;
+            var newFullPath = string.IsNullOrWhiteSpace(parent)
+                ? name
+                : $"{parent}/{name}";
+
+            var validation = metadata.ValidateCatalogPath(newFullPath, item.Tag);
+            if (validation is not null)
+            {
+                ShowManagerStatus(validation);
+                return;
+            }
+
+            try
+            {
+                await metadata.RenameCatalogItemAsync(item, newFullPath);
+                await metadata.ReloadAvailableTagsAsync();
+                await RefreshTagsTreeAsync();
+                ReloadRows();
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText = $"Rename failed: {ex.Message}";
+            }
+        };
+
+        removeButton.Click += async (_, _) =>
+        {
+            if (list.SelectedItem is not CatalogManagerRow row)
+                return;
+
+            var item = row.Item;
+            var confirm = new ContentDialog
+            {
+                Title = "Remove tag from catalog?",
+                Content = item.IsUsedInAlbum
+                    ? "This tag is used on photos. Removing it from the catalog will keep those assignments."
+                    : "The tag will be removed from the album catalog.",
+                PrimaryButtonText = "Remove",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = XamlRoot
+            };
+
+            dialog.Hide();
+            var removeResult = await confirm.ShowAsync();
+            _ = dialog.ShowAsync();
+            if (removeResult != ContentDialogResult.Primary)
+                return;
+
+            await metadata.RemoveCatalogItemAsync(item);
+            await metadata.ReloadAvailableTagsAsync();
+            await RefreshTagsTreeAsync();
+            ReloadRows();
+        };
+
+        var configuredContainers = new HashSet<ListViewItem>();
+
+        list.ContainerContentChanging += (_, args) =>
+        {
+            if (args.InRecycleQueue || args.ItemContainer is not ListViewItem container)
+                return;
+
+            if (!configuredContainers.Add(container))
+                return;
+
+            container.CanDrag = true;
+            container.AllowDrop = true;
+            container.DragStarting += (_, _) =>
+            {
+                if (container.Content is CatalogManagerRow row)
+                {
+                    draggedRow = row;
+                    ShowManagerStatus(null);
+                }
+            };
+            container.DragOver += OnCatalogRowDragOver;
+            container.Drop += OnCatalogRowDrop;
+        };
+
+        list.DragItemsStarting += (_, args) =>
+        {
+            draggedRow = args.Items.OfType<CatalogManagerRow>().FirstOrDefault();
+            ShowManagerStatus(null);
+        };
+
+        list.DragItemsCompleted += (_, _) =>
+        {
+            draggedRow = null;
+        };
+
+        rootDropZone.DragOver += OnCatalogRootDragOver;
+        rootDropZone.Drop += OnCatalogRootDrop;
+
+        ReloadRows();
+        await dialog.ShowAsync();
+    }
+
+    private void OnExpandAllTagsClick(object sender, RoutedEventArgs e)
+    {
+        SetTagTreeExpansion(TagsTree.RootNodes, true);
+    }
+
+    private void OnCollapseAllTagsClick(object sender, RoutedEventArgs e)
+    {
+        // Collapse every node including the synthetic Tags root.
+        SetTagTreeExpansion(TagsTree.RootNodes, false);
+    }
+
+    private static void SetTagTreeExpansion(
+        IList<TreeViewNode> nodes,
+        bool expanded)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Children.Count > 0)
+            {
+                node.IsExpanded = expanded;
+                SetTagTreeExpansion(node.Children, expanded);
+            }
+        }
+    }
+
+    private static TreeViewNode BuildFolderNode(
+        FolderNode folderNode,
+        bool isRootFolder = false,
+        ISet<string>? selectedPaths = null)
     {
         // Create display text with icon
         string icon = "📁";
@@ -382,7 +987,10 @@ public sealed partial class FolderNavigationPanel : UserControl
         // Store FolderNode in a wrapper for event handlers to retrieve
         var treeNode = new TreeViewNode 
         { 
-            Content = new FolderNodeWrapper(folderNode, displayText),
+            Content = new FolderNodeWrapper(
+                folderNode,
+                displayText,
+                selectedPaths?.Contains(folderNode.Path) == true),
             IsExpanded = false
         };
 
@@ -398,23 +1006,227 @@ public sealed partial class FolderNavigationPanel : UserControl
             // Add realized children
             foreach (var child in folderNode.Children)
             {
-                treeNode.Children.Add(BuildFolderNode(child, isRootFolder: false));
+                treeNode.Children.Add(BuildFolderNode(
+                    child,
+                    isRootFolder: false,
+                    selectedPaths));
             }
         }
 
         return treeNode;
     }
 
+    private void OnLibraryTreeRightTapped(
+        object sender,
+        RightTappedRoutedEventArgs e)
+    {
+        var node = FindLibraryNodeAt(e);
+        string? targetPath = null;
+        var isAlbumRoot = false;
+
+        if (node?.Content is FolderNodeWrapper wrapper &&
+            wrapper.FolderNode is not null)
+        {
+            targetPath = wrapper.FolderNode.Path;
+        }
+        else if (node?.Content is FolderNodeWrapper
+                 {
+                     FolderNode: null
+                 } &&
+                 App.HasActiveAlbum)
+        {
+            targetPath = App.CurrentAlbumPath;
+            isAlbumRoot = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(targetPath) ||
+            !Directory.Exists(targetPath))
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+
+        var newFolder = new MenuFlyoutItem { Text = "New Folder" };
+        newFolder.Click += async (_, _) =>
+        {
+            try
+            {
+                Services.PhotoOperationsService.CreateNewFolder(targetPath);
+                await App.ViewModel.RefreshFolderStructureAsync();
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText = $"Create folder failed: {ex.Message}";
+            }
+        };
+        menu.Items.Add(newFolder);
+
+        var paste = new MenuFlyoutItem { Text = "Paste" };
+        paste.Click += async (_, _) =>
+        {
+            try
+            {
+                var pasted = await App.ViewModel.PhotoOps
+                    .PasteClipboardToDirectoryAsync(targetPath);
+                if (pasted.Count > 0)
+                    await App.ViewModel.RefreshKnownFilesystemChangesAsync(
+                        pasted,
+                        refreshFolderTree: true);
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText = $"Paste failed: {ex.Message}";
+            }
+        };
+        menu.Items.Add(paste);
+
+        if (!isAlbumRoot)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copy = new MenuFlyoutItem { Text = "Copy" };
+            copy.Click += async (_, _) =>
+                await Services.PhotoOperationsService
+                    .CopyPathsToClipboardAsync([targetPath], cut: false);
+            menu.Items.Add(copy);
+
+            var cut = new MenuFlyoutItem { Text = "Cut" };
+            cut.Click += async (_, _) =>
+                await Services.PhotoOperationsService
+                    .CopyPathsToClipboardAsync([targetPath], cut: true);
+            menu.Items.Add(cut);
+
+            var rename = new MenuFlyoutItem { Text = "Rename…" };
+            rename.Click += async (_, _) =>
+                await ShowRenameFolderDialogAsync(targetPath);
+            menu.Items.Add(rename);
+
+            var delete = new MenuFlyoutItem { Text = "Delete" };
+            delete.Click += async (_, _) =>
+            {
+                await App.ViewModel.DeleteDirectoryAsync(targetPath);
+            };
+            menu.Items.Add(delete);
+        }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var open = new MenuFlyoutItem { Text = "Open in File Explorer" };
+        open.Click += (_, _) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{targetPath}\"",
+                        UseShellExecute = true
+                    });
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText = $"File Explorer failed to open: {ex.Message}";
+            }
+        };
+        menu.Items.Add(open);
+
+        menu.ShowAt(
+            LibraryTree,
+            e.GetPosition(LibraryTree));
+        e.Handled = true;
+    }
+
+    private TreeViewNode? FindLibraryNodeAt(RightTappedRoutedEventArgs e)
+    {
+        try
+        {
+            var elements = VisualTreeHelper.FindElementsInHostCoordinates(
+                e.GetPosition(null),
+                LibraryTree);
+
+            foreach (var element in elements)
+            {
+                if (element is not TreeViewItem item)
+                    continue;
+
+                var node = LibraryTree.NodeFromContainer(item);
+                if (node is not null)
+                    return node;
+
+                if (item.DataContext is TreeViewNode dataNode)
+                    return dataNode;
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.WriteLine($"Library context hit-test failed: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async Task ShowRenameFolderDialogAsync(string folderPath)
+    {
+        var currentName = Path.GetFileName(folderPath);
+        var box = new TextBox
+        {
+            Text = currentName,
+            SelectionStart = 0,
+            SelectionLength = currentName.Length
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = "Rename folder",
+            Content = box,
+            PrimaryButtonText = "Rename",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var newName = box.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(newName))
+            return;
+
+        var newPath = await App.ViewModel.PhotoOps
+            .RenameDirectoryAsync(folderPath, newName);
+        if (newPath is null)
+        {
+            App.ViewModel.StatusText = "Folder rename failed.";
+            return;
+        }
+
+        await App.ViewModel.RefreshKnownLibraryStateAsync(
+            refreshFolderTree: true);
+    }
+
     private async void OnManageFoldersClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new ManageFoldersDialog
+        if (App.MainWindow is not Window owner) return;
+
+        try
         {
-            XamlRoot = this.XamlRoot
-        };
-        await dialog.ShowAsync();
-        
-        // Refresh tree after dialog closes
-        RefreshLibraryTree();
+            var albumPath = await AlbumService.PickAlbumFolderAsync(owner);
+            if (albumPath is not null)
+                AlbumService.RestartForAlbum(albumPath);
+        }
+        catch (Exception ex)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Could not open album",
+                Content = ex.Message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
     }
 
     private async void OnRefreshClick(object sender, RoutedEventArgs e)
@@ -423,26 +1235,29 @@ public sealed partial class FolderNavigationPanel : UserControl
             await ViewModel.RefreshCommand.ExecuteAsync(null);
     }
 
-    private void OnLibraryItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
+    private async void OnFolderFilterCheckBoxClick(
+        object sender,
+        RoutedEventArgs e)
     {
-        // When user clicks on a folder (not checkbox), toggle its selection
-        if (args.InvokedItem is TreeViewNode node)
+        if (sender is not CheckBox
+            {
+                Tag: FolderNodeWrapper wrapper
+            } checkBox)
         {
-            if (sender.SelectedNodes.Contains(node))
-            {
-                // Already selected, deselect it
-                sender.SelectedNodes.Remove(node);
-            }
-            else
-            {
-                // Not selected, add it
-                sender.SelectedNodes.Add(node);
-            }
-
-            // Manually trigger grid update since programmatic selection change
-            // might not fire SelectionChanged event
-            UpdateGridFromSelection();
+            return;
         }
+
+        var isChecked = checkBox.IsChecked == true;
+        wrapper.IsSelected = isChecked;
+
+        var key = wrapper.FolderNode?.Path ?? LibraryRootSelectionKey;
+        if (isChecked)
+            _selectedFolderPaths.Add(key);
+        else
+            _selectedFolderPaths.Remove(key);
+
+        await RefreshTagsTreeAsync();
+        UpdateGridFromSelection();
     }
 
     private void OnDateItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
@@ -461,22 +1276,6 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
             
             DebugLog.WriteLine($"  After toggle: IsSelected={sender.SelectedNodes.Contains(node)}, TotalSelected={sender.SelectedNodes.Count}");
-            UpdateGridFromSelection();
-        }
-    }
-
-    private void OnTagsItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
-    {
-        if (args.InvokedItem is TreeViewNode node)
-        {
-            if (sender.SelectedNodes.Contains(node))
-            {
-                sender.SelectedNodes.Remove(node);
-            }
-            else
-            {
-                sender.SelectedNodes.Add(node);
-            }
             UpdateGridFromSelection();
         }
     }
@@ -514,30 +1313,17 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             foreach (var child in folderNode.Children)
             {
-                args.Node.Children.Add(BuildFolderNode(child, isRootFolder: false));
+                args.Node.Children.Add(BuildFolderNode(
+                    child,
+                    isRootFolder: false,
+                    _selectedFolderPaths));
             }
         }
-    }
-
-    private void OnLibrarySelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
-    {
-        UpdateGridFromSelection();
     }
 
     private void OnDateSelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
     {
         DebugLog.WriteLine($"OnDateSelectionChanged: AddedItems={args.AddedItems.Count}, RemovedItems={args.RemovedItems.Count}, TotalSelected={sender.SelectedNodes.Count}");
-        UpdateGridFromSelection();
-    }
-
-    private void OnTagsSelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
-    {
-        if (_isRefreshingTagTree)
-        {
-            return;
-        }
-
-        DebugLog.WriteLine($"OnTagsSelectionChanged: AddedItems={args.AddedItems.Count}, RemovedItems={args.RemovedItems.Count}, TotalSelected={sender.SelectedNodes.Count}");
         UpdateGridFromSelection();
     }
 
@@ -572,22 +1358,17 @@ public sealed partial class FolderNavigationPanel : UserControl
     {
         if (App.ViewModel?.ImageGrid is null) return;
 
-        // Collect all selected folder paths
-        var selectedFolders = new List<string>();
-        bool photoLibraryRootSelected = false;
-        
-        foreach (var node in LibraryTree.SelectedNodes)
-        {
-            if (node.Content is string str && str.StartsWith("📚"))
-            {
-                // Photo Library root node selected - means "show all folders"
-                photoLibraryRootSelected = true;
-            }
-            else if (node.Content is FolderNodeWrapper wrapper && wrapper.FolderNode != null)
-            {
-                selectedFolders.Add(wrapper.FolderNode.Path);
-            }
-        }
+        // Folder filtering uses independent checkbox state, just like tags.
+        bool photoLibraryRootSelected =
+            _selectedFolderPaths.Contains(LibraryRootSelectionKey);
+        var selectedFolders = _selectedFolderPaths
+            .Where(path =>
+                !string.Equals(
+                    path,
+                    LibraryRootSelectionKey,
+                    StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         // Collect selected date ranges (year/month/root)
         var selectedYears = new List<int>();
@@ -617,24 +1398,18 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
         }
 
-        // Collect selected tags
-        var selectedTags = new List<string>();
-        bool tagRootSelected = false;
-        foreach (var node in TagsTree.SelectedNodes)
-        {
-            if (node.Content is TagNodeWrapper wrapper)
-            {
-                if (wrapper.TagNode.IsRoot)
-                {
-                    // Root "Tags" node - show all tagged images
-                    tagRootSelected = true;
-                }
-                else
-                {
-                    selectedTags.Add(wrapper.TagNode.FullPath);
-                }
-            }
-        }
+        // Tag filtering uses an independent selection set rather than
+        // TreeView's hierarchical multiple-selection semantics.
+        bool tagRootSelected = _selectedTagPaths.Contains("");
+        bool untaggedSelected = _selectedTagPaths.Contains("__untagged__");
+        var selectedTags = _selectedTagPaths
+            .Where(path =>
+                !string.IsNullOrEmpty(path) &&
+                !string.Equals(
+                    path,
+                    "__untagged__",
+                    StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
         var selectedPeople = new List<long>();
         bool peopleRootSelected = false;
@@ -648,14 +1423,14 @@ public sealed partial class FolderNavigationPanel : UserControl
                 selectedPeople.Add(personId);
         }
 
-        DebugLog.WriteLine($"UpdateGridFromSelection: PhotoLibraryRoot={photoLibraryRootSelected}, Folders={selectedFolders.Count}, DateRoot={dateRootSelected}, Years={selectedYears.Count}, Months={selectedMonths.Count}, PeopleRoot={peopleRootSelected}, People={selectedPeople.Count}, TagRoot={tagRootSelected}, Tags={selectedTags.Count}");
+        DebugLog.WriteLine($"UpdateGridFromSelection: PhotoLibraryRoot={photoLibraryRootSelected}, Folders={selectedFolders.Count}, DateRoot={dateRootSelected}, Years={selectedYears.Count}, Months={selectedMonths.Count}, PeopleRoot={peopleRootSelected}, People={selectedPeople.Count}, TagRoot={tagRootSelected}, Untagged={untaggedSelected}, Tags={selectedTags.Count}");
 
         // Flagged working set
         bool flaggedSelected = FlagsTree.SelectedNodes.Any(n => n.Content is FlagNavigationViewModel);
 
         // If nothing selected anywhere, clear filters to show empty grid
         if (!photoLibraryRootSelected && !dateRootSelected && !peopleRootSelected &&
-            !tagRootSelected && !flaggedSelected &&
+            !tagRootSelected && !untaggedSelected && !flaggedSelected &&
             selectedFolders.Count == 0 && selectedYears.Count == 0 && 
             selectedMonths.Count == 0 && selectedPeople.Count == 0 &&
             selectedTags.Count == 0)
@@ -682,6 +1457,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             selectedPeople.Count > 0 ? selectedPeople : null,
             tagRootSelected,
             selectedTags.Count > 0 ? selectedTags : null,
+            untaggedSelected,
             flaggedSelected);
     }
 
@@ -785,11 +1561,16 @@ public sealed partial class FolderNavigationPanel : UserControl
     {
         public FolderNode? FolderNode { get; }
         public string DisplayText { get; }
+        public bool IsSelected { get; set; }
 
-        public FolderNodeWrapper(FolderNode? folderNode, string displayText)
+        public FolderNodeWrapper(
+            FolderNode? folderNode,
+            string displayText,
+            bool isSelected = false)
         {
             FolderNode = folderNode;
             DisplayText = displayText;
+            IsSelected = isSelected;
         }
 
         public override string ToString() => DisplayText;
@@ -833,23 +1614,46 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
     }
 
-    // Helper class to wrap TagNode for TreeView
-    private class TagNodeWrapper
+    private sealed class CatalogManagerRow
     {
-        public TagNode TagNode { get; }
+        public AvailableTagItem Item { get; }
 
-        public TagNodeWrapper(TagNode tagNode)
+        public CatalogManagerRow(AvailableTagItem item)
         {
-            TagNode = tagNode;
+            Item = item;
         }
 
         public override string ToString()
         {
-            // Root node already has emoji in Name, others need the tag icon
+            var indent = new string(' ', Math.Max(0, Item.Depth) * 4);
+            var icon = "🏷️";
+            var state = string.IsNullOrWhiteSpace(Item.SourceLabel)
+                ? ""
+                : $"  [{Item.SourceLabel}]";
+            return $"{indent}{icon} {Item.Name}{state}";
+        }
+    }
+
+    // Helper class to wrap TagNode for TreeView
+    private class TagNodeWrapper
+    {
+        public TagNode TagNode { get; }
+        public bool IsSelected { get; set; }
+
+        public TagNodeWrapper(
+            TagNode tagNode,
+            bool isSelected = false)
+        {
+            TagNode = tagNode;
+            IsSelected = isSelected;
+        }
+
+        public override string ToString()
+        {
             if (TagNode.IsRoot)
                 return $"{TagNode.Name} ({TagNode.Count})";
-            else
-                return $"🏷️ {TagNode.Name} ({TagNode.Count})";
+
+            return $"🏷️ {TagNode.Name} ({TagNode.Count})";
         }
     }
 }

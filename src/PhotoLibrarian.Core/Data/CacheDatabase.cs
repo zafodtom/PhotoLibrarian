@@ -32,6 +32,9 @@ public sealed class CacheDatabase : IDisposable
 
     public async Task InitializeAsync()
     {
+        if (_initConnection is not null)
+            return;
+
         // Keep one connection open to hold the shared cache alive
         _initConnection = new SqliteConnection(_connectionString);
         await _initConnection.OpenAsync();
@@ -266,6 +269,99 @@ public sealed class CacheDatabase : IDisposable
     /// Creates and returns a new open connection from the pool.
     /// Callers should dispose the connection when done.
     /// </summary>
+    public async Task MigrateAlbumPathsToRelativeAsync(string currentAlbumRoot)
+    {
+        using var conn = CreateConnection();
+        using var transaction = conn.BeginTransaction();
+
+        var oldRoot = currentAlbumRoot;
+        using (var rootCommand = conn.CreateCommand())
+        {
+            rootCommand.Transaction = transaction;
+            rootCommand.CommandText = "SELECT path FROM watched_folders ORDER BY id LIMIT 1";
+            var storedRoot = await rootCommand.ExecuteScalarAsync() as string;
+            if (!string.IsNullOrWhiteSpace(storedRoot) &&
+                Path.IsPathRooted(storedRoot))
+            {
+                oldRoot = Path.GetFullPath(storedRoot)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            }
+        }
+
+        var imagePaths = new List<(long Id, string FilePath, string? SidecarPath)>();
+        using (var select = conn.CreateCommand())
+        {
+            select.Transaction = transaction;
+            select.CommandText = "SELECT id, file_path, face_sidecar_path FROM images";
+            using var reader = await select.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                imagePaths.Add((
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2)));
+            }
+        }
+
+        foreach (var row in imagePaths)
+        {
+            var storedFilePath = MakePortable(row.FilePath, oldRoot);
+            var storedSidecarPath = string.IsNullOrWhiteSpace(row.SidecarPath)
+                ? row.SidecarPath
+                : MakePortable(row.SidecarPath!, oldRoot);
+
+            if (storedFilePath == row.FilePath &&
+                storedSidecarPath == row.SidecarPath)
+                continue;
+
+            using var update = conn.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = """
+                UPDATE images
+                SET file_path = $filePath,
+                    face_sidecar_path = $sidecarPath
+                WHERE id = $id
+                """;
+            update.Parameters.AddWithValue("$id", row.Id);
+            update.Parameters.AddWithValue("$filePath", storedFilePath);
+            update.Parameters.AddWithValue(
+                "$sidecarPath",
+                (object?)storedSidecarPath ?? DBNull.Value);
+            await update.ExecuteNonQueryAsync();
+        }
+
+        using (var roots = conn.CreateCommand())
+        {
+            roots.Transaction = transaction;
+            roots.CommandText = """
+                DELETE FROM watched_folders;
+                INSERT INTO watched_folders (path, include_sub)
+                VALUES ('.', 1);
+                """;
+            await roots.ExecuteNonQueryAsync();
+        }
+
+        transaction.Commit();
+
+        static string MakePortable(string path, string root)
+        {
+            if (!Path.IsPathRooted(path))
+                return path.Replace('\\', '/');
+
+            var full = Path.GetFullPath(path);
+            var normalizedRoot = Path.GetFullPath(root)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            if (!string.Equals(full, normalizedRoot, StringComparison.OrdinalIgnoreCase) &&
+                !full.StartsWith(
+                    normalizedRoot + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase))
+                return path;
+
+            return Path.GetRelativePath(normalizedRoot, full).Replace('\\', '/');
+        }
+    }
+
     public SqliteConnection CreateConnection()
     {
         var conn = new SqliteConnection(_connectionString);

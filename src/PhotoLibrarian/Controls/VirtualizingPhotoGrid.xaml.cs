@@ -632,6 +632,13 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
             }
             
             // Group is visible - calculate visible items
+            var items = group.Items;
+            if (items is null || items.Count == 0)
+            {
+                currentY = groupEndY;
+                continue;
+            }
+
             int firstVisibleRow = Math.Max(0, (int)((viewportStart - currentY) / cellSize));
             int lastVisibleRow = Math.Min(rows - 1, (int)((viewportEnd - currentY) / cellSize) + 1);
             
@@ -640,9 +647,9 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
                 for (int col = 0; col < _columnCount; col++)
                 {
                     int itemIndex = row * _columnCount + col;
-                    if (itemIndex >= itemCount) break;
+                    if (itemIndex >= items.Count) break;
                     
-                    var item = group.Items[itemIndex];
+                    var item = items[itemIndex];
                     double x = col * cellSize;
                     double y = currentY + (row * cellSize);
                     

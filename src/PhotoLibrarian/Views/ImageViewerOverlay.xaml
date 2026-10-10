@@ -4,8 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:views="using:PhotoLibrarian.Views"
     Background="Black"
-    IsTabStop="True"
-    KeyDown="OnKeyDown">
+    IsTabStop="True">
 
     <Grid x:Name="RootGrid" Background="Black">
         <Grid.Resources>
@@ -97,11 +96,34 @@
                         Click="OnZoomFit" ToolTipService.ToolTip="Fit to window" Padding="8">
                     <FontIcon Glyph="&#xE9A6;" FontSize="14" Foreground="White" />
                 </Button>
+                <Button x:Name="ZoomActualSizeButton"
+                        AutomationProperties.AutomationId="ViewerZoomActualSize"
+                        AutomationProperties.Name="Actual size 100 percent"
+                        Click="OnZoomActualSize"
+                        ToolTipService.ToolTip="Actual size (100%)"
+                        Padding="8,6">
+                    <TextBlock Text="100 %" FontSize="12" Foreground="White" />
+                </Button>
                 <Button x:Name="ZoomInButton"
                         AutomationProperties.AutomationId="ViewerZoomIn"
                         AutomationProperties.Name="Zoom in"
                         Click="OnZoomIn" ToolTipService.ToolTip="Zoom in" Padding="8">
                     <FontIcon Glyph="&#xE8A3;" FontSize="14" Foreground="White" />
+                </Button>
+                <Button x:Name="FullscreenButton"
+                        AutomationProperties.AutomationId="ViewerFullscreen"
+                        AutomationProperties.Name="Toggle fullscreen"
+                        Click="OnToggleFullscreen"
+                        ToolTipService.ToolTip="Fullscreen (F11)"
+                        Padding="8">
+                    <FontIcon Glyph="&#xE740;" FontSize="14" Foreground="White" />
+                </Button>
+                <Button x:Name="DeleteCurrentButton"
+                        AutomationProperties.AutomationId="ViewerDelete"
+                        AutomationProperties.Name="Delete current item"
+                        Click="OnDeleteCurrent"
+                        Padding="8">
+                    <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="White" />
                 </Button>
                 <Button x:Name="CancelManualFaceTaggingButton"
                         AutomationProperties.AutomationId="CancelManualFaceTagging"
@@ -131,6 +153,7 @@
                       HorizontalAlignment="Stretch"
                       VerticalAlignment="Stretch"
                       SizeChanged="ImageScrollViewer_SizeChanged"
+                      DoubleTapped="OnViewerDoubleTapped"
                       PointerPressed="ImageScrollViewer_PointerPressed"
                       PointerMoved="ImageScrollViewer_PointerMoved"
                       PointerReleased="ImageScrollViewer_PointerReleased"
@@ -303,10 +326,27 @@
         <MediaPlayerElement x:Name="VideoPlayer"
                             Grid.Row="1"
                             Visibility="Collapsed"
+                            DoubleTapped="OnViewerDoubleTapped"
                             AreTransportControlsEnabled="True"
                             AutoPlay="True"
                             HorizontalAlignment="Stretch"
                             VerticalAlignment="Stretch" />
+
+        <Border x:Name="ZoomPercentBadge"
+                Grid.Row="1"
+                Grid.ColumnSpan="2"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,16,16"
+                Padding="8,4"
+                Background="#B3000000"
+                CornerRadius="4"
+                IsHitTestVisible="False">
+            <TextBlock x:Name="ZoomPercentText"
+                       Foreground="White"
+                       FontSize="12"
+                       Text="100 %" />
+        </Border>
 
         <!-- Navigation arrows -->
         <Button x:Name="PreviousButton" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Left"

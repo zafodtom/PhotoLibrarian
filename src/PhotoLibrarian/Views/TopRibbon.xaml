@@ -42,7 +42,7 @@
 
             <!-- ===== Viewer mode (default) ===== -->
             <StackPanel x:Name="ViewerTools" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="MakeCopyButton" Click="OnMakeCopyClick"
+                <Button x:Name="MakeCopyButton" Visibility="Collapsed" Click="OnMakeCopyClick"
                         Style="{StaticResource RibbonCommandStyle}"
                         AutomationProperties.AutomationId="RibbonMakeCopy"
                         AutomationProperties.Name="Make a copy"
@@ -62,7 +62,7 @@
                         <TextBlock Text="Crop" Style="{StaticResource RibbonCaptionStyle}" />
                     </StackPanel>
                 </Button>
-                <Button x:Name="StraightenButton" Click="OnStraightenClick"
+                <Button x:Name="StraightenButton" Visibility="Collapsed" Click="OnStraightenClick"
                         Style="{StaticResource RibbonCommandStyle}"
                         AutomationProperties.AutomationId="RibbonStraighten"
                         AutomationProperties.Name="Straighten"
@@ -72,7 +72,7 @@
                         <TextBlock Text="Straighten" Style="{StaticResource RibbonCaptionStyle}" />
                     </StackPanel>
                 </Button>
-                <Button x:Name="AdjustButton" Click="OnAdjustClick"
+                <Button x:Name="AdjustButton" Visibility="Collapsed" Click="OnAdjustClick"
                         Style="{StaticResource RibbonCommandStyle}"
                         AutomationProperties.AutomationId="RibbonAdjust"
                         AutomationProperties.Name="Adjust"
@@ -82,7 +82,7 @@
                         <TextBlock Text="Adjust" Style="{StaticResource RibbonCaptionStyle}" />
                     </StackPanel>
                 </Button>
-                <Button x:Name="RedEyeButton" Click="OnRedEyeClick"
+                <Button x:Name="RedEyeButton" Visibility="Collapsed" Click="OnRedEyeClick"
                         Style="{StaticResource RibbonCommandStyle}"
                         AutomationProperties.AutomationId="RibbonRedEye"
                         AutomationProperties.Name="Red eye"

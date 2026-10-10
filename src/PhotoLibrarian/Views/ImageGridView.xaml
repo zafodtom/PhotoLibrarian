@@ -41,11 +41,11 @@
                     <ComboBoxItem Content="None" Tag="None" />
                     <ComboBoxItem Content="File Type" Tag="FileType" />
                     <ComboBoxItem Content="Media Type" Tag="MediaType" />
-                    <ComboBoxItem Content="Year Taken" Tag="YearTaken" />
-                    <ComboBoxItem Content="Month Taken" Tag="MonthTaken" />
+                    <ComboBoxItem Content="Year Taken" Tag="YearTaken" Visibility="Collapsed" />
+                    <ComboBoxItem Content="Month Taken" Tag="MonthTaken" Visibility="Collapsed" />
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
                     <ComboBoxItem Content="Image Size" Tag="ImageSize" />
-                    <ComboBoxItem Content="Rating" Tag="Rating" />
+                    <ComboBoxItem Content="Rating" Tag="Rating" Visibility="Collapsed" />
                     <ComboBoxItem Content="Camera" Tag="Camera" />
                 </ComboBox>
             </StackPanel>
@@ -61,7 +61,7 @@
                     <ComboBoxItem Content="Date Taken" Tag="DateTaken" />
                     <ComboBoxItem Content="Date Modified" Tag="DateModified" />
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
-                    <ComboBoxItem Content="Rating" Tag="Rating" />
+                    <ComboBoxItem Content="Rating" Tag="Rating" Visibility="Collapsed" />
                 </ComboBox>
                 <Button x:Name="SortOrderBtn" Click="OnToggleSortOrder" Padding="6" ToolTipService.ToolTip="Toggle sort order">
                     <FontIcon x:Name="SortOrderIcon" Glyph="&#xE014;" FontSize="12" />
@@ -102,8 +102,10 @@
                                     </Grid.RowDefinitions>
                                     <TextBlock Text="Rating"
                                                VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                               Style="{StaticResource BodyStrongTextBlockStyle}"
+                                               Visibility="Collapsed" />
                                     <ComboBox x:Name="RatingCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterRating"
                                               AutomationProperties.Name="Rating"
                                               Grid.Column="1"
@@ -116,6 +118,7 @@
                                         <ComboBoxItem Content="5 stars" Tag="5" />
                                     </ComboBox>
                                     <ComboBox x:Name="RatingModeCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterRatingMode"
                                               AutomationProperties.Name="Rating comparison"
                                               Grid.Column="2"
@@ -126,10 +129,12 @@
                                     </ComboBox>
 
                                     <TextBlock Grid.Row="1"
+                                               Visibility="Collapsed"
                                                Text="Capture date"
                                                VerticalAlignment="Center"
                                                Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <ComboBox x:Name="DatePresetCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterDatePreset"
                                               AutomationProperties.Name="Capture date range"
                                               Grid.Row="1"
@@ -198,10 +203,12 @@
                                              PlaceholderText="Comma-separated" />
 
                                     <TextBlock Grid.Row="2"
+                                               Visibility="Collapsed"
                                                Text="Person"
                                                VerticalAlignment="Center"
                                                Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <ComboBox x:Name="PersonCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterPerson"
                                               AutomationProperties.Name="Person"
                                               Grid.Row="2"
@@ -211,10 +218,12 @@
                                     </ComboBox>
 
                                     <TextBlock Grid.Row="3"
+                                               Visibility="Collapsed"
                                                Text="Flag"
                                                VerticalAlignment="Center"
                                                Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <ComboBox x:Name="FlagCombo"
+                                              Visibility="Collapsed"
                                               AutomationProperties.AutomationId="FilterFlag"
                                               AutomationProperties.Name="Flag state"
                                               Grid.Row="3"
@@ -261,9 +270,9 @@
                                               SelectedIndex="0">
                                         <ComboBoxItem Content="Any metadata" Tag="None" />
                                         <ComboBoxItem Content="Untagged" Tag="Tags" />
-                                        <ComboBoxItem Content="Unrated" Tag="Rating" />
-                                        <ComboBoxItem Content="No capture date" Tag="CaptureDate" />
-                                        <ComboBoxItem Content="No geotag" Tag="Geotag" />
+                                        <ComboBoxItem Content="Unrated" Tag="Rating" Visibility="Collapsed" />
+                                        <ComboBoxItem Content="No capture date" Tag="CaptureDate" Visibility="Collapsed" />
+                                        <ComboBoxItem Content="No geotag" Tag="Geotag" Visibility="Collapsed" />
                                     </ComboBox>
                                 </Grid>
 
@@ -311,11 +320,14 @@
         </ScrollViewer>
 
         <!-- Custom Virtualizing Photo Grid -->
-        <local:VirtualizingPhotoGrid x:Name="PhotoGrid" Grid.Row="2" />
+        <local:VirtualizingPhotoGrid x:Name="PhotoGrid"
+                                     Grid.Row="2"
+                                     RightTapped="OnGridBackgroundRightTapped" />
 
         <!-- Empty state -->
         <StackPanel x:Name="EmptyState" Grid.Row="2"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                    RightTapped="OnGridBackgroundRightTapped"
                     Background="{ThemeResource LayerFillColorDefaultBrush}"
                     Spacing="8">
             <FontIcon Glyph="&#xEB9F;" FontSize="48"

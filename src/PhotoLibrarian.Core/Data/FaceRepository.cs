@@ -161,7 +161,9 @@ public sealed class FaceRepository : IFaceScanStore
         using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            paths.Add(reader.GetInt64(0), reader.GetString(1));
+            paths.Add(
+                reader.GetInt64(0),
+                AlbumPathStorage.ToAbsolutePath(reader.GetString(1)));
         }
         return paths;
     }
@@ -269,7 +271,7 @@ public sealed class FaceRepository : IFaceScanStore
         command.Parameters.AddWithValue("$imported", imported ? 1 : 0);
         command.Parameters.AddWithValue(
             "$sidecarPath",
-            (object?)sidecarPath ?? DBNull.Value);
+            (object?)AlbumPathStorage.ToStoragePathOrNull(sidecarPath) ?? DBNull.Value);
         command.Parameters.AddWithValue(
             "$sidecarSize",
             (object?)sidecarSize ?? DBNull.Value);
@@ -1374,7 +1376,8 @@ public sealed class FaceRepository : IFaceScanStore
                 reader.GetInt64(reader.GetOrdinal("owner_person_id")),
                 (
                     ReadFaceRegion(reader),
-                    reader.GetString(reader.GetOrdinal("file_path"))
+                    AlbumPathStorage.ToAbsolutePath(
+                        reader.GetString(reader.GetOrdinal("file_path")))
                 ));
         }
         return results;

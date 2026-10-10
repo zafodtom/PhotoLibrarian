@@ -42,7 +42,8 @@ public partial class FolderNavigationViewModel : ObservableObject
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var path = reader.GetString(1);
+            var storedPath = reader.GetString(1);
+            var path = AlbumPathStorage.ToAbsolutePath(storedPath);
             var node = new FolderNode
             {
                 Id = reader.GetInt64(0),
@@ -63,14 +64,37 @@ public partial class FolderNavigationViewModel : ObservableObject
         {
             foreach (var dir in Directory.GetDirectories(parent.Path))
             {
+                if (string.Equals(
+                    System.IO.Path.GetFileName(dir),
+                    PhotoLibrarian.AlbumService.AlbumFolderName,
+                    StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // A descendant folder with its own .album belongs to a different
+                // album and is intentionally hidden from this album's folder tree.
+                if (FolderScannerService.HasAlbumMarker(dir))
+                    continue;
+
                 var child = new FolderNode
                 {
                     Path = dir,
                     Name = System.IO.Path.GetFileName(dir)
                 };
                 // Only one level deep initially; expand on demand
-                if (Directory.GetDirectories(dir).Length > 0)
-                    child.Children.Add(new FolderNode { Name = "Loading…", Path = "" }); // placeholder
+                if (Directory.EnumerateDirectories(dir).Any(candidate =>
+                        !string.Equals(
+                            System.IO.Path.GetFileName(candidate),
+                            PhotoLibrarian.AlbumService.AlbumFolderName,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        !FolderScannerService.HasAlbumMarker(candidate)))
+                {
+                    child.Children.Add(
+                        new FolderNode
+                        {
+                            Name = "Loading…",
+                            Path = ""
+                        });
+                } // placeholder
                 parent.Children.Add(child);
             }
         }
@@ -98,42 +122,88 @@ public partial class FolderNavigationViewModel : ObservableObject
         }
 
         DebugLog.WriteLine($"AddFolderAsync: User selected '{folder.Path}'");
+        await AddOrSelectFolderAsync(folder.Path);
+    }
 
-        // Insert into watched_folders
+    /// <summary>
+    /// Adds a folder without showing the picker and selects it as the active folder.
+    /// This is used by the --album command-line mode and can later become the entry
+    /// point for folder-contained album configuration.
+    /// </summary>
+    public async Task<FolderNode?> AddOrSelectFolderAsync(
+        string folderPath,
+        bool includeSubfolders = true)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath)) return null;
+
+        var normalizedPath = Path.GetFullPath(folderPath.Trim().Trim('"'))
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (!Directory.Exists(normalizedPath))
+        {
+            DebugLog.WriteLine($"AddOrSelectFolderAsync: Folder does not exist: '{normalizedPath}'");
+            _main.StatusText = $"Album folder not found: {normalizedPath}";
+            return null;
+        }
+
         using var conn = _db.CreateConnection();
+
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT OR IGNORE INTO watched_folders (path, include_sub)
-            VALUES ($path, 1)
+            VALUES ($path, $includeSub)
             """;
-        cmd.Parameters.AddWithValue("$path", folder.Path);
+        var storedRootPath = App.HasActiveAlbum
+            ? AlbumPathStorage.AlbumRootStoragePath
+            : normalizedPath;
+        cmd.Parameters.AddWithValue("$path", storedRootPath);
+        cmd.Parameters.AddWithValue("$includeSub", includeSubfolders ? 1 : 0);
         var rowsAffected = await cmd.ExecuteNonQueryAsync();
-        DebugLog.WriteLine($"AddFolderAsync: Inserted into DB (rows affected: {rowsAffected})");
+
+        var shouldIndex = rowsAffected > 0;
+        if (App.HasActiveAlbum && !shouldIndex)
+        {
+            using var countImages = conn.CreateCommand();
+            countImages.CommandText = "SELECT COUNT(*) FROM images";
+            shouldIndex = Convert.ToInt32(await countImages.ExecuteScalarAsync()) == 0;
+        }
 
         await LoadWatchedFoldersAsync();
 
-        // Start indexing in background
-        DebugLog.WriteLine($"AddFolderAsync: Starting background indexing for '{folder.Path}'");
-        _indexCts?.Cancel();
-        _indexCts = new CancellationTokenSource();
-        _ = Task.Run(async () =>
+        var node = RootFolders.FirstOrDefault(folder =>
+            string.Equals(folder.Path, normalizedPath, StringComparison.OrdinalIgnoreCase));
+        if (node is not null)
+            SelectedFolder = node;
+
+        if (shouldIndex && !App.HasActiveAlbum)
         {
-            try
+            DebugLog.WriteLine($"AddOrSelectFolderAsync: Starting background indexing for '{normalizedPath}'");
+            _indexCts?.Cancel();
+            _indexCts = new CancellationTokenSource();
+            _ = Task.Run(async () =>
             {
-                DebugLog.WriteLine($"AddFolderAsync [Background]: Calling IndexFolderAsync");
-                await _indexingService.IndexFolderAsync(folder.Path, true, _indexCts.Token);
-                DebugLog.WriteLine($"AddFolderAsync [Background]: IndexFolderAsync completed");
-                App.MainWindow?.DispatcherQueue.TryEnqueue(async () =>
+                try
                 {
-                    DebugLog.WriteLine($"AddFolderAsync [UI]: Calling RefreshAfterIndexAsync");
-                    await _main.RefreshAfterIndexAsync();
-                });
-            }
-            catch (Exception ex)
-            {
-                DebugLog.WriteLine($"AddFolderAsync [Background]: ERROR - {ex.Message}\n{ex.StackTrace}");
-            }
-        });
+                    await _indexingService.IndexFolderAsync(
+                        normalizedPath,
+                        includeSubfolders,
+                        _indexCts.Token);
+                    App.MainWindow?.DispatcherQueue.TryEnqueue(async () =>
+                    {
+                        await _main.RefreshAfterIndexAsync();
+                        if (node is not null)
+                            SelectedFolder = node;
+                    });
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.WriteLine(
+                        $"AddOrSelectFolderAsync [Background]: ERROR - {ex.Message}\n{ex.StackTrace}");
+                }
+            });
+        }
+
+        return node;
     }
 
     [RelayCommand]
@@ -165,10 +235,17 @@ public partial class FolderNavigationViewModel : ObservableObject
 
         using var conn = _db.CreateConnection();
 
-        // Remove images from this folder
+        // Album mode has exactly one root and stores image paths relative to it.
         using var delImages = conn.CreateCommand();
-        delImages.CommandText = "DELETE FROM images WHERE file_path LIKE $prefix || '%'";
-        delImages.Parameters.AddWithValue("$prefix", rootToRemove.Path);
+        if (App.HasActiveAlbum)
+        {
+            delImages.CommandText = "DELETE FROM images";
+        }
+        else
+        {
+            delImages.CommandText = "DELETE FROM images WHERE file_path LIKE $prefix || '%'";
+            delImages.Parameters.AddWithValue("$prefix", rootToRemove.Path);
+        }
         await delImages.ExecuteNonQueryAsync();
 
         // Remove watched folder

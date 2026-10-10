@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using PhotoLibrarian.Core.Services;
@@ -19,10 +18,81 @@ public sealed partial class MainWindow : Window
 
     private CropAspectRatio _pendingAspect = CropAspectRatio.Free;
     private bool _isClosing;
+    private bool _isViewerFullscreen;
+    private GridLength _preFullscreenLeftWidth;
+    private GridLength _preFullscreenRightWidth;
+    private double _preFullscreenLeftMinWidth;
+    private double _preFullscreenRightMinWidth;
+    private Microsoft.UI.Windowing.AppWindowPresenterKind _preFullscreenPresenterKind =
+        Microsoft.UI.Windowing.AppWindowPresenterKind.Overlapped;
+
+    public bool IsViewerFullscreen => _isViewerFullscreen;
+
+    public void ToggleViewerFullscreen()
+    {
+        if (_isViewerFullscreen)
+            ExitViewerFullscreen();
+        else
+            EnterViewerFullscreen();
+    }
+
+    public void EnterViewerFullscreen()
+    {
+        if (_isViewerFullscreen || !ViewModel.ImageViewer.IsOpen)
+            return;
+
+        _preFullscreenLeftWidth = LeftPanelColumn.Width;
+        _preFullscreenRightWidth = RightPanelColumn.Width;
+        _preFullscreenLeftMinWidth = LeftPanelColumn.MinWidth;
+        _preFullscreenRightMinWidth = RightPanelColumn.MinWidth;
+        _preFullscreenPresenterKind = AppWindow.Presenter.Kind;
+
+        LeftPanelColumn.MinWidth = 0;
+        RightPanelColumn.MinWidth = 0;
+        LeftPanelColumn.Width = new GridLength(0);
+        RightPanelColumn.Width = new GridLength(0);
+        LeftPanelSplitter.Visibility = Visibility.Collapsed;
+        RightPanelSplitter.Visibility = Visibility.Collapsed;
+        FolderNavPanel.Visibility = Visibility.Collapsed;
+        MetadataDetailPanel.Visibility = Visibility.Collapsed;
+        StatusBar.Visibility = Visibility.Collapsed;
+        TopRibbon.Visibility = Visibility.Collapsed;
+
+        AppWindow.SetPresenter(
+            Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
+        _isViewerFullscreen = true;
+    }
+
+    public void ExitViewerFullscreen()
+    {
+        if (!_isViewerFullscreen)
+            return;
+
+        AppWindow.SetPresenter(_preFullscreenPresenterKind);
+
+        LeftPanelColumn.MinWidth = _preFullscreenLeftMinWidth;
+        RightPanelColumn.MinWidth = _preFullscreenRightMinWidth;
+        LeftPanelColumn.Width = _preFullscreenLeftWidth;
+        RightPanelColumn.Width = _preFullscreenRightWidth;
+        LeftPanelSplitter.Visibility = Visibility.Visible;
+        RightPanelSplitter.Visibility = Visibility.Visible;
+        FolderNavPanel.Visibility = Visibility.Visible;
+        MetadataDetailPanel.Visibility = Visibility.Visible;
+        StatusBar.Visibility = Visibility.Visible;
+
+        _isViewerFullscreen = false;
+        UpdateRibbonVisibility();
+    }
 
     public async Task RefreshMetadataTreesAsync()
     {
         await FolderNavPanel.RefreshMetadataTreesAsync();
+        await ImageGridPanel.RefreshPeopleAsync();
+    }
+
+    public async Task RefreshAllNavigationAsync()
+    {
+        await FolderNavPanel.RefreshAllTreesAsync();
         await ImageGridPanel.RefreshPeopleAsync();
     }
 
@@ -34,6 +104,9 @@ public sealed partial class MainWindow : Window
 
     public Task RefreshTagsTreeAsync() =>
         FolderNavPanel.RefreshTagsTreeAsync();
+
+    public string? GetPreferredFileOperationDirectory() =>
+        FolderNavPanel.GetPreferredFileOperationDirectory();
 
     public void BeginManualFaceTagging() =>
         ViewerOverlay.EnterManualFaceTagging();
@@ -82,7 +155,12 @@ public sealed partial class MainWindow : Window
 
         var appWindow = this.AppWindow;
         appWindow.Resize(new Windows.Graphics.SizeInt32(1600, 900));
-        appWindow.Title = "PhotoLibrarian";
+        appWindow.Title = App.HasActiveAlbum
+            ? $"PhotoLibrarian — {System.IO.Path.GetFileName(App.CurrentAlbumPath)}"
+            : "PhotoLibrarian";
+
+        MainLayout.Visibility = App.HasActiveAlbum ? Visibility.Visible : Visibility.Collapsed;
+        AlbumStartOverlay.Visibility = App.HasActiveAlbum ? Visibility.Collapsed : Visibility.Visible;
 
         // Set the window icon (title bar + taskbar)
         try
@@ -97,11 +175,8 @@ public sealed partial class MainWindow : Window
 
         // Bind status bar to ViewModel
         ViewModel.PropertyChanged += OnMainViewModelPropertyChanged;
-        ViewModel.PeopleReview.PropertyChanged += OnPeopleReviewPropertyChanged;
         ViewModel.ImageViewer.PropertyChanged += OnImageViewerPropertyChanged;
         ViewModel.Settings.PropertyChanged += OnSettingsPropertyChanged;
-
-        UpdateFaceDetectionButton();
 
         // Top-ribbon events
         TopRibbon.CropClicked += OnRibbonCropClicked;
@@ -126,6 +201,27 @@ public sealed partial class MainWindow : Window
         this.Closed += OnWindowClosed;
     }
 
+    private async void OnOpenAlbumClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var albumPath = await AlbumService.PickAlbumFolderAsync(this);
+            if (albumPath is not null)
+                AlbumService.RestartForAlbum(albumPath);
+        }
+        catch (Exception ex)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Could not open album",
+                Content = ex.Message,
+                CloseButtonText = "OK",
+                XamlRoot = AppRoot.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
+    }
+
     private void OnMainViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_isClosing) return;
@@ -135,22 +231,13 @@ public sealed partial class MainWindow : Window
         if (e.PropertyName == nameof(ViewModel.IsIndexing))
             UpdateBackgroundProgress();
         if (e.PropertyName == nameof(ViewModel.IsFaceDetectionRunning))
-        {
             UpdateBackgroundProgress();
-            UpdateFaceDetectionButton();
-        }
         if (e.PropertyName == nameof(ViewModel.IsAutoTaggingRunning))
             UpdateBackgroundProgress();
         if (e.PropertyName is nameof(ViewModel.ImageViewer))
             UpdateViewerVisibility();
         if (e.PropertyName is nameof(ViewModel.Settings))
             UpdateSettingsVisibility();
-    }
-
-    private void OnPeopleReviewPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (!_isClosing && e.PropertyName == nameof(ViewModel.PeopleReview.IsOpen))
-            UpdatePeopleReviewVisibility();
     }
 
     private void OnImageViewerPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -203,20 +290,10 @@ public sealed partial class MainWindow : Window
         KeyRoutedEventArgs e) =>
         ViewModel.NotifyUserActivity();
 
-    private void UpdateFaceDetectionButton()
-    {
-        var isRunning = ViewModel.IsFaceDetectionRunning;
-        FaceDetectionIcon.Glyph = isRunning ? "\uE769" : "\uE768";
-        var label = isRunning ? "Stop face detection" : "Start face detection";
-        AutomationProperties.SetName(FaceDetectionButton, label);
-        ToolTipService.SetToolTip(FaceDetectionButton, label);
-    }
-
     private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _isClosing = true;
         ViewModel.PropertyChanged -= OnMainViewModelPropertyChanged;
-        ViewModel.PeopleReview.PropertyChanged -= OnPeopleReviewPropertyChanged;
         ViewModel.ImageViewer.PropertyChanged -= OnImageViewerPropertyChanged;
         ViewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
         ViewModel.ImageGrid.Cleanup();
@@ -232,8 +309,13 @@ public sealed partial class MainWindow : Window
 
     private void UpdateRibbonVisibility()
     {
-        TopRibbon.Visibility = ViewModel.ImageViewer.IsOpen
-            ? Visibility.Visible : Visibility.Collapsed;
+        if (!ViewModel.ImageViewer.IsOpen && _isViewerFullscreen)
+            ExitViewerFullscreen();
+
+        TopRibbon.Visibility =
+            ViewModel.ImageViewer.IsOpen && !_isViewerFullscreen
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         if (!ViewModel.ImageViewer.IsOpen && ViewerOverlay.IsCropping)
         {
             ViewerOverlay.ExitCropMode();
@@ -492,38 +574,5 @@ public sealed partial class MainWindow : Window
         ViewModel.Settings.OpenCommand.Execute(null);
     }
 
-    private async void OnPeopleReviewClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            await ViewModel.PeopleReview.OpenAsync();
-        }
-        catch (Exception ex)
-        {
-            ViewModel.PeopleReview.Close();
-            var dialog = new ContentDialog
-            {
-                Title = "People review couldn't be opened",
-                Content = ex.Message,
-                CloseButtonText = "Close",
-                XamlRoot = MainLayout.XamlRoot
-            };
-            await dialog.ShowAsync();
-        }
-    }
 
-    private void UpdatePeopleReviewVisibility()
-    {
-        PeopleReviewOverlay.Visibility = ViewModel.PeopleReview.IsOpen
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        if (!ViewModel.PeopleReview.IsOpen)
-            _ = RefreshPeopleFiltersAsync();
-    }
-    
-    private async void OnBenchmarkClick(object sender, RoutedEventArgs e)
-    {
-        await ViewModel.RunBenchmarkCommand.ExecuteAsync(null);
-    }
 }

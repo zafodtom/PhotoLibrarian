@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using PhotoLibrarian.Core.Models;
+using PhotoLibrarian.Core.Services;
 using System.Globalization;
 
 namespace PhotoLibrarian.Core.Data;
@@ -56,7 +57,7 @@ public sealed class ImageRepository
         // Note: is_flagged is deliberately absent from the DO UPDATE SET. Flags can live in an XMP
         // sidecar the indexer doesn't read (RAW), so a re-scan must never clear an existing flag.
 
-        cmd.Parameters.AddWithValue("$path", image.FilePath);
+        cmd.Parameters.AddWithValue("$path", AlbumPathStorage.ToStoragePath(image.FilePath));
         cmd.Parameters.AddWithValue("$name", image.FileName);
         cmd.Parameters.AddWithValue("$hash", (object?)image.FileHash ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$size", image.FileSize);
@@ -88,12 +89,55 @@ public sealed class ImageRepository
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM images WHERE file_path = $path";
-        cmd.Parameters.AddWithValue("$path", filePath);
+        cmd.Parameters.AddWithValue("$path", AlbumPathStorage.ToStoragePath(filePath));
 
         using var reader = await cmd.ExecuteReaderAsync();
         if (!await reader.ReadAsync()) return null;
 
         return ReadImageEntry(reader);
+    }
+
+    public async Task<ImageEntry?> FindUniqueMissingByHashAsync(
+        string fileHash,
+        long fileSize)
+    {
+        if (string.IsNullOrWhiteSpace(fileHash))
+            return null;
+
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT *
+            FROM images
+            WHERE file_hash = $hash
+              AND file_size = $size
+            """;
+        cmd.Parameters.AddWithValue("$hash", fileHash);
+        cmd.Parameters.AddWithValue("$size", fileSize);
+
+        var missing = new List<ImageEntry>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var image = ReadImageEntry(reader);
+            if (!File.Exists(image.FilePath))
+                missing.Add(image);
+
+            if (missing.Count > 1)
+                return null;
+        }
+
+        return missing.Count == 1 ? missing[0] : null;
+    }
+
+    public async Task UpdateHashAsync(long imageId, string fileHash)
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE images SET file_hash = $hash WHERE id = $id";
+        cmd.Parameters.AddWithValue("$id", imageId);
+        cmd.Parameters.AddWithValue("$hash", fileHash);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task<List<ImageEntry>> GetAllAsync(string? orderBy = "date_taken", bool descending = true)
@@ -173,6 +217,53 @@ public sealed class ImageRepository
         return results;
     }
 
+    public async Task<List<ImageEntry>> GetUntaggedAsync(
+        string? orderBy = "date_taken",
+        bool descending = true)
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        var dir = descending ? "DESC" : "ASC";
+        var validColumns = new HashSet<string> { "date_taken", "file_name", "date_modified", "rating", "file_size" };
+        var col = validColumns.Contains(orderBy ?? "") ? orderBy : "date_taken";
+        cmd.CommandText = $"""
+            SELECT i.*
+            FROM images i
+            WHERE NOT EXISTS (
+                SELECT 1 FROM tags t WHERE t.image_id = i.id
+            )
+            ORDER BY i.{col} {dir}
+            """;
+
+        var results = new List<ImageEntry>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            results.Add(ReadImageEntry(reader));
+
+        return results;
+    }
+
+    public async Task<List<ImageEntry>> GetByIdsAsync(IReadOnlyCollection<long> imageIds)
+    {
+        if (imageIds.Count == 0) return [];
+
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        var ids = imageIds.Distinct().ToList();
+        var parameters = ids.Select((_, index) => $"$id{index}").ToList();
+        cmd.CommandText = $"SELECT * FROM images WHERE id IN ({string.Join(",", parameters)})";
+
+        for (var index = 0; index < ids.Count; index++)
+            cmd.Parameters.AddWithValue(parameters[index], ids[index]);
+
+        var results = new List<ImageEntry>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            results.Add(ReadImageEntry(reader));
+
+        return results;
+    }
+
     public async Task<int> GetCountAsync()
     {
         using var conn = _db.CreateConnection();
@@ -187,31 +278,62 @@ public sealed class ImageRepository
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM images WHERE file_path = $path";
-        cmd.Parameters.AddWithValue("$path", filePath);
+        cmd.Parameters.AddWithValue("$path", AlbumPathStorage.ToStoragePath(filePath));
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<int> DeleteUnderDirectoryRootsAsync(
+        IEnumerable<string> directoryRoots)
+    {
+        var roots = directoryRoots
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => Path.GetFullPath(path)
+                .TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (roots.Count == 0)
+            return 0;
+
+        var images = await GetAllAsync();
+        var pathsToDelete = images
+            .Where(image => roots.Any(root =>
+                string.Equals(
+                    image.FilePath,
+                    root,
+                    StringComparison.OrdinalIgnoreCase) ||
+                image.FilePath.StartsWith(
+                    root + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase)))
+            .Select(image => image.FilePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var path in pathsToDelete)
+            await DeleteByPathAsync(path);
+
+        return pathsToDelete.Count;
     }
 
     public async Task<int> DeleteMissingInDirectoryAsync(string directoryPath)
     {
-        var prefix = Path.TrimEndingDirectorySeparator(directoryPath) + Path.DirectorySeparatorChar;
-        using var conn = _db.CreateConnection();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = """
-            SELECT file_path FROM images
-            WHERE substr(file_path, 1, length($prefix)) = $prefix COLLATE NOCASE
-            """;
-        cmd.Parameters.AddWithValue("$prefix", prefix);
-        var missing = new List<string>();
-        using (var reader = await cmd.ExecuteReaderAsync())
-        {
-            while (await reader.ReadAsync())
-            {
-                var path = reader.GetString(0);
-                if (!File.Exists(path)) missing.Add(path);
-            }
-        }
+        var root = Path.GetFullPath(directoryPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var prefix = root + Path.DirectorySeparatorChar;
+        var images = await GetAllAsync();
+        var missing = images
+            .Where(image =>
+                string.Equals(image.FilePath, root, StringComparison.OrdinalIgnoreCase) ||
+                image.FilePath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Where(image => !File.Exists(image.FilePath))
+            .Select(image => image.FilePath)
+            .ToList();
+
         foreach (var path in missing)
             await DeleteByPathAsync(path);
+
         return missing.Count;
     }
 
@@ -302,9 +424,36 @@ public sealed class ImageRepository
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "UPDATE images SET file_path = $path, file_name = $name WHERE id = $id";
         cmd.Parameters.AddWithValue("$id", imageId);
-        cmd.Parameters.AddWithValue("$path", newPath);
+        cmd.Parameters.AddWithValue("$path", AlbumPathStorage.ToStoragePath(newPath));
         cmd.Parameters.AddWithValue("$name", System.IO.Path.GetFileName(newPath));
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<int> UpdatePathPrefixAsync(
+        string oldDirectoryPath,
+        string newDirectoryPath)
+    {
+        var oldRoot = Path.GetFullPath(oldDirectoryPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var newRoot = Path.GetFullPath(newDirectoryPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var oldPrefix = oldRoot + Path.DirectorySeparatorChar;
+
+        var images = await GetAllAsync();
+        var affected = images
+            .Where(image =>
+                string.Equals(image.FilePath, oldRoot, StringComparison.OrdinalIgnoreCase) ||
+                image.FilePath.StartsWith(oldPrefix, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        foreach (var image in affected)
+        {
+            var relative = Path.GetRelativePath(oldRoot, image.FilePath);
+            var newPath = Path.GetFullPath(Path.Combine(newRoot, relative));
+            await UpdatePathAsync(image.Id, newPath);
+        }
+
+        return affected.Count;
     }
 
     internal static ImageEntry ReadImageEntry(SqliteDataReader reader)
@@ -312,7 +461,8 @@ public sealed class ImageRepository
         return new ImageEntry
         {
             Id = reader.GetInt64(reader.GetOrdinal("id")),
-            FilePath = reader.GetString(reader.GetOrdinal("file_path")),
+            FilePath = AlbumPathStorage.ToAbsolutePath(
+                reader.GetString(reader.GetOrdinal("file_path"))),
             FileName = reader.GetString(reader.GetOrdinal("file_name")),
             FileHash = reader.IsDBNull(reader.GetOrdinal("file_hash")) ? null : reader.GetString(reader.GetOrdinal("file_hash")),
             FileSize = reader.GetInt64(reader.GetOrdinal("file_size")),
@@ -326,7 +476,8 @@ public sealed class ImageRepository
             FaceScanVersion = ReadNullableString(reader, "face_scan_version"),
             AutoTagScanVersion = ReadNullableString(reader, "auto_tag_scan_version"),
             FaceMetadataImported = ReadBoolean(reader, "face_metadata_imported"),
-            FaceSidecarPath = ReadNullableString(reader, "face_sidecar_path"),
+            FaceSidecarPath = AlbumPathStorage.ToAbsolutePathOrNull(
+                ReadNullableString(reader, "face_sidecar_path")),
             FaceSidecarSize = ReadNullableInt64(reader, "face_sidecar_size"),
             FaceSidecarModified = ReadNullableDateTime(
                 reader,

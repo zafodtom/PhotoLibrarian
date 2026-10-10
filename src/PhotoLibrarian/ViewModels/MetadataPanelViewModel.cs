@@ -71,6 +71,55 @@ public partial class TagDisplayItem : ObservableObject
     }
 }
 
+public partial class AvailableTagItem : ObservableObject
+{
+    public string Tag { get; }
+    public string Name { get; }
+    public int Depth { get; }
+    public bool IsBranch { get; }
+    public Microsoft.UI.Xaml.Thickness Indent =>
+        new(Math.Max(0, Depth) * 16, 0, 0, 0);
+
+    [ObservableProperty]
+    public partial bool IsSelectedInAlbum { get; set; }
+
+    public bool IsUsedInAlbum { get; }
+
+    public string SourceLabel =>
+        IsSelectedInAlbum && IsUsedInAlbum ? "Vybraný • použitý" :
+        IsSelectedInAlbum ? "Vybraný" :
+        IsUsedInAlbum ? "Použitý" : "";
+
+    public string PinGlyph => IsSelectedInAlbum ? "\uE77A" : "\uE718";
+    public string TypeGlyph => "\uE8EC";
+    public Microsoft.UI.Xaml.Visibility PinVisibility =>
+        Microsoft.UI.Xaml.Visibility.Visible;
+
+    public AvailableTagItem(
+        string tag,
+        bool isSelectedInAlbum,
+        bool isUsedInAlbum,
+        bool isBranch = false)
+    {
+        Tag = tag;
+        IsSelectedInAlbum = isSelectedInAlbum;
+        IsUsedInAlbum = isUsedInAlbum;
+        IsBranch = isBranch;
+
+        var parts = tag.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        Depth = Math.Max(0, parts.Length - 1);
+        Name = parts.Length > 0 ? parts[^1] : tag;
+    }
+
+    public void RefreshComputed()
+    {
+        OnPropertyChanged(nameof(SourceLabel));
+        OnPropertyChanged(nameof(PinGlyph));
+    }
+
+    public override string ToString() => Tag;
+}
+
 public partial class MetadataPanelViewModel : ObservableObject
 {
     // Currently-selected entries (1 or more)
@@ -117,6 +166,7 @@ public partial class MetadataPanelViewModel : ObservableObject
     public partial bool IsCaptionMixed { get; set; }
 
     public ObservableCollection<TagDisplayItem> Tags { get; } = [];
+    public ObservableCollection<AvailableTagItem> AvailableTags { get; } = [];
     public ObservableCollection<PersonTagDisplayItem> PeopleTags { get; } = [];
 
     /// <summary>Date taken common to all selected entries; null if mixed or unset.</summary>
@@ -354,7 +404,171 @@ public partial class MetadataPanelViewModel : ObservableObject
             }
         }
 
+        await ReloadAvailableTagsAsync();
         await ReloadPeopleTagsAsync();
+    }
+
+    public async Task ReloadAvailableTagsAsync()
+    {
+        AvailableTags.Clear();
+
+        var catalog = AlbumService.LoadTagCatalog(App.CurrentAlbumPath);
+        var selected = catalog.SelectedTags
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (_tagRepo != null)
+        {
+            var usedTags = await _tagRepo.GetAllTagsWithCountAsync();
+            foreach (var (tag, _) in usedTags.Where(x => !string.IsNullOrWhiteSpace(x.Tag)))
+                used.Add(tag);
+        }
+
+        var all = selected
+            .Union(used, StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var tag in all.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
+        {
+            var prefix = tag.TrimEnd('/') + "/";
+            var isBranch = all.Any(other =>
+                !string.Equals(other, tag, StringComparison.OrdinalIgnoreCase) &&
+                other.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+
+            AvailableTags.Add(new AvailableTagItem(
+                tag,
+                selected.Contains(tag),
+                used.Contains(tag),
+                isBranch));
+        }
+    }
+
+    public string? ValidateCatalogPath(
+        string proposedPath,
+        string? sourcePrefix = null)
+    {
+        static string Normalize(string value) =>
+            string.Join(
+                "/",
+                value.Trim()
+                    .Trim('/')
+                    .Split(
+                        '/',
+                        StringSplitOptions.RemoveEmptyEntries |
+                        StringSplitOptions.TrimEntries));
+
+        var destination = Normalize(proposedPath);
+        if (string.IsNullOrWhiteSpace(destination))
+            return "Název tagu nesmí být prázdný.";
+
+        var parts = destination.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Any(part => part is "." or ".."))
+            return "Názvy '.' a '..' nejsou povolené.";
+
+        var source = string.IsNullOrWhiteSpace(sourcePrefix)
+            ? null
+            : Normalize(sourcePrefix);
+
+        if (source is not null &&
+            destination.StartsWith(source + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Tag nelze přesunout pod sebe ani pod některého ze svých potomků.";
+        }
+
+        var outsidePaths = AvailableTags
+            .Where(item =>
+                source is null ||
+                (!string.Equals(item.Tag, source, StringComparison.OrdinalIgnoreCase) &&
+                 !item.Tag.StartsWith(source + "/", StringComparison.OrdinalIgnoreCase)))
+            .Select(item => Normalize(item.Tag))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (source is null)
+        {
+            if (outsidePaths.Contains(destination))
+                return $"Položka '{destination}' už v katalogu nebo mezi použitými tagy existuje.";
+
+            return null;
+        }
+
+        var movingPaths = AvailableTags
+            .Where(item =>
+                string.Equals(item.Tag, source, StringComparison.OrdinalIgnoreCase) ||
+                item.Tag.StartsWith(source + "/", StringComparison.OrdinalIgnoreCase))
+            .Select(item => Normalize(item.Tag))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (movingPaths.Count == 0)
+            movingPaths.Add(source);
+
+        foreach (var oldPath in movingPaths)
+        {
+            var suffix = string.Equals(oldPath, source, StringComparison.OrdinalIgnoreCase)
+                ? ""
+                : oldPath[source.Length..];
+
+            var movedPath = destination + suffix;
+            if (outsidePaths.Contains(movedPath))
+            {
+                return $"Přesun by kolidoval s již existující položkou '{movedPath}'.";
+            }
+        }
+
+        return null;
+    }
+
+    public async Task ToggleAlbumTagSelectionAsync(AvailableTagItem item)
+    {
+        if (item.IsSelectedInAlbum)
+            AlbumService.RemoveSelectedTag(item.Tag);
+        else
+            AlbumService.AddSelectedTag(item.Tag);
+
+        item.IsSelectedInAlbum = !item.IsSelectedInAlbum;
+        item.RefreshComputed();
+        await ReloadAvailableTagsAsync();
+    }
+
+    public async Task RenameCatalogItemAsync(AvailableTagItem item, string newFullPath)
+    {
+        newFullPath = newFullPath.Trim().Trim('/');
+        if (string.IsNullOrWhiteSpace(newFullPath) ||
+            string.Equals(item.Tag, newFullPath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        AlbumService.RenameCatalogPrefix(item.Tag, newFullPath);
+
+        if (_tagRepo != null && _imageRepo != null && item.IsUsedInAlbum)
+        {
+            var affectedIds = await _tagRepo.RenameTagPrefixAsync(item.Tag, newFullPath);
+            var affectedImages = await _imageRepo.GetByIdsAsync(affectedIds);
+
+            foreach (var image in affectedImages)
+            {
+                var tags = await _tagRepo.GetTagsAsync(image.Id);
+                await TagWriterService.WriteTagsToSidecarAsync(
+                    image.FilePath,
+                    tags.Select(tag => tag.Tag).Distinct(StringComparer.OrdinalIgnoreCase));
+            }
+        }
+
+        await ReloadAvailableTagsAsync();
+        if (_main != null)
+        {
+            await _main.RefreshTagsTreeAsync();
+            await ReloadTagsAsync();
+        }
+    }
+
+    public async Task RemoveCatalogItemAsync(AvailableTagItem item)
+    {
+        AlbumService.RemoveCatalogPrefix(item.Tag);
+        await ReloadAvailableTagsAsync();
+        if (_main != null)
+            await _main.RefreshTagsTreeAsync();
     }
 
     [ObservableProperty]
@@ -557,6 +771,10 @@ public partial class MetadataPanelViewModel : ObservableObject
         if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag)) return;
         var trimmed = tag.Trim();
 
+        // Anything the user actively adds becomes part of the album's curated
+        // vocabulary as well as being assigned to the selected photo(s).
+        AlbumService.AddSelectedTag(trimmed);
+
         // Update UI tag list
         var existing = Tags.FirstOrDefault(t => string.Equals(t.Tag, trimmed, StringComparison.OrdinalIgnoreCase));
         if (existing == null)
@@ -589,7 +807,8 @@ public partial class MetadataPanelViewModel : ObservableObject
             }
         }
 
-        // Refresh the tag navigation tree so counts and new tags show up immediately
+        // Refresh the tag navigation tree and picker so counts and new tags show up immediately
+        await ReloadAvailableTagsAsync();
         if (_main != null) await _main.RefreshTagsTreeAsync();
     }
 

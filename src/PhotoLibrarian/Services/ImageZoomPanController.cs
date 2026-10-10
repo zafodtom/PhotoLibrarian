@@ -64,6 +64,21 @@ internal sealed class ImageZoomPanController
     }
 
     /// <summary>
+    /// Displays one image pixel as one screen layout pixel (100% / 1:1).
+    /// This deliberately ignores the normal minimum fit zoom so even a small
+    /// image that would otherwise be enlarged to fill the viewport can be
+    /// viewed at its true size.
+    /// </summary>
+    public void ApplyActualSize()
+    {
+        if (_imageWidth == 0 || _imageHeight == 0)
+            return;
+
+        ApplyZoom(1.0f);
+        CenterContent();
+    }
+
+    /// <summary>
     /// Fits the image to the viewport. <paramref name="contentInset"/> reserves a gap on every
     /// side — the crop overlay needs it so handles straddling the image edge aren't clipped.
     /// </summary>
