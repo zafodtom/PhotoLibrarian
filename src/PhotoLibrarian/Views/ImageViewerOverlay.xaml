@@ -316,6 +316,22 @@
                             HorizontalAlignment="Stretch"
                             VerticalAlignment="Stretch" />
 
+        <Border x:Name="ZoomPercentBadge"
+                Grid.Row="1"
+                Grid.ColumnSpan="2"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,16,16"
+                Padding="8,4"
+                Background="#B3000000"
+                CornerRadius="4"
+                IsHitTestVisible="False">
+            <TextBlock x:Name="ZoomPercentText"
+                       Foreground="White"
+                       FontSize="12"
+                       Text="100 %" />
+        </Border>
+
         <!-- Navigation arrows -->
         <Button x:Name="PreviousButton" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Left"
                 AutomationProperties.AutomationId="ViewerPrevious"
