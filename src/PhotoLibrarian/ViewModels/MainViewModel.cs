@@ -291,7 +291,7 @@ public partial class MainViewModel : ObservableObject
         await RefreshTagsTreeAsync();
         await MetadataPanel.ReloadTagsAsync();
         await MetadataPanel.ReloadAvailableTagsAsync();
-        await ImageGrid.RefreshAsync();
+        await ImageGrid.LoadImagesAsync();
         TotalImages = await _imageRepo.GetCountAsync();
 
         StatusText =
