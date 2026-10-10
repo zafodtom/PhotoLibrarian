@@ -152,7 +152,7 @@ public sealed partial class MainWindow : Window
         {
             var dialog = new ContentDialog
             {
-                Title = "Album se nepodařilo otevřít",
+                Title = "Could not open album",
                 Content = ex.Message,
                 CloseButtonText = "OK",
                 XamlRoot = AppRoot.XamlRoot
