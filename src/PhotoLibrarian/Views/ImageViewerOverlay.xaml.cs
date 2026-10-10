@@ -304,6 +304,7 @@ public sealed partial class ImageViewerOverlay : UserControl
                         _currentImagePixelHeight = (uint)bmp.PixelHeight;
                         _zoomPan?.SetImageSize(bmp.PixelWidth, bmp.PixelHeight);
                         _zoomPan?.ApplyBestFit();
+                        UpdateZoomPercent();
                         if (_pendingManualFaceTagging) EnterManualFaceTagging();
                     }
                     break;
@@ -416,22 +417,32 @@ public sealed partial class ImageViewerOverlay : UserControl
         e.Handled = true;
     }
 
+    private void UpdateZoomPercent()
+    {
+        var zoom = _zoomPan?.ZoomFactor ?? 1.0;
+        ZoomPercentText.Text =
+            $"{Math.Round(zoom * 100, MidpointRounding.AwayFromZero):0} %";
+    }
+
     private void OnZoomIn(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
         _zoomPan?.ZoomIn();
+        UpdateZoomPercent();
     }
     
     private void OnZoomOut(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
         _zoomPan?.ZoomOut();
+        UpdateZoomPercent();
     }
     
     private void OnZoomFit(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
         _zoomPan?.ApplyBestFit();
+        UpdateZoomPercent();
     }
 
     private void OnImageOpened(object sender, RoutedEventArgs e)
@@ -466,6 +477,7 @@ public sealed partial class ImageViewerOverlay : UserControl
         
         _zoomPan.SetImageSize(width, height);
         _zoomPan.ApplyBestFit();
+        UpdateZoomPercent();
         _currentImagePixelWidth = (uint)width;
         _currentImagePixelHeight = (uint)height;
         DebugLog.WriteLine("ImageViewerOverlay: Applied best fit");
@@ -478,16 +490,19 @@ public sealed partial class ImageViewerOverlay : UserControl
         {
             // Keep the inset fit so the crop handles stay inside the viewport after a resize.
             _zoomPan?.ApplyBestFit(CropInset);
+            UpdateZoomPercent();
             return;
         }
         if (IsStraightening)
         {
             _zoomPan?.ApplyBestFit();
+            UpdateZoomPercent();
             UpdateStraightenClip();
             return;
         }
 
         _zoomPan?.HandleSizeChanged(e.PreviousSize);
+        UpdateZoomPercent();
     }
 
     private async void OnPointerWheelChanged(object sender, PointerRoutedEventArgs e)
@@ -505,6 +520,7 @@ public sealed partial class ImageViewerOverlay : UserControl
         if (controlDown)
         {
             _zoomPan?.HandlePointerWheelChanged(e);
+            UpdateZoomPercent();
             e.Handled = true;
             return;
         }
