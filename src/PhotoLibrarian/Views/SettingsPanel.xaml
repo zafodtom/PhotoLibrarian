@@ -291,7 +291,7 @@
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}"
                                Text="Library import" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               Text="Import tags, tag hierarchy, and ratings from a digiKam SQLite core database. Source files and the digiKam database are never modified."
+                               Text="Import tags, tag hierarchy, and captions from a digiKam SQLite core database. Source files and the digiKam database are never modified."
                                TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button x:Name="ImportDigiKamButton"
