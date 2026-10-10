@@ -625,7 +625,7 @@ public sealed partial class ImageGridView : UserControl
             var paste = new MenuFlyoutItem { Text = "Vložit do této složky" };
             paste.Click += async (_, _) =>
             {
-                var pasted = await Services.PhotoOperationsService
+                var pasted = await App.ViewModel.PhotoOps
                     .PasteClipboardToDirectoryAsync(targetDirectory);
                 if (pasted.Count > 0)
                     await App.ViewModel.RefreshFilesystemUiAsync();
