@@ -282,6 +282,41 @@ public sealed class ImageRepository
         await cmd.ExecuteNonQueryAsync();
     }
 
+    public async Task<int> DeleteUnderDirectoryRootsAsync(
+        IEnumerable<string> directoryRoots)
+    {
+        var roots = directoryRoots
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => Path.GetFullPath(path)
+                .TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (roots.Count == 0)
+            return 0;
+
+        var images = await GetAllAsync();
+        var pathsToDelete = images
+            .Where(image => roots.Any(root =>
+                string.Equals(
+                    image.FilePath,
+                    root,
+                    StringComparison.OrdinalIgnoreCase) ||
+                image.FilePath.StartsWith(
+                    root + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase)))
+            .Select(image => image.FilePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var path in pathsToDelete)
+            await DeleteByPathAsync(path);
+
+        return pathsToDelete.Count;
+    }
+
     public async Task<int> DeleteMissingInDirectoryAsync(string directoryPath)
     {
         var root = Path.GetFullPath(directoryPath)
