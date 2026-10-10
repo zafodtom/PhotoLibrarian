@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using PhotoLibrarian.ViewModels;
 using PhotoLibrarian.Diagnostics;
@@ -933,6 +934,198 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
 
         return treeNode;
+    }
+
+    private void OnLibraryTreeRightTapped(
+        object sender,
+        RightTappedRoutedEventArgs e)
+    {
+        var node = FindLibraryNodeAt(e);
+        string? targetPath = null;
+        var isAlbumRoot = false;
+
+        if (node?.Content is FolderNodeWrapper wrapper &&
+            wrapper.FolderNode is not null)
+        {
+            targetPath = wrapper.FolderNode.Path;
+        }
+        else if (node?.Content is string text &&
+                 text.StartsWith("📚") &&
+                 App.HasActiveAlbum)
+        {
+            targetPath = App.CurrentAlbumPath;
+            isAlbumRoot = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(targetPath) ||
+            !Directory.Exists(targetPath))
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+
+        var newFolder = new MenuFlyoutItem { Text = "Nová složka" };
+        newFolder.Click += async (_, _) =>
+        {
+            try
+            {
+                Services.PhotoOperationsService.CreateNewFolder(targetPath);
+                await App.ViewModel.RefreshFilesystemUiAsync();
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText = $"Vytvoření složky se nezdařilo: {ex.Message}";
+            }
+        };
+        menu.Items.Add(newFolder);
+
+        var paste = new MenuFlyoutItem { Text = "Vložit" };
+        paste.Click += async (_, _) =>
+        {
+            try
+            {
+                var pasted = await Services.PhotoOperationsService
+                    .PasteClipboardToDirectoryAsync(targetPath);
+                if (pasted.Count > 0)
+                    await App.ViewModel.RefreshFilesystemUiAsync();
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText = $"Vložení se nezdařilo: {ex.Message}";
+            }
+        };
+        menu.Items.Add(paste);
+
+        if (!isAlbumRoot)
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+
+            var copy = new MenuFlyoutItem { Text = "Kopírovat" };
+            copy.Click += async (_, _) =>
+                await Services.PhotoOperationsService
+                    .CopyPathsToClipboardAsync([targetPath], cut: false);
+            menu.Items.Add(copy);
+
+            var cut = new MenuFlyoutItem { Text = "Vyjmout" };
+            cut.Click += async (_, _) =>
+                await Services.PhotoOperationsService
+                    .CopyPathsToClipboardAsync([targetPath], cut: true);
+            menu.Items.Add(cut);
+
+            var rename = new MenuFlyoutItem { Text = "Přejmenovat…" };
+            rename.Click += async (_, _) =>
+                await ShowRenameFolderDialogAsync(targetPath);
+            menu.Items.Add(rename);
+
+            var delete = new MenuFlyoutItem { Text = "Smazat" };
+            delete.Click += async (_, _) =>
+            {
+                if (Services.PhotoOperationsService
+                    .DeleteDirectoryToRecycleBin(targetPath))
+                {
+                    await App.ViewModel.RefreshFilesystemUiAsync();
+                }
+            };
+            menu.Items.Add(delete);
+        }
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var open = new MenuFlyoutItem { Text = "Otevřít v Průzkumníku" };
+        open.Click += (_, _) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $""{targetPath}"",
+                        UseShellExecute = true
+                    });
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText = $"Průzkumník se nepodařilo otevřít: {ex.Message}";
+            }
+        };
+        menu.Items.Add(open);
+
+        menu.ShowAt(
+            LibraryTree,
+            new FlyoutShowOptions
+            {
+                Position = e.GetPosition(LibraryTree)
+            });
+        e.Handled = true;
+    }
+
+    private TreeViewNode? FindLibraryNodeAt(RightTappedRoutedEventArgs e)
+    {
+        try
+        {
+            var elements = VisualTreeHelper.FindElementsInHostCoordinates(
+                e.GetPosition(null),
+                LibraryTree);
+
+            foreach (var element in elements)
+            {
+                if (element is not TreeViewItem item)
+                    continue;
+
+                var node = LibraryTree.NodeFromContainer(item);
+                if (node is not null)
+                    return node;
+
+                if (item.DataContext is TreeViewNode dataNode)
+                    return dataNode;
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.WriteLine($"Library context hit-test failed: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async Task ShowRenameFolderDialogAsync(string folderPath)
+    {
+        var currentName = Path.GetFileName(folderPath);
+        var box = new TextBox
+        {
+            Text = currentName,
+            SelectionStart = 0,
+            SelectionLength = currentName.Length
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = "Přejmenovat složku",
+            Content = box,
+            PrimaryButtonText = "Přejmenovat",
+            CloseButtonText = "Zrušit",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        var newName = box.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(newName))
+            return;
+
+        var newPath = Services.PhotoOperationsService
+            .RenameDirectory(folderPath, newName);
+        if (newPath is null)
+        {
+            App.ViewModel.StatusText = "Přejmenování složky se nezdařilo.";
+            return;
+        }
+
+        await App.ViewModel.RefreshFilesystemUiAsync();
     }
 
     private async void OnManageFoldersClick(object sender, RoutedEventArgs e)
