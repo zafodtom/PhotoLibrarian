@@ -41,6 +41,9 @@ public sealed partial class MainWindow : Window
     public Task RefreshTagsTreeAsync() =>
         FolderNavPanel.RefreshTagsTreeAsync();
 
+    public string? GetPreferredFileOperationDirectory() =>
+        FolderNavPanel.GetPreferredFileOperationDirectory();
+
     public void BeginManualFaceTagging() =>
         ViewerOverlay.EnterManualFaceTagging();
 
