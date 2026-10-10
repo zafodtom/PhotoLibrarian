@@ -1,8 +1,11 @@
 using Microsoft.UI.Xaml;
+using PhotoLibrarian.Diagnostics;
 using PhotoLibrarian.Core.Data;
 using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.ML.Services;
 using PhotoLibrarian.ViewModels;
+using System;
+using System.Threading.Tasks;
 
 namespace PhotoLibrarian;
 
@@ -30,14 +33,41 @@ public partial class App : Application
     public App()
     {
         this.InitializeComponent();
-        
+
         // Enable debug logging by default (set to false to disable)
         EnableDebugLogging = true;
+
+        UnhandledException += OnUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
+
+    private void OnUnhandledException(
+        object sender,
+        Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    {
+        CrashLog.Write("WinUI UnhandledException", e.Exception, CurrentAlbumPath);
+    }
+
+    private void OnAppDomainUnhandledException(
+        object sender,
+        System.UnhandledExceptionEventArgs e)
+    {
+        CrashLog.Write("AppDomain.UnhandledException", e.ExceptionObject, CurrentAlbumPath);
+    }
+
+    private void OnUnobservedTaskException(
+        object? sender,
+        UnobservedTaskExceptionEventArgs e)
+    {
+        CrashLog.Write("TaskScheduler.UnobservedTaskException", e.Exception, CurrentAlbumPath);
     }
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
-        CurrentAlbumPath = AlbumService.GetAlbumPathFromCommandLine();
+        try
+        {
+            CurrentAlbumPath = AlbumService.GetAlbumPathFromCommandLine();
 
         string dbPath;
         if (CurrentAlbumPath is not null)
@@ -138,6 +168,12 @@ public partial class App : Application
         else
         {
             ViewModel.StatusText = "Open or create an album";
+        }
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("App.OnLaunched", ex, CurrentAlbumPath);
+            throw;
         }
     }
 
