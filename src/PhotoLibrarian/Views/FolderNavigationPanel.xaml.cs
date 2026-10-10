@@ -1053,7 +1053,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             try
             {
                 Services.PhotoOperationsService.CreateNewFolder(targetPath);
-                await App.ViewModel.RefreshFilesystemUiAsync();
+                await App.ViewModel.RefreshFolderStructureAsync();
             }
             catch (Exception ex)
             {
@@ -1070,7 +1070,9 @@ public sealed partial class FolderNavigationPanel : UserControl
                 var pasted = await App.ViewModel.PhotoOps
                     .PasteClipboardToDirectoryAsync(targetPath);
                 if (pasted.Count > 0)
-                    await App.ViewModel.RefreshFilesystemUiAsync();
+                    await App.ViewModel.RefreshKnownFilesystemChangesAsync(
+                        pasted,
+                        refreshFolderTree: true);
             }
             catch (Exception ex)
             {
@@ -1103,11 +1105,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             var delete = new MenuFlyoutItem { Text = "Delete" };
             delete.Click += async (_, _) =>
             {
-                if (Services.PhotoOperationsService
-                    .DeleteDirectoryToRecycleBin(targetPath))
-                {
-                    await App.ViewModel.RefreshFilesystemUiAsync();
-                }
+                await App.ViewModel.DeleteDirectoryAsync(targetPath);
             };
             menu.Items.Add(delete);
         }
@@ -1204,7 +1202,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             return;
         }
 
-        await App.ViewModel.RefreshFilesystemUiAsync();
+        await App.ViewModel.RefreshKnownLibraryStateAsync(
+            refreshFolderTree: true);
     }
 
     private async void OnManageFoldersClick(object sender, RoutedEventArgs e)
