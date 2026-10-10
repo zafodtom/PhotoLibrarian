@@ -1,0 +1,82 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- PhotoLibrarian Hi-Tech / FUI theme -->
+    <SolidColorBrush x:Key="HiTechAppBackgroundBrush" Color="#070B10" />
+    <SolidColorBrush x:Key="HiTechPanelBackgroundBrush" Color="#0C131B" />
+    <SolidColorBrush x:Key="HiTechPanelBackgroundAltBrush" Color="#101A24" />
+    <SolidColorBrush x:Key="HiTechPanelHoverBrush" Color="#142433" />
+    <SolidColorBrush x:Key="HiTechBorderBrush" Color="#244252" />
+    <SolidColorBrush x:Key="HiTechBorderStrongBrush" Color="#34738A" />
+    <SolidColorBrush x:Key="HiTechAccentBrush" Color="#53D7E8" />
+    <SolidColorBrush x:Key="HiTechAccentMutedBrush" Color="#1D6B78" />
+    <SolidColorBrush x:Key="HiTechAccentFillBrush" Color="#17313A" />
+    <SolidColorBrush x:Key="HiTechTextPrimaryBrush" Color="#E6F7FA" />
+    <SolidColorBrush x:Key="HiTechTextSecondaryBrush" Color="#8CA9B3" />
+    <SolidColorBrush x:Key="HiTechDangerBrush" Color="#FF6E78" />
+
+    <CornerRadius x:Key="HiTechPanelCornerRadius">2</CornerRadius>
+    <CornerRadius x:Key="HiTechControlCornerRadius">2</CornerRadius>
+
+    <Style x:Key="HiTechPanelStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource HiTechPanelCornerRadius}" />
+    </Style>
+
+    <Style x:Key="HiTechPanelAltStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundAltBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderStrongBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource HiTechPanelCornerRadius}" />
+    </Style>
+
+    <Style x:Key="HiTechSectionHeaderStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HiTechAccentBrush}" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="CharacterSpacing" Value="100" />
+    </Style>
+
+    <Style x:Key="HiTechTitleStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="CharacterSpacing" Value="80" />
+    </Style>
+
+    <Style x:Key="HiTechCaptionStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextSecondaryBrush}" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontSize" Value="11" />
+    </Style>
+
+    <Style x:Key="HiTechIconButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundAltBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource HiTechControlCornerRadius}" />
+        <Setter Property="Padding" Value="8,6" />
+    </Style>
+
+    <Style x:Key="HiTechPrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource HiTechAccentFillBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechAccentBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource HiTechControlCornerRadius}" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="14,9" />
+    </Style>
+
+    <Style x:Key="HiTechTreeViewStyle" TargetType="TreeView">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
+    </Style>
+
+</ResourceDictionary>
