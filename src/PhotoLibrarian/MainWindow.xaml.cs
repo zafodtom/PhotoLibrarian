@@ -26,6 +26,12 @@ public sealed partial class MainWindow : Window
         await ImageGridPanel.RefreshPeopleAsync();
     }
 
+    public async Task RefreshAllNavigationAsync()
+    {
+        await FolderNavPanel.RefreshAllTreesAsync();
+        await ImageGridPanel.RefreshPeopleAsync();
+    }
+
     public async Task RefreshPeopleFiltersAsync()
     {
         await FolderNavPanel.RefreshPeopleTreeAsync();
