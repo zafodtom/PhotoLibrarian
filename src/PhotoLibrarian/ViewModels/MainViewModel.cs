@@ -265,6 +265,43 @@ public partial class MainViewModel : ObservableObject
     public Task EnsureFaceMetadataPersistedAsync() =>
         _indexingService.ExportPendingFaceMetadataAsync();
 
+    public async Task<DigiKamImportResult> ImportFromDigiKamAsync(
+        string databasePath,
+        IProgress<DigiKamImportProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!App.HasActiveAlbum ||
+            string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+        {
+            throw new InvalidOperationException(
+                "Open a PhotoLibrarian album before importing from digiKam.");
+        }
+
+        StatusText = "Importing metadata from digiKam…";
+        var importer = new DigiKamImportService(_imageRepo, _tagRepo);
+        var result = await importer.ImportAsync(
+            databasePath,
+            App.CurrentAlbumPath,
+            progress,
+            cancellationToken);
+
+        foreach (var tag in result.CatalogTags)
+            AlbumService.AddSelectedTag(tag);
+
+        await RefreshTagsTreeAsync();
+        await MetadataPanel.ReloadTagsAsync();
+        await MetadataPanel.ReloadAvailableTagsAsync();
+        await ImageGrid.RefreshAsync();
+        TotalImages = await _imageRepo.GetCountAsync();
+
+        StatusText =
+            $"digiKam import: {result.MatchedImages:N0} matched, " +
+            $"{result.UnmatchedImages:N0} unmatched, " +
+            $"{result.AmbiguousImages:N0} ambiguous.";
+
+        return result;
+    }
+
     public void StartManualFaceTagging(ImageEntry entry)
     {
         if (entry.MediaType != MediaType.Image)
