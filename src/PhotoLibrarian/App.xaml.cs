@@ -128,6 +128,11 @@ public partial class App : Application
         if (CurrentAlbumPath is not null)
         {
             await ViewModel.FolderNav.AddOrSelectFolderAsync(CurrentAlbumPath);
+
+            // RootFolders is populated only after AddOrSelectFolderAsync. Starting
+            // the startup scan before this point silently did nothing for existing
+            // albums because StartBackgroundIndexing saw an empty folder list.
+            ViewModel.StartBackgroundIndexing();
             ViewModel.StatusText = $"Album: {CurrentAlbumPath}";
         }
         else
