@@ -328,6 +328,23 @@ public sealed partial class ImageViewerOverlay : UserControl
     private async void OnDeleteCurrent(object sender, RoutedEventArgs e) =>
         await DeleteCurrentAsync();
 
+    private async void OnDeleteAccelerator(
+        Microsoft.UI.Xaml.Input.KeyboardAccelerator sender,
+        Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (ViewModel?.IsOpen != true ||
+            IsCropping ||
+            IsStraightening ||
+            IsRedEyeRemoving ||
+            _isManualFaceTagging)
+        {
+            return;
+        }
+
+        args.Handled = true;
+        await DeleteCurrentAsync();
+    }
+
     private async Task DeleteCurrentAsync()
     {
         var entry = ViewModel?.CurrentEntry;
