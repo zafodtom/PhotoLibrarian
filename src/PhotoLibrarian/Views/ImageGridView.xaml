@@ -8,7 +8,7 @@
     <UserControl.Resources>
         <!-- Force scroll bar to always be visible and opaque -->
         <Style x:Key="AlwaysVisibleScrollViewer" TargetType="ScrollViewer">
-            <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
+            <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundBrush}" />
         </Style>
         
         <x:Double x:Key="ScrollBarSize">18</x:Double>
@@ -22,7 +22,9 @@
         </Grid.RowDefinitions>
 
         <!-- Toolbar -->
-        <Grid Grid.Row="0" Padding="8,4" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+        <Grid Grid.Row="0"
+              Padding="10,6"
+              Background="{StaticResource HiTechPanelBackgroundAltBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -31,9 +33,18 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
+            <Border Grid.ColumnSpan="5"
+                    VerticalAlignment="Bottom"
+                    Height="1"
+                    Background="{StaticResource HiTechAccentMutedBrush}"
+                    IsHitTestVisible="False" />
+
             <!-- Group By controls -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="Group:" VerticalAlignment="Center" Margin="4,0" />
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="GROUP"
+                           VerticalAlignment="Center"
+                           Margin="4,0"
+                           Style="{StaticResource HiTechSectionHeaderStyle}" />
                 <ComboBox x:Name="GroupByCombo" 
                           SelectedIndex="0" 
                           MinWidth="140"
@@ -52,7 +63,10 @@
 
             <!-- Sort controls -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0">
-                <TextBlock Text="Sort:" VerticalAlignment="Center" Margin="4,0" />
+                <TextBlock Text="SORT"
+                           VerticalAlignment="Center"
+                           Margin="4,0"
+                           Style="{StaticResource HiTechSectionHeaderStyle}" />
                 <ComboBox x:Name="SortByCombo" 
                           SelectedIndex="1" 
                           MinWidth="120"
@@ -63,7 +77,8 @@
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
                     <ComboBoxItem Content="Rating" Tag="Rating" Visibility="Collapsed" />
                 </ComboBox>
-                <Button x:Name="SortOrderBtn" Click="OnToggleSortOrder" Padding="6" ToolTipService.ToolTip="Toggle sort order">
+                <Button x:Name="SortOrderBtn" Click="OnToggleSortOrder" ToolTipService.ToolTip="Toggle sort order"
+                        Style="{StaticResource HiTechIconButtonStyle}">
                     <FontIcon x:Name="SortOrderIcon" Glyph="&#xE014;" FontSize="12" />
                 </Button>
             </StackPanel>
@@ -74,7 +89,8 @@
                     AutomationProperties.Name="Refine photos"
                     Grid.Column="3"
                     Margin="0,0,12,0"
-                    ToolTipService.ToolTip="Refine the current left-pane results">
+                    ToolTipService.ToolTip="Refine the current left-pane results"
+                    Style="{StaticResource HiTechIconButtonStyle}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE71C;" FontSize="16" />
                     <TextBlock Text="Filter" VerticalAlignment="Center" />
@@ -295,12 +311,14 @@
 
             <!-- Thumbnail size slider -->
             <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4">
-                <Button Click="OnDecreaseSize" Padding="6" ToolTipService.ToolTip="Smaller thumbnails">
+                <Button Click="OnDecreaseSize" ToolTipService.ToolTip="Smaller thumbnails"
+                        Style="{StaticResource HiTechIconButtonStyle}">
                     <FontIcon Glyph="&#xE71F;" FontSize="12" />
                 </Button>
                 <Slider x:Name="SizeSlider" Width="120" Minimum="100" Maximum="400" Value="180"
                         VerticalAlignment="Center" ValueChanged="OnSizeSliderChanged" />
-                <Button Click="OnIncreaseSize" Padding="6" ToolTipService.ToolTip="Larger thumbnails">
+                <Button Click="OnIncreaseSize" ToolTipService.ToolTip="Larger thumbnails"
+                        Style="{StaticResource HiTechIconButtonStyle}">
                     <FontIcon Glyph="&#xE8A3;" FontSize="12" />
                 </Button>
             </StackPanel>
@@ -309,7 +327,7 @@
         <ScrollViewer x:Name="ActiveFiltersScroller"
                       Grid.Row="1"
                       Padding="8,4"
-                      Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                      Background="{StaticResource HiTechAccentFillBrush}"
                       HorizontalScrollBarVisibility="Auto"
                       HorizontalScrollMode="Enabled"
                       VerticalScrollMode="Disabled"
@@ -328,7 +346,7 @@
         <StackPanel x:Name="EmptyState" Grid.Row="2"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
                     RightTapped="OnGridBackgroundRightTapped"
-                    Background="{ThemeResource LayerFillColorDefaultBrush}"
+                    Background="{StaticResource HiTechPanelBackgroundBrush}"
                     Spacing="8">
             <FontIcon Glyph="&#xEB9F;" FontSize="48"
                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
