@@ -19,6 +19,71 @@ public sealed partial class MainWindow : Window
 
     private CropAspectRatio _pendingAspect = CropAspectRatio.Free;
     private bool _isClosing;
+    private bool _isViewerFullscreen;
+    private GridLength _preFullscreenLeftWidth;
+    private GridLength _preFullscreenRightWidth;
+    private double _preFullscreenLeftMinWidth;
+    private double _preFullscreenRightMinWidth;
+    private Microsoft.UI.Windowing.AppWindowPresenterKind _preFullscreenPresenterKind =
+        Microsoft.UI.Windowing.AppWindowPresenterKind.Overlapped;
+
+    public bool IsViewerFullscreen => _isViewerFullscreen;
+
+    public void ToggleViewerFullscreen()
+    {
+        if (_isViewerFullscreen)
+            ExitViewerFullscreen();
+        else
+            EnterViewerFullscreen();
+    }
+
+    public void EnterViewerFullscreen()
+    {
+        if (_isViewerFullscreen || !ViewModel.ImageViewer.IsOpen)
+            return;
+
+        _preFullscreenLeftWidth = LeftPanelColumn.Width;
+        _preFullscreenRightWidth = RightPanelColumn.Width;
+        _preFullscreenLeftMinWidth = LeftPanelColumn.MinWidth;
+        _preFullscreenRightMinWidth = RightPanelColumn.MinWidth;
+        _preFullscreenPresenterKind = AppWindow.Presenter.Kind;
+
+        LeftPanelColumn.MinWidth = 0;
+        RightPanelColumn.MinWidth = 0;
+        LeftPanelColumn.Width = new GridLength(0);
+        RightPanelColumn.Width = new GridLength(0);
+        LeftPanelSplitter.Visibility = Visibility.Collapsed;
+        RightPanelSplitter.Visibility = Visibility.Collapsed;
+        FolderNavPanel.Visibility = Visibility.Collapsed;
+        MetadataDetailPanel.Visibility = Visibility.Collapsed;
+        StatusBar.Visibility = Visibility.Collapsed;
+        TopRibbon.Visibility = Visibility.Collapsed;
+
+        AppWindow.SetPresenter(
+            Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
+        _isViewerFullscreen = true;
+    }
+
+    public void ExitViewerFullscreen()
+    {
+        if (!_isViewerFullscreen)
+            return;
+
+        AppWindow.SetPresenter(_preFullscreenPresenterKind);
+
+        LeftPanelColumn.MinWidth = _preFullscreenLeftMinWidth;
+        RightPanelColumn.MinWidth = _preFullscreenRightMinWidth;
+        LeftPanelColumn.Width = _preFullscreenLeftWidth;
+        RightPanelColumn.Width = _preFullscreenRightWidth;
+        LeftPanelSplitter.Visibility = Visibility.Visible;
+        RightPanelSplitter.Visibility = Visibility.Visible;
+        FolderNavPanel.Visibility = Visibility.Visible;
+        MetadataDetailPanel.Visibility = Visibility.Visible;
+        StatusBar.Visibility = Visibility.Visible;
+
+        _isViewerFullscreen = false;
+        UpdateRibbonVisibility();
+    }
 
     public async Task RefreshMetadataTreesAsync()
     {
@@ -267,8 +332,13 @@ public sealed partial class MainWindow : Window
 
     private void UpdateRibbonVisibility()
     {
-        TopRibbon.Visibility = ViewModel.ImageViewer.IsOpen
-            ? Visibility.Visible : Visibility.Collapsed;
+        if (!ViewModel.ImageViewer.IsOpen && _isViewerFullscreen)
+            ExitViewerFullscreen();
+
+        TopRibbon.Visibility =
+            ViewModel.ImageViewer.IsOpen && !_isViewerFullscreen
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         if (!ViewModel.ImageViewer.IsOpen && ViewerOverlay.IsCropping)
         {
             ViewerOverlay.ExitCropMode();
