@@ -165,7 +165,13 @@ public sealed class WatchedFolderChangeService : IDisposable
                 {
                     if (Directory.Exists(directory))
                     {
-                        await _indexer.IndexFolderAsync(directory, true, _shutdown.Token);
+                        await _indexer.IndexFolderAsync(
+                            directory,
+                            true,
+                            _shutdown.Token);
+                        // IndexFolderAsync also purges records below newly created
+                        // nested-album boundaries, so every successful directory
+                        // rescan is a visible library change.
                         changed = true;
                     }
                     else
