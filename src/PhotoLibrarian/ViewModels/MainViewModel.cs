@@ -1166,7 +1166,7 @@ public partial class MainViewModel : ObservableObject
         // RefreshFilesystemUiAsync here: that method intentionally rescans every
         // watched folder and is far too expensive for a known single-file change.
         await ImageViewer.RemoveDeletedPathsAsync(deleted);
-        await ImageGrid.LoadImagesAsync();
+        await ImageGrid.RemoveDeletedPathsAsync(deleted);
 
         TotalImages = await _imageRepo.GetCountAsync();
         await TagNav.LoadTagsAsync();
