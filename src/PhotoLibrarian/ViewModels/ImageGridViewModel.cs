@@ -168,7 +168,7 @@ public partial class ImageGridViewModel : ObservableObject
         }
     }
     
-    public async Task LoadImagesAsync()
+    public async Task LoadImagesAsync(bool scanDiskForMissingFiles = true)
     {
         // Cancel any pending thumbnail loads from previous folder
         _loadCts?.Cancel();
@@ -349,7 +349,7 @@ public partial class ImageGridViewModel : ObservableObject
 
         // HYBRID APPROACH: Scan folders to find any missing/new files not in database
         // This ensures we show all images even if database is stale/incomplete
-        if (hasFolderFilter && !hasTagFilter && folderFilters is not null)
+        if (scanDiskForMissingFiles && hasFolderFilter && !hasTagFilter && folderFilters is not null)
         {
             // Get indexed file paths for quick lookup
             var indexedPaths = new HashSet<string>(Images.Select(i => i.Entry.FilePath), StringComparer.OrdinalIgnoreCase);
