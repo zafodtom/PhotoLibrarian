@@ -20,6 +20,9 @@ public sealed partial class FolderNavigationPanel : UserControl
     private bool _isRefreshingPeopleTree;
     private readonly HashSet<string> _selectedTagPaths =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _selectedFolderPaths =
+        new(StringComparer.OrdinalIgnoreCase);
+    private const string LibraryRootSelectionKey = "__photo_library_root__";
 
     public FolderNavigationPanel()
     {
@@ -80,23 +83,65 @@ public sealed partial class FolderNavigationPanel : UserControl
     {
         if (ViewModel is null) return;
 
+        var expandedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectFolderExpansionState(LibraryTree.RootNodes, expandedPaths);
+
         LibraryTree.RootNodes.Clear();
 
-        // Create "Photo Library" root node
         var photoLibraryRoot = new TreeViewNode
         {
-            Content = "📚 Photo Library",
+            Content = new FolderNodeWrapper(
+                null,
+                "📚 Photo Library",
+                _selectedFolderPaths.Contains(LibraryRootSelectionKey)),
             IsExpanded = true
         };
 
-        // Add root folders under Photo Library
         foreach (var rootFolder in ViewModel.RootFolders)
         {
-            var rootNode = BuildFolderNode(rootFolder, isRootFolder: true);
+            var rootNode = BuildFolderNode(
+                rootFolder,
+                isRootFolder: true,
+                _selectedFolderPaths);
             photoLibraryRoot.Children.Add(rootNode);
         }
 
         LibraryTree.RootNodes.Add(photoLibraryRoot);
+        RestoreFolderExpansionState(LibraryTree.RootNodes, expandedPaths);
+    }
+
+    private static void CollectFolderExpansionState(
+        IList<TreeViewNode> nodes,
+        ISet<string> expandedPaths)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.IsExpanded &&
+                node.Content is FolderNodeWrapper { FolderNode: not null } wrapper)
+            {
+                expandedPaths.Add(wrapper.FolderNode.Path);
+            }
+
+            if (node.Children.Count > 0)
+                CollectFolderExpansionState(node.Children, expandedPaths);
+        }
+    }
+
+    private static void RestoreFolderExpansionState(
+        IList<TreeViewNode> nodes,
+        ISet<string> expandedPaths)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Content is FolderNodeWrapper { FolderNode: not null } wrapper &&
+                expandedPaths.Contains(wrapper.FolderNode.Path))
+            {
+                node.IsExpanded = true;
+            }
+
+            if (node.Children.Count > 0)
+                RestoreFolderExpansionState(node.Children, expandedPaths);
+        }
     }
 
     private async Task RefreshDateTreeAsync()
@@ -261,20 +306,39 @@ public sealed partial class FolderNavigationPanel : UserControl
 
     private IReadOnlyCollection<string>? GetSelectedFolderScope()
     {
-        // Selecting the Photo Library root means the whole album.
-        if (LibraryTree.SelectedNodes.Any(
-            node => node.Content is string text && text.StartsWith("📚")))
+        if (_selectedFolderPaths.Contains(LibraryRootSelectionKey))
             return null;
 
-        var folders = LibraryTree.SelectedNodes
-            .Select(node => node.Content)
-            .OfType<FolderNodeWrapper>()
-            .Where(wrapper => wrapper.FolderNode is not null)
-            .Select(wrapper => wrapper.FolderNode.Path)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+        var folders = _selectedFolderPaths
+            .Where(path =>
+                !string.Equals(
+                    path,
+                    LibraryRootSelectionKey,
+                    StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         return folders.Count == 0 ? null : folders;
+    }
+
+    public string? GetPreferredFileOperationDirectory()
+    {
+        var selectedFolders = _selectedFolderPaths
+            .Where(path =>
+                !string.Equals(
+                    path,
+                    LibraryRootSelectionKey,
+                    StringComparison.OrdinalIgnoreCase) &&
+                Directory.Exists(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (selectedFolders.Count == 1)
+            return selectedFolders[0];
+
+        return App.HasActiveAlbum &&
+               !string.IsNullOrWhiteSpace(App.CurrentAlbumPath)
+            ? App.CurrentAlbumPath
+            : ViewModel?.RootFolders.FirstOrDefault()?.Path;
     }
 
     public async Task RefreshTagsTreeAsync()
@@ -445,7 +509,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             AllowDrop = true
         };
 
-        var addTagButton = new Button { Content = "Nový tag", Padding = new Thickness(10, 5, 10, 5) };
+        var addTagButton = new Button { Content = "New tag", Padding = new Thickness(10, 5, 10, 5) };
         var editButton = new Button { Content = "Upravit", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
         var removeButton = new Button { Content = "Odebrat z katalogu", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
 
@@ -460,7 +524,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var hint = new TextBlock
         {
-            Text = "Každá položka je tag. Hierarchie vzniká cestou tagů. Použitý tag zůstane po odebrání z katalogu zachovaný u fotografií. Přetažením tagu na jiný tag ho přesuneš pod něj; zónou nahoře ho přesuneš do kořene.",
+            Text = "Every item is a tag. Hierarchy is defined by tag paths. Removing a used tag from the catalog keeps its assignments on photos. Drag a tag onto another tag to move it below it, or use the root drop zone.",
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.7
         };
@@ -486,7 +550,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             AllowDrop = true,
             Child = new TextBlock
             {
-                Text = "Přesunout do kořene alba",
+                Text = "Move to album root",
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Opacity = 0.8
             }
@@ -500,9 +564,9 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = "Správa katalogu tagů",
+            Title = "Tag catalog manager",
             Content = content,
-            CloseButtonText = "Zavřít",
+            CloseButtonText = "Close",
             XamlRoot = XamlRoot
         };
 
@@ -562,7 +626,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
             catch (Exception ex)
             {
-                ShowManagerStatus($"Přesun se nezdařil: {ex.Message}");
+                ShowManagerStatus($"Move failed: {ex.Message}");
             }
         }
 
@@ -589,7 +653,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
 
             args.AcceptedOperation = DataPackageOperation.Move;
-            args.DragUIOverride.Caption = $"Přesunout do '{target.Item.Tag}'";
+            args.DragUIOverride.Caption = $"Move into '{target.Item.Tag}'";
             args.Handled = true;
         }
 
@@ -617,7 +681,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
 
             args.AcceptedOperation = DataPackageOperation.Move;
-            args.DragUIOverride.Caption = "Přesunout do kořene";
+            args.DragUIOverride.Caption = "Move to root";
             args.Handled = true;
         }
 
@@ -650,18 +714,18 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             var parentBox = new ComboBox
             {
-                Header = "Nadřazený tag",
+                Header = "Parent tag",
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
-            parentBox.Items.Add("(kořen)");
+            parentBox.Items.Add("(root)");
             foreach (var parentTag in parentTags)
                 parentBox.Items.Add(parentTag);
             parentBox.SelectedIndex = 0;
 
             var nameBox = new TextBox
             {
-                Header = "Název tagu",
-                PlaceholderText = "Např. Červená"
+                Header = "Tag name",
+                PlaceholderText = "e.g. Red"
             };
 
             var panel = new StackPanel { Spacing = 10 };
@@ -670,10 +734,10 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             var createDialog = new ContentDialog
             {
-                Title = "Nový tag",
+                Title = "New tag",
                 Content = panel,
-                PrimaryButtonText = "Vytvořit",
-                CloseButtonText = "Zrušit",
+                PrimaryButtonText = "Create",
+                CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = XamlRoot
             };
@@ -730,10 +794,10 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             var parentBox = new ComboBox
             {
-                Header = "Nadřazený tag",
+                Header = "Parent tag",
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
-            parentBox.Items.Add("(kořen)");
+            parentBox.Items.Add("(root)");
             foreach (var parentTag in parentTags)
                 parentBox.Items.Add(parentTag);
 
@@ -749,7 +813,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             var nameBox = new TextBox
             {
-                Header = "Název tagu",
+                Header = "Tag name",
                 Text = item.Name
             };
 
@@ -761,8 +825,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             {
                 Title = "Upravit tag",
                 Content = panel,
-                PrimaryButtonText = "Uložit",
-                CloseButtonText = "Zrušit",
+                PrimaryButtonText = "Save",
+                CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = XamlRoot
             };
@@ -800,7 +864,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
             catch (Exception ex)
             {
-                App.ViewModel.StatusText = $"Přejmenování se nezdařilo: {ex.Message}";
+                App.ViewModel.StatusText = $"Rename failed: {ex.Message}";
             }
         };
 
@@ -814,10 +878,10 @@ public sealed partial class FolderNavigationPanel : UserControl
             {
                 Title = "Odebrat tag z katalogu?",
                 Content = item.IsUsedInAlbum
-                    ? "Položka je použitá u fotografií. Při odebrání z katalogu zůstanou tato přiřazení zachovaná."
-                    : "Položka bude odebrána z katalogu alba.",
+                    ? "This tag is used on photos. Removing it from the catalog will keep those assignments."
+                    : "The tag will be removed from the album catalog.",
                 PrimaryButtonText = "Odebrat",
-                CloseButtonText = "Zrušit",
+                CloseButtonText = "Cancel",
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot
             };
@@ -901,7 +965,10 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
     }
 
-    private static TreeViewNode BuildFolderNode(FolderNode folderNode, bool isRootFolder = false)
+    private static TreeViewNode BuildFolderNode(
+        FolderNode folderNode,
+        bool isRootFolder = false,
+        ISet<string>? selectedPaths = null)
     {
         // Create display text with icon
         string icon = "📁";
@@ -913,7 +980,10 @@ public sealed partial class FolderNavigationPanel : UserControl
         // Store FolderNode in a wrapper for event handlers to retrieve
         var treeNode = new TreeViewNode 
         { 
-            Content = new FolderNodeWrapper(folderNode, displayText),
+            Content = new FolderNodeWrapper(
+                folderNode,
+                displayText,
+                selectedPaths?.Contains(folderNode.Path) == true),
             IsExpanded = false
         };
 
@@ -929,7 +999,10 @@ public sealed partial class FolderNavigationPanel : UserControl
             // Add realized children
             foreach (var child in folderNode.Children)
             {
-                treeNode.Children.Add(BuildFolderNode(child, isRootFolder: false));
+                treeNode.Children.Add(BuildFolderNode(
+                    child,
+                    isRootFolder: false,
+                    selectedPaths));
             }
         }
 
@@ -949,8 +1022,10 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             targetPath = wrapper.FolderNode.Path;
         }
-        else if (node?.Content is string text &&
-                 text.StartsWith("📚") &&
+        else if (node?.Content is FolderNodeWrapper
+                 {
+                     FolderNode: null
+                 } &&
                  App.HasActiveAlbum)
         {
             targetPath = App.CurrentAlbumPath;
@@ -965,7 +1040,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var menu = new MenuFlyout();
 
-        var newFolder = new MenuFlyoutItem { Text = "Nová složka" };
+        var newFolder = new MenuFlyoutItem { Text = "New Folder" };
         newFolder.Click += async (_, _) =>
         {
             try
@@ -975,12 +1050,12 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
             catch (Exception ex)
             {
-                App.ViewModel.StatusText = $"Vytvoření složky se nezdařilo: {ex.Message}";
+                App.ViewModel.StatusText = $"Create folder failed: {ex.Message}";
             }
         };
         menu.Items.Add(newFolder);
 
-        var paste = new MenuFlyoutItem { Text = "Vložit" };
+        var paste = new MenuFlyoutItem { Text = "Paste" };
         paste.Click += async (_, _) =>
         {
             try
@@ -992,7 +1067,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
             catch (Exception ex)
             {
-                App.ViewModel.StatusText = $"Vložení se nezdařilo: {ex.Message}";
+                App.ViewModel.StatusText = $"Paste failed: {ex.Message}";
             }
         };
         menu.Items.Add(paste);
@@ -1001,24 +1076,24 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             menu.Items.Add(new MenuFlyoutSeparator());
 
-            var copy = new MenuFlyoutItem { Text = "Kopírovat" };
+            var copy = new MenuFlyoutItem { Text = "Copy" };
             copy.Click += async (_, _) =>
                 await Services.PhotoOperationsService
                     .CopyPathsToClipboardAsync([targetPath], cut: false);
             menu.Items.Add(copy);
 
-            var cut = new MenuFlyoutItem { Text = "Vyjmout" };
+            var cut = new MenuFlyoutItem { Text = "Cut" };
             cut.Click += async (_, _) =>
                 await Services.PhotoOperationsService
                     .CopyPathsToClipboardAsync([targetPath], cut: true);
             menu.Items.Add(cut);
 
-            var rename = new MenuFlyoutItem { Text = "Přejmenovat…" };
+            var rename = new MenuFlyoutItem { Text = "Rename…" };
             rename.Click += async (_, _) =>
                 await ShowRenameFolderDialogAsync(targetPath);
             menu.Items.Add(rename);
 
-            var delete = new MenuFlyoutItem { Text = "Smazat" };
+            var delete = new MenuFlyoutItem { Text = "Delete" };
             delete.Click += async (_, _) =>
             {
                 if (Services.PhotoOperationsService
@@ -1032,7 +1107,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
-        var open = new MenuFlyoutItem { Text = "Otevřít v Průzkumníku" };
+        var open = new MenuFlyoutItem { Text = "Open in File Explorer" };
         open.Click += (_, _) =>
         {
             try
@@ -1047,7 +1122,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             }
             catch (Exception ex)
             {
-                App.ViewModel.StatusText = $"Průzkumník se nepodařilo otevřít: {ex.Message}";
+                App.ViewModel.StatusText = $"File Explorer failed to open: {ex.Message}";
             }
         };
         menu.Items.Add(open);
@@ -1099,10 +1174,10 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = "Přejmenovat složku",
+            Title = "Rename folder",
             Content = box,
-            PrimaryButtonText = "Přejmenovat",
-            CloseButtonText = "Zrušit",
+            PrimaryButtonText = "Rename",
+            CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot
         };
@@ -1118,7 +1193,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             .RenameDirectoryAsync(folderPath, newName);
         if (newPath is null)
         {
-            App.ViewModel.StatusText = "Přejmenování složky se nezdařilo.";
+            App.ViewModel.StatusText = "Folder rename failed.";
             return;
         }
 
@@ -1139,7 +1214,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             var dialog = new ContentDialog
             {
-                Title = "Album se nepodařilo otevřít",
+                Title = "Could not open album",
                 Content = ex.Message,
                 CloseButtonText = "OK",
                 XamlRoot = this.XamlRoot
@@ -1154,26 +1229,29 @@ public sealed partial class FolderNavigationPanel : UserControl
             await ViewModel.RefreshCommand.ExecuteAsync(null);
     }
 
-    private async void OnLibraryItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
+    private async void OnFolderFilterCheckBoxClick(
+        object sender,
+        RoutedEventArgs e)
     {
-        // When user clicks on a folder (not checkbox), toggle its selection
-        if (args.InvokedItem is TreeViewNode node)
+        if (sender is not CheckBox
+            {
+                Tag: FolderNodeWrapper wrapper
+            } checkBox)
         {
-            if (sender.SelectedNodes.Contains(node))
-            {
-                // Already selected, deselect it
-                sender.SelectedNodes.Remove(node);
-            }
-            else
-            {
-                // Not selected, add it
-                sender.SelectedNodes.Add(node);
-            }
-
-            // Programmatic selection changes do not always raise SelectionChanged.
-            await RefreshTagsTreeAsync();
-            UpdateGridFromSelection();
+            return;
         }
+
+        var isChecked = checkBox.IsChecked == true;
+        wrapper.IsSelected = isChecked;
+
+        var key = wrapper.FolderNode?.Path ?? LibraryRootSelectionKey;
+        if (isChecked)
+            _selectedFolderPaths.Add(key);
+        else
+            _selectedFolderPaths.Remove(key);
+
+        await RefreshTagsTreeAsync();
+        UpdateGridFromSelection();
     }
 
     private void OnDateItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
@@ -1229,15 +1307,12 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             foreach (var child in folderNode.Children)
             {
-                args.Node.Children.Add(BuildFolderNode(child, isRootFolder: false));
+                args.Node.Children.Add(BuildFolderNode(
+                    child,
+                    isRootFolder: false,
+                    _selectedFolderPaths));
             }
         }
-    }
-
-    private async void OnLibrarySelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
-    {
-        await RefreshTagsTreeAsync();
-        UpdateGridFromSelection();
     }
 
     private void OnDateSelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
@@ -1277,22 +1352,17 @@ public sealed partial class FolderNavigationPanel : UserControl
     {
         if (App.ViewModel?.ImageGrid is null) return;
 
-        // Collect all selected folder paths
-        var selectedFolders = new List<string>();
-        bool photoLibraryRootSelected = false;
-        
-        foreach (var node in LibraryTree.SelectedNodes)
-        {
-            if (node.Content is string str && str.StartsWith("📚"))
-            {
-                // Photo Library root node selected - means "show all folders"
-                photoLibraryRootSelected = true;
-            }
-            else if (node.Content is FolderNodeWrapper wrapper && wrapper.FolderNode != null)
-            {
-                selectedFolders.Add(wrapper.FolderNode.Path);
-            }
-        }
+        // Folder filtering uses independent checkbox state, just like tags.
+        bool photoLibraryRootSelected =
+            _selectedFolderPaths.Contains(LibraryRootSelectionKey);
+        var selectedFolders = _selectedFolderPaths
+            .Where(path =>
+                !string.Equals(
+                    path,
+                    LibraryRootSelectionKey,
+                    StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         // Collect selected date ranges (year/month/root)
         var selectedYears = new List<int>();
@@ -1485,11 +1555,16 @@ public sealed partial class FolderNavigationPanel : UserControl
     {
         public FolderNode? FolderNode { get; }
         public string DisplayText { get; }
+        public bool IsSelected { get; set; }
 
-        public FolderNodeWrapper(FolderNode? folderNode, string displayText)
+        public FolderNodeWrapper(
+            FolderNode? folderNode,
+            string displayText,
+            bool isSelected = false)
         {
             FolderNode = folderNode;
             DisplayText = displayText;
+            IsSelected = isSelected;
         }
 
         public override string ToString() => DisplayText;
