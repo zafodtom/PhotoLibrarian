@@ -29,11 +29,28 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left: Folder Navigation -->
-            <Border Grid.Column="0"
-                    Margin="8,8,0,8"
-                    Style="{StaticResource HiTechPanelStyle}">
-                <views:FolderNavigationPanel x:Name="FolderNavPanel" />
-            </Border>
+            <Grid Grid.Column="0" Margin="8,8,0,8">
+                <Border Style="{StaticResource HiTechPanelStyle}">
+                    <views:FolderNavigationPanel x:Name="FolderNavPanel" />
+                </Border>
+                <Path Data="M 0,22 L 0,0 L 22,0"
+                      Stroke="{StaticResource HiTechAccentBrush}"
+                      StrokeThickness="2"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Top"
+                      IsHitTestVisible="False" />
+                <Path Data="M 0,22 L 0,0 L 22,0"
+                      Stroke="{StaticResource HiTechAccentMutedBrush}"
+                      StrokeThickness="2"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Bottom"
+                      RenderTransformOrigin="0.5,0.5"
+                      IsHitTestVisible="False">
+                    <Path.RenderTransform>
+                        <RotateTransform Angle="180" />
+                    </Path.RenderTransform>
+                </Path>
+            </Grid>
 
             <!-- Resizable splitter -->
             <controls:GridSplitter x:Name="LeftPanelSplitter"
@@ -45,17 +62,34 @@
                                    HorizontalAlignment="Stretch" />
 
             <!-- Center: Image Grid with Viewer Overlay -->
-            <Border Grid.Column="2"
-                    Margin="0,8,0,8"
-                    Style="{StaticResource HiTechPanelAltStyle}">
-                <Grid>
-                    <views:ImageGridView x:Name="ImageGridPanel" />
+            <Grid Grid.Column="2" Margin="0,8,0,8">
+                <Border Style="{StaticResource HiTechPanelAltStyle}">
+                    <Grid>
+                        <views:ImageGridView x:Name="ImageGridPanel" />
 
-                    <!-- Overlay: Image Viewer (only over grid area) -->
-                    <views:ImageViewerOverlay x:Name="ViewerOverlay"
-                                              Visibility="Collapsed" />
-                </Grid>
-            </Border>
+                        <!-- Overlay: Image Viewer (only over grid area) -->
+                        <views:ImageViewerOverlay x:Name="ViewerOverlay"
+                                                  Visibility="Collapsed" />
+                    </Grid>
+                </Border>
+                <Path Data="M 0,28 L 0,0 L 42,0"
+                      Stroke="{StaticResource HiTechAccentBrush}"
+                      StrokeThickness="2"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Top"
+                      IsHitTestVisible="False" />
+                <Path Data="M 0,28 L 0,0 L 42,0"
+                      Stroke="{StaticResource HiTechAccentBrush}"
+                      StrokeThickness="2"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Bottom"
+                      RenderTransformOrigin="0.5,0.5"
+                      IsHitTestVisible="False">
+                    <Path.RenderTransform>
+                        <RotateTransform Angle="180" />
+                    </Path.RenderTransform>
+                </Path>
+            </Grid>
 
             <!-- Resizable splitter -->
             <controls:GridSplitter x:Name="RightPanelSplitter"
@@ -67,11 +101,33 @@
                                    HorizontalAlignment="Stretch" />
 
             <!-- Right: Metadata Panel -->
-            <Border Grid.Column="4"
-                    Margin="0,8,8,8"
-                    Style="{StaticResource HiTechPanelStyle}">
-                <views:MetadataPanel x:Name="MetadataDetailPanel" />
-            </Border>
+            <Grid Grid.Column="4" Margin="0,8,8,8">
+                <Border Style="{StaticResource HiTechPanelStyle}">
+                    <views:MetadataPanel x:Name="MetadataDetailPanel" />
+                </Border>
+                <Path Data="M 0,22 L 0,0 L 22,0"
+                      Stroke="{StaticResource HiTechAccentBrush}"
+                      StrokeThickness="2"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Top"
+                      RenderTransformOrigin="0.5,0.5"
+                      IsHitTestVisible="False">
+                    <Path.RenderTransform>
+                        <ScaleTransform ScaleX="-1" />
+                    </Path.RenderTransform>
+                </Path>
+                <Path Data="M 0,22 L 0,0 L 22,0"
+                      Stroke="{StaticResource HiTechAccentMutedBrush}"
+                      StrokeThickness="2"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Bottom"
+                      RenderTransformOrigin="0.5,0.5"
+                      IsHitTestVisible="False">
+                    <Path.RenderTransform>
+                        <ScaleTransform ScaleY="-1" />
+                    </Path.RenderTransform>
+                </Path>
+            </Grid>
         </Grid>
 
         <!-- Start screen shown when no album was supplied. -->
@@ -126,10 +182,18 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock x:Name="StatusBarText"
-                       Text="Ready"
-                       Style="{StaticResource HiTechCaptionStyle}"
-                       VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <TextBlock Text="SYS"
+                           Foreground="{StaticResource HiTechAccentBrush}"
+                           Style="{StaticResource HiTechCaptionStyle}" />
+                <Rectangle Width="26" Height="1"
+                           Fill="{StaticResource HiTechAccentMutedBrush}"
+                           VerticalAlignment="Center" />
+                <TextBlock x:Name="StatusBarText"
+                           Text="Ready"
+                           Style="{StaticResource HiTechCaptionStyle}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
 
             <ProgressRing x:Name="IndexingProgress"
                           Grid.Column="1"
