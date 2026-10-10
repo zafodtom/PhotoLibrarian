@@ -1140,6 +1140,52 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
+    public async Task<IReadOnlyList<string>> DeleteEntriesAsync(
+        IEnumerable<ImageEntry> entries)
+    {
+        var materialized = entries
+            .Where(entry => entry is not null)
+            .DistinctBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (materialized.Count == 0)
+            return [];
+
+        StatusText = materialized.Count == 1
+            ? $"Deleting {materialized[0].FileName}…"
+            : $"Deleting {materialized.Count:N0} items…";
+
+        var deleted = await PhotoOps.DeleteToRecycleBinAsync(materialized);
+        if (deleted.Count == 0)
+        {
+            StatusText = "Nothing was deleted";
+            return deleted;
+        }
+
+        // PhotoOperationsService already removed the exact DB rows. Do not run
+        // RefreshFilesystemUiAsync here: that method intentionally rescans every
+        // watched folder and is far too expensive for a known single-file change.
+        await ImageViewer.RemoveDeletedPathsAsync(deleted);
+        await ImageGrid.LoadImagesAsync();
+
+        TotalImages = await _imageRepo.GetCountAsync();
+        await TagNav.LoadTagsAsync();
+        await DateNav.LoadDatesAsync();
+        await PeopleNav.LoadPeopleAsync();
+        await FlagNav.LoadAsync();
+        await MetadataPanel.ReloadTagsAsync();
+        await MetadataPanel.ReloadAvailableTagsAsync();
+
+        if (App.MainWindow is MainWindow window)
+            await window.RefreshMetadataTreesAsync();
+
+        StatusText = deleted.Count == 1
+            ? "Moved 1 item to Recycle Bin"
+            : $"Moved {deleted.Count:N0} items to Recycle Bin";
+
+        return deleted;
+    }
+
     public async Task RefreshFilesystemUiAsync()
     {
         var folders = FolderNav.RootFolders
