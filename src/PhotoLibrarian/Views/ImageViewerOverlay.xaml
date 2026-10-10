@@ -102,6 +102,14 @@
                         Click="OnZoomIn" ToolTipService.ToolTip="Zoom in" Padding="8">
                     <FontIcon Glyph="&#xE8A3;" FontSize="14" Foreground="White" />
                 </Button>
+                <Button x:Name="DeleteCurrentButton"
+                        AutomationProperties.AutomationId="ViewerDelete"
+                        AutomationProperties.Name="Delete current item"
+                        Click="OnDeleteCurrent"
+                        ToolTipService.ToolTip="Delete (Delete)"
+                        Padding="8">
+                    <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="White" />
+                </Button>
                 <Button x:Name="CancelManualFaceTaggingButton"
                         AutomationProperties.AutomationId="CancelManualFaceTagging"
                         AutomationProperties.Name="Cancel adding a people tag"
