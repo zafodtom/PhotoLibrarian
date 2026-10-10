@@ -558,6 +558,69 @@ public sealed partial class ImageGridView : UserControl
     //  Right-click context menu
     // =================================================================
 
+    private void OnGridBackgroundRightTapped(
+        object sender,
+        Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        if (e.Handled)
+            return;
+
+        var targetDirectory =
+            (App.MainWindow as MainWindow)?.GetPreferredFileOperationDirectory();
+        if (string.IsNullOrWhiteSpace(targetDirectory) ||
+            !System.IO.Directory.Exists(targetDirectory))
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+
+        var paste = new MenuFlyoutItem { Text = "Paste" };
+        paste.Click += async (_, _) =>
+        {
+            var pasted = await App.ViewModel.PhotoOps
+                .PasteClipboardToDirectoryAsync(targetDirectory);
+            if (pasted.Count > 0)
+                await App.ViewModel.RefreshFilesystemUiAsync();
+        };
+        menu.Items.Add(paste);
+
+        var newFolder = new MenuFlyoutItem { Text = "New Folder" };
+        newFolder.Click += async (_, _) =>
+        {
+            Services.PhotoOperationsService.CreateNewFolder(targetDirectory);
+            await App.ViewModel.RefreshFilesystemUiAsync();
+        };
+        menu.Items.Add(newFolder);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var open = new MenuFlyoutItem { Text = "Open in File Explorer" };
+        open.Click += (_, _) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{targetDirectory}\"",
+                        UseShellExecute = true
+                    });
+            }
+            catch (Exception ex)
+            {
+                App.ViewModel.StatusText =
+                    $"File Explorer failed to open: {ex.Message}";
+            }
+        };
+        menu.Items.Add(open);
+
+        var source = sender as FrameworkElement ?? PhotoGrid;
+        menu.ShowAt(source, e.GetPosition(source));
+        e.Handled = true;
+    }
+
     private void OnContextMenuRequested(object? sender, Controls.ContextMenuRequestedEventArgs e)
     {
         if (ViewModel is null) return;
@@ -603,7 +666,7 @@ public sealed partial class ImageGridView : UserControl
         // Their implementation is retained for a later editor/batch-actions version.
 
         // Copy
-        var copy = new MenuFlyoutItem { Text = isMulti ? $"Kopírovat ({selected.Count} souborů)" : "Kopírovat" };
+        var copy = new MenuFlyoutItem { Text = isMulti ? $"Copy ({selected.Count} files)" : "Copy" };
         copy.Click += async (_, _) =>
         {
             await Services.PhotoOperationsService.CopyFilesToClipboardAsync(
@@ -611,7 +674,7 @@ public sealed partial class ImageGridView : UserControl
         };
         menu.Items.Add(copy);
 
-        var cut = new MenuFlyoutItem { Text = isMulti ? $"Vyjmout ({selected.Count} souborů)" : "Vyjmout" };
+        var cut = new MenuFlyoutItem { Text = isMulti ? $"Cut ({selected.Count} files)" : "Cut" };
         cut.Click += async (_, _) =>
         {
             await Services.PhotoOperationsService.CutFilesToClipboardAsync(
@@ -622,7 +685,7 @@ public sealed partial class ImageGridView : UserControl
         var targetDirectory = System.IO.Path.GetDirectoryName(primary.Entry.FilePath);
         if (!string.IsNullOrWhiteSpace(targetDirectory))
         {
-            var paste = new MenuFlyoutItem { Text = "Vložit do této složky" };
+            var paste = new MenuFlyoutItem { Text = "Paste into this folder" };
             paste.Click += async (_, _) =>
             {
                 var pasted = await App.ViewModel.PhotoOps
@@ -632,7 +695,7 @@ public sealed partial class ImageGridView : UserControl
             };
             menu.Items.Add(paste);
 
-            var newFolder = new MenuFlyoutItem { Text = "Nová složka zde" };
+            var newFolder = new MenuFlyoutItem { Text = "New Folder here" };
             newFolder.Click += async (_, _) =>
             {
                 Services.PhotoOperationsService.CreateNewFolder(targetDirectory);
