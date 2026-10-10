@@ -285,8 +285,7 @@ public partial class MainViewModel : ObservableObject
             progress,
             cancellationToken);
 
-        foreach (var tag in result.CatalogTags)
-            AlbumService.AddSelectedTag(tag);
+        AlbumService.AddSelectedTags(result.CatalogTags);
 
         await RefreshTagsTreeAsync();
         await MetadataPanel.ReloadTagsAsync();
