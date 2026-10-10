@@ -280,6 +280,9 @@ public sealed class PhotoOperationsService
             {
                 if (Directory.Exists(sourcePath))
                 {
+                    if (IsSameOrDescendant(destinationDirectory, sourcePath))
+                        continue;
+
                     var destination = GetUniqueDestinationPath(
                         destinationDirectory,
                         Path.GetFileName(sourcePath),
@@ -401,6 +404,24 @@ public sealed class PhotoOperationsService
                 $"[OPS] Folder delete failed for '{directoryPath}': {ex.Message}");
             return false;
         }
+    }
+
+    private static bool IsSameOrDescendant(
+        string candidatePath,
+        string ancestorPath)
+    {
+        var candidate = Path.GetFullPath(candidatePath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var ancestor = Path.GetFullPath(ancestorPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        return string.Equals(
+                   candidate,
+                   ancestor,
+                   StringComparison.OrdinalIgnoreCase) ||
+               candidate.StartsWith(
+                   ancestor + Path.DirectorySeparatorChar,
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetUniqueDestinationPath(
