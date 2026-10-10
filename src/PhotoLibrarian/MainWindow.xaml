@@ -73,11 +73,11 @@
                            FontSize="32"
                            FontWeight="SemiBold"
                            HorizontalAlignment="Center" />
-                <TextBlock Text="Vyber složku s existujícím albem, nebo běžnou složku fotografií. Pokud v ní album ještě není, vytvoří se automaticky."
+                <TextBlock Text="Choose an existing album folder or a regular photo folder. If it is not an album yet, PhotoLibrarian will create one automatically."
                            TextWrapping="Wrap"
                            TextAlignment="Center"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Button Content="Otevřít / vytvořit album"
+                <Button Content="Open / create album"
                         Click="OnOpenAlbumClick"
                         HorizontalAlignment="Stretch"
                         Padding="16,10"
