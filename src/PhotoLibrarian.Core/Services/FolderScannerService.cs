@@ -20,7 +20,6 @@ public sealed class FolderScannerService : IDisposable
         ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v", ".webm"
     };
 
-    public event EventHandler<FileDiscoveredEventArgs>? FileDiscovered;
     public event EventHandler<FileChangedEventArgs>? FileChanged;
     public event EventHandler<FileChangedEventArgs>? DirectoryChanged;
     public event EventHandler<PathRenamedEventArgs>? FileRenamed;
