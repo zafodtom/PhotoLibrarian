@@ -47,6 +47,13 @@ public sealed partial class ImageGridView : UserControl
         // Right-click context menu
         PhotoGrid.ContextMenuRequested += OnContextMenuRequested;
 
+        // Keyboard file operations. Register handledEventsToo so Delete works
+        // while the custom virtualized grid owns keyboard focus.
+        AddHandler(
+            UIElement.KeyDownEvent,
+            new Microsoft.UI.Xaml.Input.KeyEventHandler(OnGridKeyDown),
+            true);
+
         // Flag support is retained internally but intentionally hidden in the album UI.
         
         // Listen for GroupedImages changes — the inner grid already self-subscribes to the same
@@ -554,6 +561,41 @@ public sealed partial class ImageGridView : UserControl
         SizeSlider.Value = Math.Min(SizeSlider.Value + 40, 400);
     }
 
+    private async void OnGridKeyDown(
+        object sender,
+        Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Delete ||
+            ViewModel is null)
+        {
+            return;
+        }
+
+        // Do not hijack Delete while the user is editing a filter/text field.
+        if (e.OriginalSource is TextBox or
+            RichEditBox or
+            PasswordBox or
+            NumberBox or
+            ComboBox)
+        {
+            return;
+        }
+
+        var selected = ViewModel.SelectedImages.Count > 0
+            ? ViewModel.SelectedImages
+                .Select(item => item.Entry)
+                .ToList()
+            : ViewModel.SelectedImage is not null
+                ? [ViewModel.SelectedImage.Entry]
+                : [];
+
+        if (selected.Count == 0)
+            return;
+
+        e.Handled = true;
+        await App.ViewModel.DeleteEntriesAsync(selected);
+    }
+
     // =================================================================
     //  Right-click context menu
     // =================================================================
@@ -708,9 +750,8 @@ public sealed partial class ImageGridView : UserControl
         var delete = new MenuFlyoutItem { Text = isMulti ? $"Delete ({selected.Count})" : "Delete" };
         delete.Click += async (_, _) =>
         {
-            var deleted = await ops.DeleteToRecycleBinAsync(selected.Select(vm => vm.Entry));
-            if (deleted.Count > 0)
-                await App.ViewModel.RefreshFilesystemUiAsync();
+            await App.ViewModel.DeleteEntriesAsync(
+                selected.Select(vm => vm.Entry));
         };
         menu.Items.Add(delete);
 
