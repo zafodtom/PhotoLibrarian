@@ -947,6 +947,63 @@ public partial class ImageGridViewModel : ObservableObject
             : ApplyGroupingAsync();
     }
 
+    public async Task RemoveDeletedPathsAsync(
+        IReadOnlyCollection<string> deletedPaths)
+    {
+        if (deletedPaths.Count == 0)
+            return;
+
+        var deleted = deletedPaths.ToHashSet(
+            StringComparer.OrdinalIgnoreCase);
+
+        var toRemove = Images
+            .Where(vm => deleted.Contains(vm.Entry.FilePath))
+            .ToList();
+
+        foreach (var vm in toRemove)
+        {
+            vm.Thumbnail = null;
+            Images.Remove(vm);
+        }
+
+        SelectedImages.RemoveAll(vm =>
+            deleted.Contains(vm.Entry.FilePath));
+        _selectedPaths.RemoveWhere(path => deleted.Contains(path));
+
+        if (SelectedImage is not null &&
+            deleted.Contains(SelectedImage.Entry.FilePath))
+        {
+            SelectedImage = SelectedImages.FirstOrDefault();
+        }
+
+        if (_primarySelectedPath is not null &&
+            deleted.Contains(_primarySelectedPath))
+        {
+            _primarySelectedPath =
+                SelectedImage?.Entry.FilePath;
+        }
+
+        lock (_queueLock)
+        {
+            if (_loadQueue.Count > 0)
+            {
+                var retained = _loadQueue
+                    .Where(vm => !deleted.Contains(vm.Entry.FilePath))
+                    .ToList();
+                _loadQueue.Clear();
+                foreach (var vm in retained)
+                    _loadQueue.Enqueue(vm);
+            }
+
+            _queuedItems.RemoveWhere(vm =>
+                deleted.Contains(vm.Entry.FilePath));
+        }
+
+        await ApplyGroupingAsync();
+        ResultsChanged?.Invoke(this, EventArgs.Empty);
+        RefreshMetadataFromSelection();
+    }
+
     /// <summary>
     /// Forces a single image's thumbnail and metadata to be re-fetched from disk. Call after
     /// in-place edits to a file (e.g. crop, rotate) so the grid shows the new content.
