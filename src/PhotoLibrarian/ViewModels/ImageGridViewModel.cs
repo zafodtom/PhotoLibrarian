@@ -83,8 +83,13 @@ public partial class ImageGridViewModel : ObservableObject
     private const int ScrollReorderThrottleMs = 150; // Don't reorder more than every 150ms
     private Task? _backgroundLoadTask;
     
-    // Limit concurrent thumbnail loading to prevent memory exhaustion
-    internal static readonly SemaphoreSlim s_thumbnailLoadSemaphore = new(8, 8);
+    // Thumbnail cache reads benefit from parallelism, but decoding still
+    // marshals to the UI thread. Scale with the machine without flooding storage
+    // or creating dozens of pending UI bitmap operations on high-core-count PCs.
+    private static readonly int ThumbnailWorkerCount =
+        Math.Clamp(Environment.ProcessorCount / 2, 4, 12);
+    internal static readonly SemaphoreSlim s_thumbnailLoadSemaphore =
+        new(ThumbnailWorkerCount, ThumbnailWorkerCount);
 
     public ObservableCollection<ImageThumbnailViewModel> Images { get; } = [];
     public ObservableCollection<PhotoGroup> GroupedImages { get; } = [];
@@ -538,42 +543,41 @@ public partial class ImageGridViewModel : ObservableObject
     
     private void StartBackgroundLoadingIfNeeded()
     {
-        if (_backgroundLoadTask?.IsCompleted == false) return; // Already running
-        
+        if (_backgroundLoadTask?.IsCompleted == false)
+            return;
+
         var ct = _loadCts?.Token ?? CancellationToken.None;
-        _backgroundLoadTask = Task.Run(async () =>
-        {
-            while (true)
-            {
-                if (ct.IsCancellationRequested) break;
-                
-                ImageThumbnailViewModel? vm = null;
-                lock (_queueLock)
+        var workers = Enumerable
+            .Range(0, ThumbnailWorkerCount)
+            .Select(workerId => Task.Run(
+                async () =>
                 {
-                    if (_loadQueue.Count == 0)
+                    while (!ct.IsCancellationRequested)
                     {
-                        DebugLog.WriteLine($"[QUEUE] Queue empty, exiting");
-                        break;
+                        ImageThumbnailViewModel? vm = null;
+                        lock (_queueLock)
+                        {
+                            if (_loadQueue.Count == 0)
+                                break;
+
+                            vm = _loadQueue.Dequeue();
+                            _queuedItems.Remove(vm);
+                        }
+
+                        if (vm is null || vm.Thumbnail is not null)
+                            continue;
+
+                        DebugLog.WriteLine(
+                            $"[QUEUE] Worker {workerId}: {vm.Entry.FileName}");
+                        await LoadSingleThumbnailAsync(vm, ct);
                     }
-                    vm = _loadQueue.Dequeue();
-                    _queuedItems.Remove(vm);
-                    DebugLog.WriteLine($"[QUEUE] Dequeued item: {vm?.Entry?.FileName ?? "null"}, Thumbnail={vm?.Thumbnail != null}, IsLoading={vm?.IsLoading}");
-                }
-                
-                if (vm != null && vm.Thumbnail == null)
-                {
-                    await LoadSingleThumbnailAsync(vm, ct);
-                }
-                else if (vm != null)
-                {
-                    DebugLog.WriteLine($"[QUEUE] Skipping {vm.Entry?.FileName}: Thumbnail already set");
-                }
-            }
-            
-            DebugLog.WriteLine($"[QUEUE] Background loading completed");
-        }, ct);
+                },
+                ct))
+            .ToArray();
+
+        _backgroundLoadTask = Task.WhenAll(workers);
     }
-    
+
     private async Task LoadSingleThumbnailAsync(ImageThumbnailViewModel vm, CancellationToken ct)
     {
         try
@@ -769,8 +773,10 @@ public partial class ImageGridViewModel : ObservableObject
         var thumbGenSw = System.Diagnostics.Stopwatch.StartNew();
         var thumbnailData = await Task.Run(async () =>
         {
-            // Use semaphore to limit concurrent operations (8 is optimal)
-            var semaphore = new SemaphoreSlim(8, 8);
+            // Use the same bounded concurrency policy as viewport loading.
+            var semaphore = new SemaphoreSlim(
+                ThumbnailWorkerCount,
+                ThumbnailWorkerCount);
             var tasks = new List<Task<(ImageThumbnailViewModel vm, byte[]? streamBytes)>>();
             
             foreach (var vm in viewModels)
