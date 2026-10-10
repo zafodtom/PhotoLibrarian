@@ -91,6 +91,47 @@ public partial class ImageViewerViewModel : ObservableObject
         RaiseCurrentEntryChanged();
     }
 
+    public async Task RemoveDeletedPathsAsync(
+        IReadOnlyCollection<string> deletedPaths)
+    {
+        if (deletedPaths.Count == 0)
+            return;
+
+        var deleted = deletedPaths.ToHashSet(
+            StringComparer.OrdinalIgnoreCase);
+        var currentPath = CurrentEntry?.FilePath;
+        var oldIndex = _currentIndex;
+
+        _allImages.RemoveAll(image => deleted.Contains(image.FilePath));
+
+        if (_allImages.Count == 0)
+        {
+            Close();
+            return;
+        }
+
+        if (currentPath is not null && !deleted.Contains(currentPath))
+        {
+            _currentIndex = _allImages.FindIndex(image =>
+                string.Equals(
+                    image.FilePath,
+                    currentPath,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            _currentIndex = Math.Clamp(oldIndex, 0, _allImages.Count - 1);
+        }
+
+        if (_currentIndex < 0)
+            _currentIndex = 0;
+
+        if (IsOpen)
+            await LoadCurrentImageAsync();
+        else
+            RaiseCurrentEntryChanged();
+    }
+
     [RelayCommand]
     private void Close()
     {
