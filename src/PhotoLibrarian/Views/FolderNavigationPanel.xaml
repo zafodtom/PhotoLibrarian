@@ -37,7 +37,8 @@
                               SelectionMode="Multiple"
                               ItemInvoked="OnLibraryItemInvoked"
                               Expanding="OnLibraryExpanding"
-                              SelectionChanged="OnLibrarySelectionChanged" />
+                              SelectionChanged="OnLibrarySelectionChanged"
+                              RightTapped="OnLibraryTreeRightTapped" />
                 </StackPanel>
 
                 <!-- Date navigation retained in code, hidden for the current album UI. -->
@@ -106,7 +107,11 @@
                                     <CheckBox IsChecked="{Binding Content.IsSelected, Mode=TwoWay}"
                                               Tag="{Binding Content}"
                                               Click="OnTagFilterCheckBoxClick"
-                                              VerticalAlignment="Center" />
+                                              VerticalAlignment="Center"
+                                              Width="20"
+                                              MinWidth="0"
+                                              Padding="0"
+                                              Margin="0" />
                                     <TextBlock Text="{Binding Content}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
