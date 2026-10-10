@@ -424,6 +424,13 @@ public sealed partial class ImageViewerOverlay : UserControl
             $"{Math.Round(zoom * 100, MidpointRounding.AwayFromZero):0} %";
     }
 
+    private void OnZoomActualSize(object sender, RoutedEventArgs e)
+    {
+        if (IsStraightening) return;
+        _zoomPan?.ApplyActualSize();
+        UpdateZoomPercent();
+    }
+
     private void OnZoomIn(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
@@ -812,6 +819,7 @@ public sealed partial class ImageViewerOverlay : UserControl
     {
         ZoomOutButton.IsEnabled = isEnabled;
         ZoomFitButton.IsEnabled = isEnabled;
+        ZoomActualSizeButton.IsEnabled = isEnabled;
         ZoomInButton.IsEnabled = isEnabled;
     }
 
