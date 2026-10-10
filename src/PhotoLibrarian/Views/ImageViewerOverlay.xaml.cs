@@ -32,6 +32,7 @@ public sealed partial class ImageViewerOverlay : UserControl
     private bool _isRedEyeRemoving;
     private bool _isDrawingRedEye;
     private Point _redEyeStart;
+    private UIElement? _windowKeyRoot;
     public bool IsCropping { get; private set; }
     public bool IsStraightening { get; private set; }
     public bool IsRedEyeRemoving => _isRedEyeRemoving;
@@ -218,12 +219,24 @@ public sealed partial class ImageViewerOverlay : UserControl
     {
         this.InitializeComponent();
         this.Loaded += OnLoaded;
+        this.Unloaded += OnUnloaded;
         RootGrid.RightTapped += OnViewerRightTapped;
         ImageHost.SizeChanged += (_, _) =>
         {
             if (IsStraightening)
                 UpdateStraightenClip();
         };
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_windowKeyRoot is not null)
+        {
+            _windowKeyRoot.RemoveHandler(
+                UIElement.KeyDownEvent,
+                new KeyEventHandler(OnWindowKeyDown));
+            _windowKeyRoot = null;
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -242,10 +255,23 @@ public sealed partial class ImageViewerOverlay : UserControl
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         
         // Wire up mouse wheel to root grid for capture (handles all wheel events including over ScrollViewer)
-        RootGrid.AddHandler(UIElement.PointerWheelChangedEvent,
-            new PointerEventHandler(OnPointerWheelChanged), true);
-        AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(OnKeyDown), true);
-        DebugLog.WriteLine("ImageViewerOverlay: Wheel and keyboard handlers attached");
+        RootGrid.AddHandler(
+            UIElement.PointerWheelChangedEvent,
+            new PointerEventHandler(OnPointerWheelChanged),
+            true);
+
+        // Key focus can live in a ScrollViewer, media control, toolbar button,
+        // or even another element in the window while the overlay is open.
+        // Listen at the window-content root so viewer shortcuts remain reliable
+        // without using a KeyboardAccelerator (which renders an unwanted key hint).
+        _windowKeyRoot = App.MainWindow?.Content as UIElement;
+        _windowKeyRoot?.AddHandler(
+            UIElement.KeyDownEvent,
+            new KeyEventHandler(OnWindowKeyDown),
+            true);
+
+        DebugLog.WriteLine(
+            "ImageViewerOverlay: Wheel and window keyboard handlers attached");
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -327,23 +353,6 @@ public sealed partial class ImageViewerOverlay : UserControl
 
     private async void OnDeleteCurrent(object sender, RoutedEventArgs e) =>
         await DeleteCurrentAsync();
-
-    private async void OnDeleteAccelerator(
-        Microsoft.UI.Xaml.Input.KeyboardAccelerator sender,
-        Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
-    {
-        if (ViewModel?.IsOpen != true ||
-            IsCropping ||
-            IsStraightening ||
-            IsRedEyeRemoving ||
-            _isManualFaceTagging)
-        {
-            return;
-        }
-
-        args.Handled = true;
-        await DeleteCurrentAsync();
-    }
 
     private async Task DeleteCurrentAsync()
     {
@@ -551,9 +560,12 @@ public sealed partial class ImageViewerOverlay : UserControl
         // Kept for backwards compatibility, but not used with new zoom controller
     }
 
-    private async void OnKeyDown(object sender, KeyRoutedEventArgs e)
+    private async void OnWindowKeyDown(
+        object sender,
+        KeyRoutedEventArgs e)
     {
-        if (ViewModel is null) return;
+        if (ViewModel?.IsOpen != true)
+            return;
 
         if (IsCropping)
         {
