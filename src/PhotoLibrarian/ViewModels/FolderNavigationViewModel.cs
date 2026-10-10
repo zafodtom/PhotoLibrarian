@@ -158,7 +158,7 @@ public partial class FolderNavigationViewModel : ObservableObject
         if (node is not null)
             SelectedFolder = node;
 
-        if (shouldIndex)
+        if (shouldIndex && !App.HasActiveAlbum)
         {
             DebugLog.WriteLine($"AddOrSelectFolderAsync: Starting background indexing for '{normalizedPath}'");
             _indexCts?.Cancel();
