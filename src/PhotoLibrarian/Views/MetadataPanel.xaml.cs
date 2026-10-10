@@ -347,19 +347,19 @@ public sealed partial class MetadataPanel : UserControl
 
         var parentBox = new ComboBox
         {
-            Header = "Nadřazený tag",
-            PlaceholderText = "Kořen katalogu",
+            Header = "Parent tag",
+            PlaceholderText = "Catalog root",
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        parentBox.Items.Add("(kořen)");
+        parentBox.Items.Add("(root)");
         foreach (var parentTag in parentTags)
             parentBox.Items.Add(parentTag);
         parentBox.SelectedIndex = 0;
 
         var nameBox = new TextBox
         {
-            Header = "Název tagu",
-            PlaceholderText = "Např. Červená"
+            Header = "Tag name",
+            PlaceholderText = "For example: Red"
         };
 
         var panel = new StackPanel { Spacing = 10 };
@@ -368,10 +368,10 @@ public sealed partial class MetadataPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = "Nový tag",
+            Title = "New tag",
             Content = panel,
-            PrimaryButtonText = "Vytvořit",
-            CloseButtonText = "Zrušit",
+            PrimaryButtonText = "Create",
+            CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot
         };
@@ -426,10 +426,10 @@ public sealed partial class MetadataPanel : UserControl
 
         var parentBox = new ComboBox
         {
-            Header = "Nadřazený tag",
+            Header = "Parent tag",
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        parentBox.Items.Add("(kořen)");
+        parentBox.Items.Add("(root)");
         foreach (var parentTag in parentTags)
             parentBox.Items.Add(parentTag);
 
@@ -445,15 +445,15 @@ public sealed partial class MetadataPanel : UserControl
 
         var nameBox = new TextBox
         {
-            Header = "Název tagu",
+            Header = "Tag name",
             Text = item.Name
         };
 
         var info = new TextBlock
         {
             Text = item.IsUsedInAlbum
-                ? "Přejmenování se propíše i do fotografií, které tento tag používají."
-                : "Položka zatím není použitá na žádné fotografii.",
+                ? "Renaming also updates photos that use this tag."
+                : "This tag is not currently used by any photo.",
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(
                 Microsoft.UI.Colors.Gray)
@@ -466,11 +466,11 @@ public sealed partial class MetadataPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = "Správa tagu",
+            Title = "Manage tag",
             Content = panel,
-            PrimaryButtonText = "Uložit změny",
-            SecondaryButtonText = "Odebrat z katalogu",
-            CloseButtonText = "Zrušit",
+            PrimaryButtonText = "Save changes",
+            SecondaryButtonText = "Remove from catalog",
+            CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot
         };
