@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using PhotoLibrarian.Core.Services;
@@ -176,11 +175,8 @@ public sealed partial class MainWindow : Window
 
         // Bind status bar to ViewModel
         ViewModel.PropertyChanged += OnMainViewModelPropertyChanged;
-        ViewModel.PeopleReview.PropertyChanged += OnPeopleReviewPropertyChanged;
         ViewModel.ImageViewer.PropertyChanged += OnImageViewerPropertyChanged;
         ViewModel.Settings.PropertyChanged += OnSettingsPropertyChanged;
-
-        UpdateFaceDetectionButton();
 
         // Top-ribbon events
         TopRibbon.CropClicked += OnRibbonCropClicked;
@@ -235,22 +231,13 @@ public sealed partial class MainWindow : Window
         if (e.PropertyName == nameof(ViewModel.IsIndexing))
             UpdateBackgroundProgress();
         if (e.PropertyName == nameof(ViewModel.IsFaceDetectionRunning))
-        {
             UpdateBackgroundProgress();
-            UpdateFaceDetectionButton();
-        }
         if (e.PropertyName == nameof(ViewModel.IsAutoTaggingRunning))
             UpdateBackgroundProgress();
         if (e.PropertyName is nameof(ViewModel.ImageViewer))
             UpdateViewerVisibility();
         if (e.PropertyName is nameof(ViewModel.Settings))
             UpdateSettingsVisibility();
-    }
-
-    private void OnPeopleReviewPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (!_isClosing && e.PropertyName == nameof(ViewModel.PeopleReview.IsOpen))
-            UpdatePeopleReviewVisibility();
     }
 
     private void OnImageViewerPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -303,20 +290,10 @@ public sealed partial class MainWindow : Window
         KeyRoutedEventArgs e) =>
         ViewModel.NotifyUserActivity();
 
-    private void UpdateFaceDetectionButton()
-    {
-        var isRunning = ViewModel.IsFaceDetectionRunning;
-        FaceDetectionIcon.Glyph = isRunning ? "\uE769" : "\uE768";
-        var label = isRunning ? "Stop face detection" : "Start face detection";
-        AutomationProperties.SetName(FaceDetectionButton, label);
-        ToolTipService.SetToolTip(FaceDetectionButton, label);
-    }
-
     private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _isClosing = true;
         ViewModel.PropertyChanged -= OnMainViewModelPropertyChanged;
-        ViewModel.PeopleReview.PropertyChanged -= OnPeopleReviewPropertyChanged;
         ViewModel.ImageViewer.PropertyChanged -= OnImageViewerPropertyChanged;
         ViewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
         ViewModel.ImageGrid.Cleanup();
@@ -597,38 +574,5 @@ public sealed partial class MainWindow : Window
         ViewModel.Settings.OpenCommand.Execute(null);
     }
 
-    private async void OnPeopleReviewClick(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            await ViewModel.PeopleReview.OpenAsync();
-        }
-        catch (Exception ex)
-        {
-            ViewModel.PeopleReview.Close();
-            var dialog = new ContentDialog
-            {
-                Title = "People review couldn't be opened",
-                Content = ex.Message,
-                CloseButtonText = "Close",
-                XamlRoot = MainLayout.XamlRoot
-            };
-            await dialog.ShowAsync();
-        }
-    }
 
-    private void UpdatePeopleReviewVisibility()
-    {
-        PeopleReviewOverlay.Visibility = ViewModel.PeopleReview.IsOpen
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        if (!ViewModel.PeopleReview.IsOpen)
-            _ = RefreshPeopleFiltersAsync();
-    }
-    
-    private async void OnBenchmarkClick(object sender, RoutedEventArgs e)
-    {
-        await ViewModel.RunBenchmarkCommand.ExecuteAsync(null);
-    }
 }
