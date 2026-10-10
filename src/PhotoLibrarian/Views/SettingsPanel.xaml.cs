@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.ML.Services;
 using PhotoLibrarian.ViewModels;
 
@@ -218,6 +219,123 @@ public sealed partial class SettingsPanel : UserControl
         finally
         {
             _isUpdatingDisplay = false;
+        }
+    }
+
+    private async void OnImportDigiKam(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (!App.HasActiveAlbum ||
+            string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+        {
+            DigiKamImportStatusText.Text =
+                "Open an album before importing from digiKam.";
+            return;
+        }
+
+        var picker = new Windows.Storage.Pickers.FileOpenPicker
+        {
+            SuggestedStartLocation =
+                Windows.Storage.Pickers.PickerLocationId.PicturesLibrary
+        };
+        picker.FileTypeFilter.Add(".db");
+        picker.FileTypeFilter.Add(".sqlite");
+        picker.FileTypeFilter.Add(".sqlite3");
+
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(
+            App.MainWindow);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+        var file = await picker.PickSingleFileAsync();
+        if (file is null)
+            return;
+
+        ImportDigiKamButton.IsEnabled = false;
+        DigiKamImportProgressRing.IsActive = true;
+        DigiKamImportProgressRing.Visibility = Visibility.Visible;
+        DigiKamImportProgressBar.Visibility = Visibility.Visible;
+        DigiKamImportProgressBar.Value = 0;
+        DigiKamImportStatusText.Text =
+            $"Reading {file.Name}…";
+
+        try
+        {
+            var progress = new Progress<DigiKamImportProgress>(value =>
+            {
+                DigiKamImportProgressBar.Value =
+                    value.Total > 0
+                        ? 100d * value.Processed / value.Total
+                        : 0;
+                DigiKamImportStatusText.Text =
+                    $"Importing {value.Processed:N0} / {value.Total:N0} — " +
+                    $"{value.Matched:N0} matched, " +
+                    $"{value.Unmatched:N0} unmatched, " +
+                    $"{value.Ambiguous:N0} ambiguous";
+            });
+
+            var result = await App.ViewModel.ImportFromDigiKamAsync(
+                file.Path,
+                progress);
+
+            var details = new List<string>
+            {
+                $"{result.MatchedImages:N0} of {result.SourceImages:N0} digiKam items matched",
+                $"{result.TagAssignments:N0} tag assignments imported",
+                $"{result.RatingsImported:N0} ratings imported"
+            };
+
+            if (result.UnmatchedImages > 0)
+                details.Add($"{result.UnmatchedImages:N0} unmatched");
+            if (result.AmbiguousImages > 0)
+                details.Add($"{result.AmbiguousImages:N0} ambiguous");
+            if (result.PersistentWriteFailures > 0)
+            {
+                details.Add(
+                    $"{result.PersistentWriteFailures:N0} files could not persist metadata");
+            }
+
+            DigiKamImportProgressBar.Value = 100;
+            DigiKamImportStatusText.Text = string.Join(" • ", details);
+
+            if (result.UnmatchedExamples.Count > 0 ||
+                result.AmbiguousExamples.Count > 0)
+            {
+                var exampleLines = new List<string>();
+                if (result.UnmatchedExamples.Count > 0)
+                {
+                    exampleLines.Add(
+                        "Unmatched examples: " +
+                        string.Join(", ", result.UnmatchedExamples));
+                }
+                if (result.AmbiguousExamples.Count > 0)
+                {
+                    exampleLines.Add(
+                        "Ambiguous examples: " +
+                        string.Join(", ", result.AmbiguousExamples));
+                }
+
+                DigiKamImportStatusText.Text +=
+                    Environment.NewLine +
+                    string.Join(Environment.NewLine, exampleLines);
+            }
+        }
+        catch (Exception exception)
+            when (exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                Microsoft.Data.Sqlite.SqliteException or
+                ArgumentException or
+                InvalidOperationException)
+        {
+            DigiKamImportStatusText.Text =
+                $"digiKam import failed: {exception.Message}";
+        }
+        finally
+        {
+            ImportDigiKamButton.IsEnabled = true;
+            DigiKamImportProgressRing.IsActive = false;
+            DigiKamImportProgressRing.Visibility = Visibility.Collapsed;
         }
     }
 
