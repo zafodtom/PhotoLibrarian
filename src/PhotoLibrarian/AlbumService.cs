@@ -108,16 +108,32 @@ public static class AlbumService
         }
     }
 
-    private static string NormalizeAlbumRoot(string path) =>
-        Path.GetFullPath(path)
-            .TrimEnd(
-                Path.DirectorySeparatorChar,
-                Path.AltDirectorySeparatorChar);
+    private static string NormalizeAlbumRoot(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        var pathRoot = Path.GetPathRoot(fullPath);
+
+        if (!string.IsNullOrWhiteSpace(pathRoot) &&
+            string.Equals(
+                fullPath.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar),
+                pathRoot.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return pathRoot;
+        }
+
+        return fullPath.TrimEnd(
+            Path.DirectorySeparatorChar,
+            Path.AltDirectorySeparatorChar);
+    }
 
     public static string EnsureAlbum(string rootPath)
     {
-        var root = Path.GetFullPath(rootPath)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var root = NormalizeAlbumRoot(rootPath);
 
         if (!Directory.Exists(root))
             throw new DirectoryNotFoundException($"Album folder not found: {root}");
