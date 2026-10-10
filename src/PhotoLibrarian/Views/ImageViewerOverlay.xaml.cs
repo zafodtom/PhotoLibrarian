@@ -390,6 +390,23 @@ public sealed partial class ImageViewerOverlay : UserControl
         menu.ShowAt(source, e.GetPosition(source));
         e.Handled = true;
     }
+    private void OnViewerDoubleTapped(
+        object sender,
+        Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        if (ViewModel?.IsOpen != true ||
+            IsCropping ||
+            IsStraightening ||
+            IsRedEyeRemoving ||
+            _isManualFaceTagging)
+        {
+            return;
+        }
+
+        ViewModel.CloseCommand.Execute(null);
+        e.Handled = true;
+    }
+
     private void OnZoomIn(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
