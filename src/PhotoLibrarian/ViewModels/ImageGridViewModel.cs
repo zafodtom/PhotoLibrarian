@@ -1577,7 +1577,14 @@ public partial class ImageThumbnailViewModel : ObservableObject
         
         try
         {
-            App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+            var mainWindow = App.MainWindow;
+            if (mainWindow is null)
+            {
+                IsLoading = false;
+                return;
+            }
+
+            mainWindow.DispatcherQueue.TryEnqueue(() =>
             {
                 using (profiler.StartTimer("UI_CREATE_WRITEABLEBITMAP", FileName))
                 {
