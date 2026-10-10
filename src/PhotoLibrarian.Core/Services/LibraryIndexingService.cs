@@ -121,10 +121,25 @@ public sealed class LibraryIndexingService
             }
         }
 
-        var removed = await _imageRepo.DeleteMissingInDirectoryAsync(folderPath);
-        if (removed > 0)
-            DebugLog.WriteLine($"IndexFolderAsync: Removed {removed} missing cache record(s) under '{folderPath}'");
+        var nestedAlbumRoots =
+            FolderScannerService.FindNestedAlbumRoots(folderPath);
+        var removedNested = await _imageRepo.DeleteUnderDirectoryRootsAsync(
+            nestedAlbumRoots);
+        if (removedNested > 0)
+        {
+            DebugLog.WriteLine(
+                $"IndexFolderAsync: Removed {removedNested} cached record(s) owned by nested album(s)");
+        }
 
+        var removedMissing =
+            await _imageRepo.DeleteMissingInDirectoryAsync(folderPath);
+        if (removedMissing > 0)
+        {
+            DebugLog.WriteLine(
+                $"IndexFolderAsync: Removed {removedMissing} missing cache record(s) under '{folderPath}'");
+        }
+
+        var removed = removedNested + removedMissing;
         DebugLog.WriteLine($"IndexFolderAsync: Complete - processed={processed}, skipped={skipped}, errors={errors}, removed={removed}");
         Progress?.Invoke(this, new IndexingProgressEventArgs(processed, skipped, folderPath, isComplete: true));
     }
