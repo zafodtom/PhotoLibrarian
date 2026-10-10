@@ -127,7 +127,7 @@
                                Foreground="{ThemeResource SystemAccentColorLight2}"
                                Margin="0,2,0,0" />
 
-                    <TextBlock Text="Descriptive tags" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="Tags" Style="{StaticResource SectionHeaderStyle}" />
                     <ItemsRepeater x:Name="TagsList" Margin="0,4,0,0">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Vertical" Spacing="2" />
@@ -165,7 +165,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="NewTagBox" Grid.Column="0"
-                                     PlaceholderText="Add or choose descriptive tag"
+                                     PlaceholderText="Add or choose tag"
                                      TextChanged="OnTagTextChanged"
                                      KeyDown="OnNewTagKeyDown"
                                      FontSize="13" />
@@ -194,7 +194,7 @@
                                 Padding="8"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
                             <StackPanel Spacing="6">
-                                <Button Content="Nový tag"
+                                <Button Content="New tag"
                                         Click="OnNewCatalogTagClick"
                                         HorizontalAlignment="Stretch" />
                                 <ListView x:Name="TagSuggestionsList"
@@ -238,7 +238,7 @@
                                                         Tag="{x:Bind}"
                                                         Click="OnManageCatalogItemClick"
                                                         Padding="4,2"
-                                                        ToolTipService.ToolTip="Spravovat tag">
+                                                        ToolTipService.ToolTip="Manage tag">
                                                     <FontIcon Glyph="&#xE70F;"
                                                               FontSize="11" />
                                                 </Button>
@@ -383,7 +383,7 @@
                 <!-- ═══ Row 2: Information block ═══ -->
                 <StackPanel Grid.Row="2" Spacing="0">
                     <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,8,0,8" />
-                    <TextBlock Text="Information" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
+                    <TextBlock Text="File &amp; EXIF" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
 
                     <StackPanel Spacing="6">
                         <Grid>
@@ -448,7 +448,7 @@
                             <TextBlock Grid.Column="0" Text="Camera:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoCamera" Style="{StaticResource InfoValueStyle}" />
                         </Grid>
-                        <Grid>
+                        <Grid Visibility="Collapsed">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Author:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoAuthor" Style="{StaticResource InfoValueStyle}"
