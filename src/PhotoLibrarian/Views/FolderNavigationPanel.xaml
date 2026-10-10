@@ -4,7 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:PhotoLibrarian.ViewModels">
 
-    <Grid Padding="12">
+    <Grid Padding="12"
+          Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -12,15 +13,26 @@
 
         <!-- Header with actions -->
         <Grid Grid.Row="0" Margin="0,0,0,8">
-            <TextBlock Text="Browse" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8"
+                        VerticalAlignment="Center">
+                <Rectangle Width="3"
+                           Height="18"
+                           Fill="{StaticResource HiTechAccentBrush}" />
+                <TextBlock Text="BROWSE"
+                           Style="{StaticResource HiTechSectionHeaderStyle}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
                 <Button x:Name="ManageFoldersButton" ToolTipService.ToolTip="Open another album"
                         AutomationProperties.Name="Open another album"
-                        Click="OnManageFoldersClick" Padding="6">
+                        Click="OnManageFoldersClick" Padding="6"
+                        Style="{StaticResource HiTechIconButtonStyle}">
                     <FontIcon Glyph="&#xE8B7;" FontSize="14" />
                 </Button>
                 <Button x:Name="RefreshButton" ToolTipService.ToolTip="Refresh"
-                        Click="OnRefreshClick" Padding="6">
+                        Click="OnRefreshClick" Padding="6"
+                        Style="{StaticResource HiTechIconButtonStyle}">
                     <FontIcon Glyph="&#xE72C;" FontSize="14" />
                 </Button>
             </StackPanel>
@@ -32,8 +44,11 @@
                 
                 <!-- Library Section -->
                 <StackPanel>
-                    <TextBlock Text="Library" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <TextBlock Text="LIBRARY"
+                               Style="{StaticResource HiTechSectionHeaderStyle}"
+                               Margin="0,0,0,8" />
                     <TreeView x:Name="LibraryTree"
+                              Style="{StaticResource HiTechTreeViewStyle}"
                               SelectionMode="None"
                               Expanding="OnLibraryExpanding"
                               RightTapped="OnLibraryTreeRightTapped">
@@ -83,8 +98,8 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Tags"
-                                   FontWeight="SemiBold"
+                        <TextBlock Text="TAGS"
+                                   Style="{StaticResource HiTechSectionHeaderStyle}"
                                    VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1"
                                     Orientation="Horizontal"
@@ -110,6 +125,7 @@
                         </StackPanel>
                     </Grid>
                     <TreeView x:Name="TagsTree"
+                              Style="{StaticResource HiTechTreeViewStyle}"
                               SelectionMode="None"
                               CanDragItems="False"
                               CanReorderItems="False"
