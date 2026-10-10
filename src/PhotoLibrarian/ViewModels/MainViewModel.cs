@@ -1117,6 +1117,50 @@ public partial class MainViewModel : ObservableObject
         StatusText = $"Created copy {copyEntry.FileName}; edits will not change the original";
     }
 
+    public async Task<StashImportResult> ImportFromStashAsync(
+        string sourcePath,
+        IProgress<StashImportProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!App.HasActiveAlbum ||
+            string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+        {
+            throw new InvalidOperationException(
+                "Open a PhotoLibrarian album before importing from Stash.");
+        }
+
+        PauseBackgroundIndexing();
+        StatusText = "Preparing album index for Stash import…";
+        await _indexingService.IndexFolderAsync(
+            App.CurrentAlbumPath,
+            includeSubfolders: true,
+            cancellationToken);
+        await RefreshAfterIndexAsync();
+
+        StatusText = "Importing tags from Stash…";
+        var importer = new StashImportService(_imageRepo, _tagRepo);
+        var result = await importer.ImportAsync(
+            sourcePath,
+            App.CurrentAlbumPath,
+            progress,
+            cancellationToken);
+
+        AlbumService.AddSelectedTags(result.CatalogTags);
+
+        await RefreshTagsTreeAsync();
+        await MetadataPanel.ReloadTagsAsync();
+        await MetadataPanel.ReloadAvailableTagsAsync();
+        await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
+        TotalImages = await _imageRepo.GetCountAsync();
+
+        StatusText =
+            $"Stash import: {result.MatchedImages:N0} matched, " +
+            $"{result.UnmatchedImages:N0} unmatched, " +
+            $"{result.AmbiguousImages:N0} ambiguous.";
+
+        return result;
+    }
+
     public async Task RefreshAfterIndexAsync()
     {
         await ImageGrid.LoadImagesAsync();
