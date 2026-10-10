@@ -1054,10 +1054,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         menu.ShowAt(
             LibraryTree,
-            new FlyoutShowOptions
-            {
-                Position = e.GetPosition(LibraryTree)
-            });
+            e.GetPosition(LibraryTree));
         e.Handled = true;
     }
 
