@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Windows.Storage.Pickers;
+using System.Runtime.InteropServices;
 
 namespace PhotoLibrarian;
 
@@ -234,23 +234,155 @@ public static class AlbumService
         return dbPath;
     }
 
-    public static async Task<string?> PickAlbumFolderAsync(Window owner)
+    public static Task<string?> PickAlbumFolderAsync(Window owner)
     {
-        var picker = new FolderPicker
-        {
-            SuggestedStartLocation = PickerLocationId.PicturesLibrary
-        };
-        picker.FileTypeFilter.Add("*");
-
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(owner);
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        var dialog = (IFileDialog)new FileOpenDialogComObject();
 
-        var folder = await picker.PickSingleFolderAsync();
-        if (folder is null)
-            return null;
+        try
+        {
+            dialog.SetOptions(
+                FosPickFolders |
+                FosForceFileSystem |
+                FosPathMustExist |
+                FosNoChangeDir);
+            dialog.SetTitle("Vyber složku alba");
+            dialog.SetOkButtonLabel("Vybrat album");
 
-        return EnsureAlbum(folder.Path);
+            var initialPath = App.HasActiveAlbum &&
+                              !string.IsNullOrWhiteSpace(App.CurrentAlbumPath)
+                ? App.CurrentAlbumPath
+                : Environment.GetFolderPath(
+                    Environment.SpecialFolder.MyPictures);
+
+            if (!string.IsNullOrWhiteSpace(initialPath) &&
+                Directory.Exists(initialPath))
+            {
+                var iid = typeof(IShellItem).GUID;
+                if (SHCreateItemFromParsingName(
+                        initialPath,
+                        IntPtr.Zero,
+                        ref iid,
+                        out var initialItem) == 0)
+                {
+                    try
+                    {
+                        dialog.SetFolder(initialItem);
+                    }
+                    finally
+                    {
+                        Marshal.FinalReleaseComObject(initialItem);
+                    }
+                }
+            }
+
+            var result = dialog.Show(hwnd);
+            if (result == ErrorCancelled)
+                return Task.FromResult<string?>(null);
+
+            if (result < 0)
+                Marshal.ThrowExceptionForHR(result);
+
+            dialog.GetResult(out var shellItem);
+            try
+            {
+                shellItem.GetDisplayName(SigdnFileSystemPath, out var pathPtr);
+                try
+                {
+                    var path = Marshal.PtrToStringUni(pathPtr);
+                    return Task.FromResult(
+                        string.IsNullOrWhiteSpace(path)
+                            ? null
+                            : EnsureAlbum(path));
+                }
+                finally
+                {
+                    if (pathPtr != IntPtr.Zero)
+                        Marshal.FreeCoTaskMem(pathPtr);
+                }
+            }
+            finally
+            {
+                Marshal.FinalReleaseComObject(shellItem);
+            }
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(dialog);
+        }
     }
+
+    private const uint FosNoChangeDir = 0x00000008;
+    private const uint FosPickFolders = 0x00000020;
+    private const uint FosForceFileSystem = 0x00000040;
+    private const uint FosPathMustExist = 0x00000800;
+    private const uint SigdnFileSystemPath = 0x80058000;
+    private const int ErrorCancelled = unchecked((int)0x800704C7);
+
+    [ComImport]
+    [Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
+    private sealed class FileOpenDialogComObject
+    {
+    }
+
+    [ComImport]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [Guid("42F85136-DB7E-439C-85F1-E4075D135FC8")]
+    private interface IFileDialog
+    {
+        [PreserveSig]
+        int Show(IntPtr parent);
+
+        void SetFileTypes(uint count, IntPtr filterSpec);
+        void SetFileTypeIndex(uint index);
+        void GetFileTypeIndex(out uint index);
+        void Advise(IntPtr events, out uint cookie);
+        void Unadvise(uint cookie);
+        void SetOptions(uint options);
+        void GetOptions(out uint options);
+        void SetDefaultFolder(IShellItem shellItem);
+        void SetFolder(IShellItem shellItem);
+        void GetFolder(out IShellItem shellItem);
+        void GetCurrentSelection(out IShellItem shellItem);
+        void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string name);
+        void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string name);
+        void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string title);
+        void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string text);
+        void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string label);
+        void GetResult(out IShellItem shellItem);
+        void AddPlace(IShellItem shellItem, uint alignment);
+        void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string extension);
+        void Close(int hresult);
+        void SetClientGuid(ref Guid guid);
+        void ClearClientData();
+        void SetFilter(IntPtr filter);
+    }
+
+    [ComImport]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE")]
+    private interface IShellItem
+    {
+        void BindToHandler(
+            IntPtr bindContext,
+            ref Guid handler,
+            ref Guid interfaceId,
+            out IntPtr result);
+        void GetParent(out IShellItem parent);
+        void GetDisplayName(uint displayNameType, out IntPtr name);
+        void GetAttributes(uint mask, out uint attributes);
+        void Compare(IShellItem other, uint hint, out int order);
+    }
+
+    [DllImport(
+        "shell32.dll",
+        CharSet = CharSet.Unicode,
+        PreserveSig = true)]
+    private static extern int SHCreateItemFromParsingName(
+        [MarshalAs(UnmanagedType.LPWStr)] string path,
+        IntPtr bindContext,
+        ref Guid interfaceId,
+        [MarshalAs(UnmanagedType.Interface)] out IShellItem shellItem);
 
     public static void RestartForAlbum(string albumRoot)
     {
