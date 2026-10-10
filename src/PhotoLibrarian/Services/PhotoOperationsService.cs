@@ -188,19 +188,263 @@ public sealed class PhotoOperationsService
     //  Clipboard / drag-drop
     // -----------------------------------------------------------------
 
-    /// <summary>Puts file references on the clipboard (Explorer-compatible paste).</summary>
-    public static async Task CopyFilesToClipboardAsync(IEnumerable<string> filePaths)
+    /// <summary>Puts file/folder references on the clipboard (Explorer-compatible paste).</summary>
+    public static Task CopyFilesToClipboardAsync(IEnumerable<string> filePaths) =>
+        PutPathsOnClipboardAsync(filePaths, cut: false, includePhotoSidecars: true);
+
+    public static Task CutFilesToClipboardAsync(IEnumerable<string> filePaths) =>
+        PutPathsOnClipboardAsync(filePaths, cut: true, includePhotoSidecars: true);
+
+    public static Task CopyPathsToClipboardAsync(IEnumerable<string> paths, bool cut = false) =>
+        PutPathsOnClipboardAsync(paths, cut, includePhotoSidecars: false);
+
+    private static async Task PutPathsOnClipboardAsync(
+        IEnumerable<string> paths,
+        bool cut,
+        bool includePhotoSidecars)
     {
-        var pkg = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
-        var items = new List<IStorageItem>();
-        foreach (var p in filePaths)
+        var pkg = new DataPackage
         {
-            try { items.Add(await StorageFile.GetFileFromPathAsync(p)); } catch { }
+            RequestedOperation = cut
+                ? DataPackageOperation.Move
+                : DataPackageOperation.Copy
+        };
+
+        var items = new List<IStorageItem>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in paths.Where(path => !string.IsNullOrWhiteSpace(path)))
+        {
+            if (!seen.Add(path))
+                continue;
+
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    items.Add(await StorageFolder.GetFolderFromPathAsync(path));
+                    continue;
+                }
+
+                if (!File.Exists(path))
+                    continue;
+
+                items.Add(await StorageFile.GetFileFromPathAsync(path));
+
+                if (includePhotoSidecars &&
+                    FolderScannerService.IsSupportedFile(path))
+                {
+                    var sidecar = FaceMetadataStore.GetSidecarPathForImage(path);
+                    if (File.Exists(sidecar) && seen.Add(sidecar))
+                        items.Add(await StorageFile.GetFileFromPathAsync(sidecar));
+                }
+            }
+            catch
+            {
+                // Skip inaccessible clipboard items but keep the rest.
+            }
         }
-        if (items.Count == 0) return;
+
+        if (items.Count == 0)
+            return;
+
         pkg.SetStorageItems(items);
         Clipboard.SetContent(pkg);
-        Clipboard.Flush(); // ensures content survives after our app exits
+        Clipboard.Flush();
+    }
+
+    public static async Task<List<string>> PasteClipboardToDirectoryAsync(
+        string destinationDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(destinationDirectory) ||
+            !Directory.Exists(destinationDirectory))
+        {
+            return [];
+        }
+
+        var view = Clipboard.GetContent();
+        if (!view.Contains(StandardDataFormats.StorageItems))
+            return [];
+
+        var storageItems = await view.GetStorageItemsAsync();
+        var move = view.RequestedOperation == DataPackageOperation.Move;
+        var results = new List<string>();
+
+        foreach (var item in storageItems)
+        {
+            var sourcePath = item.Path;
+            if (string.IsNullOrWhiteSpace(sourcePath))
+                continue;
+
+            try
+            {
+                if (Directory.Exists(sourcePath))
+                {
+                    var destination = GetUniqueDestinationPath(
+                        destinationDirectory,
+                        Path.GetFileName(sourcePath),
+                        isDirectory: true);
+
+                    if (move)
+                        MoveDirectory(sourcePath, destination);
+                    else
+                        CopyDirectory(sourcePath, destination);
+
+                    results.Add(destination);
+                }
+                else if (File.Exists(sourcePath))
+                {
+                    var destination = GetUniqueDestinationPath(
+                        destinationDirectory,
+                        Path.GetFileName(sourcePath),
+                        isDirectory: false);
+
+                    if (move)
+                        MoveFile(sourcePath, destination);
+                    else
+                        File.Copy(sourcePath, destination, overwrite: false);
+
+                    results.Add(destination);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[OPS] Paste failed for '{sourcePath}': {ex.Message}");
+            }
+        }
+
+        if (move && results.Count > 0)
+            Clipboard.Clear();
+
+        return results;
+    }
+
+    public static string CreateNewFolder(string parentDirectory)
+    {
+        var destination = GetUniqueDestinationPath(
+            parentDirectory,
+            "Nová složka",
+            isDirectory: true);
+        Directory.CreateDirectory(destination);
+        return destination;
+    }
+
+    public static string? RenameDirectory(string directoryPath, string newName)
+    {
+        try
+        {
+            if (!Directory.Exists(directoryPath) ||
+                string.IsNullOrWhiteSpace(newName) ||
+                newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                return null;
+            }
+
+            var parent = Path.GetDirectoryName(directoryPath);
+            if (string.IsNullOrWhiteSpace(parent))
+                return null;
+
+            var destination = Path.Combine(parent, newName.Trim());
+            if (Directory.Exists(destination) || File.Exists(destination))
+                return null;
+
+            Directory.Move(directoryPath, destination);
+            return destination;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[OPS] Folder rename failed for '{directoryPath}': {ex.Message}");
+            return null;
+        }
+    }
+
+    public static bool DeleteDirectoryToRecycleBin(string directoryPath)
+    {
+        try
+        {
+            if (!Directory.Exists(directoryPath))
+                return false;
+
+            Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
+                directoryPath,
+                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin,
+                Microsoft.VisualBasic.FileIO.UICancelOption.DoNothing);
+            return !Directory.Exists(directoryPath);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[OPS] Folder delete failed for '{directoryPath}': {ex.Message}");
+            return false;
+        }
+    }
+
+    private static string GetUniqueDestinationPath(
+        string destinationDirectory,
+        string sourceName,
+        bool isDirectory)
+    {
+        var candidate = Path.Combine(destinationDirectory, sourceName);
+        if (!(isDirectory ? Directory.Exists(candidate) : File.Exists(candidate)) &&
+            !(isDirectory ? File.Exists(candidate) : Directory.Exists(candidate)))
+        {
+            return candidate;
+        }
+
+        var stem = isDirectory
+            ? sourceName
+            : Path.GetFileNameWithoutExtension(sourceName);
+        var extension = isDirectory ? "" : Path.GetExtension(sourceName);
+
+        for (var index = 2; ; index++)
+        {
+            candidate = Path.Combine(
+                destinationDirectory,
+                $"{stem} ({index}){extension}");
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+                return candidate;
+        }
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var file in Directory.EnumerateFiles(source))
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), false);
+
+        foreach (var directory in Directory.EnumerateDirectories(source))
+            CopyDirectory(
+                directory,
+                Path.Combine(destination, Path.GetFileName(directory)));
+    }
+
+    private static void MoveDirectory(string source, string destination)
+    {
+        try
+        {
+            Directory.Move(source, destination);
+        }
+        catch (IOException)
+        {
+            CopyDirectory(source, destination);
+            Directory.Delete(source, recursive: true);
+        }
+    }
+
+    private static void MoveFile(string source, string destination)
+    {
+        try
+        {
+            File.Move(source, destination);
+        }
+        catch (IOException)
+        {
+            File.Copy(source, destination, overwrite: false);
+            File.Delete(source);
+        }
     }
 
     /// <summary>
