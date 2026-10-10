@@ -137,8 +137,10 @@ public partial class MainViewModel : ObservableObject
             autoTaggingSettingsStore,
             autoTagModelManager,
             autoTagBenchmarkProcessor);
-        _autoTaggingEnabled =
-            Settings.CurrentAutoTaggingSettings.CanRun;
+        // Recognition infrastructure stays available for future content tagging,
+        // but the current album workflow keeps it disabled unless a future UI
+        // explicitly re-enables it.
+        _autoTaggingEnabled = false;
         PhotoOps = new Services.PhotoOperationsService(imageRepo, backupService);
 
         _indexingService.Progress += OnIndexingProgress;
