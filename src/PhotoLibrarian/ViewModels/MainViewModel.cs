@@ -277,6 +277,18 @@ public partial class MainViewModel : ObservableObject
                 "Open a PhotoLibrarian album before importing from digiKam.");
         }
 
+        // The importer matches digiKam records against PhotoLibrarian's
+        // indexed album. Finish a complete synchronous scan first; otherwise an
+        // import started immediately after opening a large album would only see
+        // the subset already reached by the background indexer.
+        PauseBackgroundIndexing();
+        StatusText = "Preparing album index for digiKam import…";
+        await _indexingService.IndexFolderAsync(
+            App.CurrentAlbumPath,
+            includeSubfolders: true,
+            cancellationToken);
+        await RefreshAfterIndexAsync();
+
         StatusText = "Importing metadata from digiKam…";
         var importer = new DigiKamImportService(_imageRepo, _tagRepo);
         var result = await importer.ImportAsync(
