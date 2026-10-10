@@ -102,8 +102,8 @@
                               DragOver="OnTagsTreeDragOver"
                               Drop="OnTagsTreeDrop">
                         <TreeView.ItemTemplate>
-                            <DataTemplate x:DataType="TreeViewNode">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
                                     <CheckBox IsChecked="{Binding Content.IsSelected, Mode=TwoWay}"
                                               Tag="{Binding Content}"
                                               Click="OnTagFilterCheckBoxClick"
