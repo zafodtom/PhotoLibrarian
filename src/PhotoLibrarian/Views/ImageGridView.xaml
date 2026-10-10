@@ -320,11 +320,14 @@
         </ScrollViewer>
 
         <!-- Custom Virtualizing Photo Grid -->
-        <local:VirtualizingPhotoGrid x:Name="PhotoGrid" Grid.Row="2" />
+        <local:VirtualizingPhotoGrid x:Name="PhotoGrid"
+                                     Grid.Row="2"
+                                     RightTapped="OnGridBackgroundRightTapped" />
 
         <!-- Empty state -->
         <StackPanel x:Name="EmptyState" Grid.Row="2"
                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                    RightTapped="OnGridBackgroundRightTapped"
                     Background="{ThemeResource LayerFillColorDefaultBrush}"
                     Spacing="8">
             <FontIcon Glyph="&#xEB9F;" FontSize="48"
