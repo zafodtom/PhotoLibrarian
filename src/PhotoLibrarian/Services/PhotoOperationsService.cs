@@ -343,7 +343,7 @@ public sealed class PhotoOperationsService
     {
         var destination = GetUniqueDestinationPath(
             parentDirectory,
-            "Nová složka",
+            "New Folder",
             isDirectory: true);
         Directory.CreateDirectory(destination);
         return destination;
@@ -384,25 +384,46 @@ public sealed class PhotoOperationsService
         }
     }
 
-    public static bool DeleteDirectoryToRecycleBin(string directoryPath)
+    public async Task<IReadOnlyList<string>?> DeleteDirectoryToRecycleBinAsync(
+        string directoryPath)
     {
         try
         {
             if (!Directory.Exists(directoryPath))
-                return false;
+                return null;
+
+            var root = Path.GetFullPath(directoryPath)
+                .TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+            var prefix = root + Path.DirectorySeparatorChar;
+
+            var affectedPaths = (await _imageRepo.GetAllAsync())
+                .Where(image =>
+                    image.FilePath.StartsWith(
+                        prefix,
+                        StringComparison.OrdinalIgnoreCase))
+                .Select(image => image.FilePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
                 directoryPath,
                 Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
                 Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin,
                 Microsoft.VisualBasic.FileIO.UICancelOption.DoNothing);
-            return !Directory.Exists(directoryPath);
+
+            if (Directory.Exists(directoryPath))
+                return null;
+
+            await _imageRepo.DeleteUnderDirectoryRootsAsync([root]);
+            return affectedPaths;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine(
                 $"[OPS] Folder delete failed for '{directoryPath}': {ex.Message}");
-            return false;
+            return null;
         }
     }
 
