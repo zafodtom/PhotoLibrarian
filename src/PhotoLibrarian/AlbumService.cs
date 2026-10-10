@@ -254,8 +254,8 @@ public static class AlbumService
                 FosForceFileSystem |
                 FosPathMustExist |
                 FosNoChangeDir);
-            dialog.SetTitle("Vyber složku alba");
-            dialog.SetOkButtonLabel("Vybrat album");
+            dialog.SetTitle("Select album folder");
+            dialog.SetOkButtonLabel("Select album");
 
             var initialPath = App.HasActiveAlbum &&
                               !string.IsNullOrWhiteSpace(App.CurrentAlbumPath)
