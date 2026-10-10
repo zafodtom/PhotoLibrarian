@@ -498,10 +498,12 @@ public partial class MainViewModel : ObservableObject
 
         _ = Task.Run(async () =>
         {
-            // Wait a bit before starting to let UI settle
-            await Task.Delay(2000, ct);
-            
-            DebugLog.WriteLine($"StartBackgroundIndexing: Starting scan of {FolderNav.RootFolders.Count} folders");
+            DebugLog.WriteLine($"StartBackgroundIndexing: Starting immediate scan of {FolderNav.RootFolders.Count} folders");
+            App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!ct.IsCancellationRequested)
+                    StatusText = "Kontroluji změny v albu…";
+            });
 
             foreach (var folder in FolderNav.RootFolders)
             {
@@ -535,6 +537,15 @@ public partial class MainViewModel : ObservableObject
             }
             
             DebugLog.WriteLine($"StartBackgroundIndexing: All folders complete");
+
+            if (!ct.IsCancellationRequested)
+            {
+                App.MainWindow?.DispatcherQueue.TryEnqueue(async () =>
+                {
+                    if (!ct.IsCancellationRequested)
+                        await RefreshAfterIndexAsync();
+                });
+            }
         }, ct);
     }
 
@@ -1080,6 +1091,15 @@ public partial class MainViewModel : ObservableObject
                 await window.RefreshMetadataTreesAsync();
             }
         });
+    }
+
+    public async Task RefreshFilesystemUiAsync()
+    {
+        await FolderNav.LoadWatchedFoldersAsync();
+        await RefreshAfterIndexAsync();
+
+        if (App.MainWindow is MainWindow window)
+            await window.RefreshAllNavigationAsync();
     }
 
     public async Task CleanupAsync()
