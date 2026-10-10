@@ -623,7 +623,9 @@ public sealed partial class ImageGridView : UserControl
             var pasted = await App.ViewModel.PhotoOps
                 .PasteClipboardToDirectoryAsync(targetDirectory);
             if (pasted.Count > 0)
-                await App.ViewModel.RefreshFilesystemUiAsync();
+                await App.ViewModel.RefreshKnownFilesystemChangesAsync(
+                    pasted,
+                    refreshFolderTree: true);
         };
         menu.Items.Add(paste);
 
@@ -631,7 +633,7 @@ public sealed partial class ImageGridView : UserControl
         newFolder.Click += async (_, _) =>
         {
             Services.PhotoOperationsService.CreateNewFolder(targetDirectory);
-            await App.ViewModel.RefreshFilesystemUiAsync();
+            await App.ViewModel.RefreshFolderStructureAsync();
         };
         menu.Items.Add(newFolder);
 
@@ -733,7 +735,9 @@ public sealed partial class ImageGridView : UserControl
                 var pasted = await App.ViewModel.PhotoOps
                     .PasteClipboardToDirectoryAsync(targetDirectory);
                 if (pasted.Count > 0)
-                    await App.ViewModel.RefreshFilesystemUiAsync();
+                    await App.ViewModel.RefreshKnownFilesystemChangesAsync(
+                        pasted,
+                        refreshFolderTree: true);
             };
             menu.Items.Add(paste);
 
@@ -741,7 +745,7 @@ public sealed partial class ImageGridView : UserControl
             newFolder.Click += async (_, _) =>
             {
                 Services.PhotoOperationsService.CreateNewFolder(targetDirectory);
-                await App.ViewModel.RefreshFilesystemUiAsync();
+                await App.ViewModel.RefreshFolderStructureAsync();
             };
             menu.Items.Add(newFolder);
         }
@@ -866,7 +870,8 @@ public sealed partial class ImageGridView : UserControl
             return;
         }
 
-        await App.ViewModel.RefreshFilesystemUiAsync();
+        await App.ViewModel.RefreshKnownLibraryStateAsync(
+            refreshFolderTree: false);
 
         // Refresh the metadata panel for the renamed entry
         if (ViewModel.SelectedImage?.Entry == entry)
