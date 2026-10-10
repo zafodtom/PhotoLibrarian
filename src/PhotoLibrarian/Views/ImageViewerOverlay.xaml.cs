@@ -426,7 +426,7 @@ public sealed partial class ImageViewerOverlay : UserControl
 
     private void OnToggleFullscreen(object sender, RoutedEventArgs e)
     {
-        App.MainWindow?.ToggleViewerFullscreen();
+        (App.MainWindow as MainWindow)?.ToggleViewerFullscreen();
         Focus(FocusState.Programmatic);
     }
 
@@ -637,14 +637,19 @@ public sealed partial class ImageViewerOverlay : UserControl
         switch (e.Key)
         {
             case Windows.System.VirtualKey.F11:
-                App.MainWindow?.ToggleViewerFullscreen();
+                (App.MainWindow as MainWindow)?.ToggleViewerFullscreen();
                 e.Handled = true;
                 break;
             case Windows.System.VirtualKey.Escape:
-                if (App.MainWindow?.IsViewerFullscreen == true)
-                    App.MainWindow.ExitViewerFullscreen();
+                if (App.MainWindow is MainWindow mainWindow &&
+                    mainWindow.IsViewerFullscreen)
+                {
+                    mainWindow.ExitViewerFullscreen();
+                }
                 else
+                {
                     ViewModel.CloseCommand.Execute(null);
+                }
                 e.Handled = true;
                 break;
             case Windows.System.VirtualKey.Right:
