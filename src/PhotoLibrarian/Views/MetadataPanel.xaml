@@ -5,18 +5,16 @@
     xmlns:vm="using:PhotoLibrarian.ViewModels">
 
     <UserControl.Resources>
-        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-            <Setter Property="Margin" Value="0,12,0,2" />
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource HiTechSectionHeaderStyle}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,14,0,4" />
         </Style>
         <Style x:Key="PlaceholderStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource HiTechTextSecondaryBrush}" />
             <Setter Property="FontSize" Value="13" />
         </Style>
         <Style x:Key="InfoLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource HiTechTextSecondaryBrush}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Width" Value="90" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -28,11 +26,11 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid>
+    <Grid Background="Transparent">
         <!-- Empty state -->
         <StackPanel x:Name="EmptyContent" Visibility="Visible" Padding="16" VerticalAlignment="Center">
             <TextBlock Text="Select an image to see details"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Foreground="{StaticResource HiTechTextSecondaryBrush}"
                        TextWrapping="Wrap"
                        HorizontalAlignment="Center" />
         </StackPanel>
@@ -52,8 +50,10 @@
                 <StackPanel Grid.Row="0" Spacing="0">
                     <!-- Multi-select header (visible only with multi) -->
                     <Border x:Name="MultiSelectBanner" Visibility="Collapsed"
-                            Background="{ThemeResource AccentFillColorTertiaryBrush}"
-                            Padding="8,6" CornerRadius="4" Margin="0,8,0,0">
+                            Background="{StaticResource HiTechAccentFillBrush}"
+                            BorderBrush="{StaticResource HiTechAccentMutedBrush}"
+                            BorderThickness="1"
+                            Padding="8,6" CornerRadius="2" Margin="0,8,0,0">
                         <TextBlock x:Name="MultiSelectText"
                                    FontWeight="SemiBold" FontSize="13" />
                     </Border>
