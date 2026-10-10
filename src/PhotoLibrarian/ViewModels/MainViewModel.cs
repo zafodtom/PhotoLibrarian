@@ -199,9 +199,8 @@ public partial class MainViewModel : ObservableObject
         TotalImages = await _imageRepo.GetCountAsync();
         StatusText = TotalImages > 0 ? "Select a folder to view photos" : "Add folders to get started";
 
-        // Keep ordinary metadata indexing active, but this album-focused fork does not
-        // automatically run face detection or ML content tagging.
-        StartBackgroundIndexing();
+        // The active album root is attached immediately after initialization.
+        // Its startup rescan is deliberately started only after RootFolders is populated.
     }
 
     public void SyncWatchedFolders()
