@@ -1186,6 +1186,71 @@ public partial class MainViewModel : ObservableObject
         return deleted;
     }
 
+    public async Task RefreshKnownLibraryStateAsync(
+        bool refreshFolderTree = false)
+    {
+        if (refreshFolderTree)
+            await FolderNav.LoadWatchedFoldersAsync();
+
+        await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
+        TotalImages = await _imageRepo.GetCountAsync();
+        await DateNav.LoadDatesAsync();
+        await PeopleNav.LoadPeopleAsync();
+        await TagNav.LoadTagsAsync();
+        await FlagNav.LoadAsync();
+
+        if (App.MainWindow is MainWindow window)
+        {
+            if (refreshFolderTree)
+                await window.RefreshAllNavigationAsync();
+            else
+                await window.RefreshMetadataTreesAsync();
+        }
+
+        ImageViewer.UpdateLibraryImages(
+            ImageGrid.Images.Select(image => image.Entry).ToList());
+        StatusText = $"{TotalImages:N0} items";
+    }
+
+    public async Task RefreshKnownFilesystemChangesAsync(
+        IEnumerable<string> changedPaths,
+        bool refreshFolderTree = true)
+    {
+        foreach (var path in changedPaths
+                     .Where(path => !string.IsNullOrWhiteSpace(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                {
+                    await _indexingService.IndexFolderAsync(
+                        path,
+                        includeSubfolders: true);
+                }
+                else if (File.Exists(path) &&
+                         FolderScannerService.IsSupportedFile(path))
+                {
+                    await _indexingService.IndexFileAsync(path);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.WriteLine(
+                    $"Targeted refresh failed for '{path}': {ex.Message}");
+            }
+        }
+
+        await RefreshKnownLibraryStateAsync(refreshFolderTree);
+    }
+
+    public async Task RefreshFolderStructureAsync()
+    {
+        await FolderNav.LoadWatchedFoldersAsync();
+        if (App.MainWindow is MainWindow window)
+            await window.RefreshAllNavigationAsync();
+    }
+
     public async Task RefreshFilesystemUiAsync()
     {
         var folders = FolderNav.RootFolders
