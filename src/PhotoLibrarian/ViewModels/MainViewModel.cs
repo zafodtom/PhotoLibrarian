@@ -501,7 +501,7 @@ public partial class MainViewModel : ObservableObject
             App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
             {
                 if (!ct.IsCancellationRequested)
-                    StatusText = "Kontroluji změny v albu…";
+                    StatusText = "Checking album for changes…";
             });
 
             foreach (var folder in FolderNav.RootFolders)
