@@ -253,7 +253,7 @@ public sealed class PhotoOperationsService
         Clipboard.Flush();
     }
 
-    public static async Task<List<string>> PasteClipboardToDirectoryAsync(
+    public async Task<List<string>> PasteClipboardToDirectoryAsync(
         string destinationDirectory)
     {
         if (string.IsNullOrWhiteSpace(destinationDirectory) ||
@@ -286,9 +286,16 @@ public sealed class PhotoOperationsService
                         isDirectory: true);
 
                     if (move)
+                    {
                         MoveDirectory(sourcePath, destination);
+                        await _imageRepo.UpdatePathPrefixAsync(
+                            sourcePath,
+                            destination);
+                    }
                     else
+                    {
                         CopyDirectory(sourcePath, destination);
+                    }
 
                     results.Add(destination);
                 }
@@ -300,9 +307,18 @@ public sealed class PhotoOperationsService
                         isDirectory: false);
 
                     if (move)
+                    {
+                        var existing = await _imageRepo.GetByPathAsync(sourcePath);
                         MoveFile(sourcePath, destination);
+                        if (existing is not null)
+                            await _imageRepo.UpdatePathAsync(
+                                existing.Id,
+                                destination);
+                    }
                     else
+                    {
                         File.Copy(sourcePath, destination, overwrite: false);
+                    }
 
                     results.Add(destination);
                 }
@@ -330,7 +346,9 @@ public sealed class PhotoOperationsService
         return destination;
     }
 
-    public static string? RenameDirectory(string directoryPath, string newName)
+    public async Task<string?> RenameDirectoryAsync(
+        string directoryPath,
+        string newName)
     {
         try
         {
@@ -350,6 +368,9 @@ public sealed class PhotoOperationsService
                 return null;
 
             Directory.Move(directoryPath, destination);
+            await _imageRepo.UpdatePathPrefixAsync(
+                directoryPath,
+                destination);
             return destination;
         }
         catch (Exception ex)
