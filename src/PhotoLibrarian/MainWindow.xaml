@@ -6,7 +6,9 @@
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     Title="PhotoLibrarian">
 
-    <Grid x:Name="AppRoot">
+    <Grid x:Name="AppRoot"
+          RequestedTheme="Dark"
+          Background="{StaticResource HiTechAppBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -27,7 +29,11 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left: Folder Navigation -->
-            <views:FolderNavigationPanel x:Name="FolderNavPanel" Grid.Column="0" />
+            <Border Grid.Column="0"
+                    Margin="8,8,0,8"
+                    Style="{StaticResource HiTechPanelStyle}">
+                <views:FolderNavigationPanel x:Name="FolderNavPanel" />
+            </Border>
 
             <!-- Resizable splitter -->
             <controls:GridSplitter x:Name="LeftPanelSplitter"
@@ -39,13 +45,17 @@
                                    HorizontalAlignment="Stretch" />
 
             <!-- Center: Image Grid with Viewer Overlay -->
-            <Grid Grid.Column="2">
-                <views:ImageGridView x:Name="ImageGridPanel" />
-                
-                <!-- Overlay: Image Viewer (only over grid area) -->
-                <views:ImageViewerOverlay x:Name="ViewerOverlay" 
-                                           Visibility="Collapsed" />
-            </Grid>
+            <Border Grid.Column="2"
+                    Margin="0,8,0,8"
+                    Style="{StaticResource HiTechPanelAltStyle}">
+                <Grid>
+                    <views:ImageGridView x:Name="ImageGridPanel" />
+
+                    <!-- Overlay: Image Viewer (only over grid area) -->
+                    <views:ImageViewerOverlay x:Name="ViewerOverlay"
+                                              Visibility="Collapsed" />
+                </Grid>
+            </Border>
 
             <!-- Resizable splitter -->
             <controls:GridSplitter x:Name="RightPanelSplitter"
@@ -57,31 +67,35 @@
                                    HorizontalAlignment="Stretch" />
 
             <!-- Right: Metadata Panel -->
-            <views:MetadataPanel x:Name="MetadataDetailPanel" Grid.Column="4" />
+            <Border Grid.Column="4"
+                    Margin="0,8,8,8"
+                    Style="{StaticResource HiTechPanelStyle}">
+                <views:MetadataPanel x:Name="MetadataDetailPanel" />
+            </Border>
         </Grid>
 
         <!-- Start screen shown when no album was supplied. -->
         <Grid x:Name="AlbumStartOverlay"
               Grid.Row="1"
-              Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+              Background="{StaticResource HiTechAppBackgroundBrush}"
               Visibility="Collapsed">
             <StackPanel Width="420"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Spacing="16">
-                <TextBlock Text="PhotoLibrarian"
-                           FontSize="32"
-                           FontWeight="SemiBold"
-                           HorizontalAlignment="Center" />
+                <TextBlock Text="PHOTOLIBRARIAN"
+                           FontSize="30"
+                           HorizontalAlignment="Center"
+                           Style="{StaticResource HiTechTitleStyle}" />
                 <TextBlock Text="Choose an existing album folder or a regular photo folder. If it is not an album yet, PhotoLibrarian will create one automatically."
                            TextWrapping="Wrap"
                            TextAlignment="Center"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                           Foreground="{StaticResource HiTechTextSecondaryBrush}" />
                 <Button Content="Open / create album"
                         Click="OnOpenAlbumClick"
                         HorizontalAlignment="Stretch"
                         Padding="16,10"
-                        Style="{StaticResource AccentButtonStyle}" />
+                        Style="{StaticResource HiTechPrimaryButtonStyle}" />
             </StackPanel>
         </Grid>
 
@@ -91,11 +105,8 @@
 
         <!-- Overlay: Settings Panel -->
         <Border x:Name="SettingsOverlay" Grid.Row="0" Grid.RowSpan="2" Visibility="Collapsed"
-                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
-            <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{ThemeResource OverlayCornerRadius}"
+                Background="{StaticResource HiTechAppBackgroundBrush}">
+            <Border Style="{StaticResource HiTechPanelAltStyle}"
                     MaxWidth="760"
                     Margin="24"
                     VerticalAlignment="Stretch"
@@ -108,7 +119,7 @@
         <Grid x:Name="StatusBar"
               Grid.Row="2"
               Padding="12,6"
-              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+              Background="{StaticResource HiTechPanelBackgroundAltBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -117,7 +128,7 @@
 
             <TextBlock x:Name="StatusBarText"
                        Text="Ready"
-                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Style="{StaticResource HiTechCaptionStyle}"
                        VerticalAlignment="Center" />
 
             <ProgressRing x:Name="IndexingProgress"
@@ -133,7 +144,8 @@
                     AutomationProperties.Name="Settings"
                     Click="OnSettingsClick"
                     Padding="8,4"
-                    ToolTipService.ToolTip="Settings">
+                    ToolTipService.ToolTip="Settings"
+                    Style="{StaticResource HiTechIconButtonStyle}">
                 <FontIcon Glyph="&#xE713;" FontSize="14" />
             </Button>
         </Grid>
