@@ -599,22 +599,47 @@ public sealed partial class ImageGridView : UserControl
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
-        // Set as desktop background — single only
-        var wallpaper = new MenuFlyoutItem { Text = "Set as desktop background" };
-        wallpaper.Click += (_, _) => Services.PhotoOperationsService.SetAsDesktopBackground(primary.Entry.FilePath);
-        wallpaper.IsEnabled = !isMulti;
-        menu.Items.Add(wallpaper);
-
         // Rotate and flag actions are intentionally hidden for the current album UI.
         // Their implementation is retained for a later editor/batch-actions version.
 
         // Copy
-        var copy = new MenuFlyoutItem { Text = isMulti ? $"Copy ({selected.Count} files)" : "Copy" };
+        var copy = new MenuFlyoutItem { Text = isMulti ? $"Kopírovat ({selected.Count} souborů)" : "Kopírovat" };
         copy.Click += async (_, _) =>
         {
-            await Services.PhotoOperationsService.CopyFilesToClipboardAsync(selected.Select(vm => vm.Entry.FilePath));
+            await Services.PhotoOperationsService.CopyFilesToClipboardAsync(
+                selected.Select(vm => vm.Entry.FilePath));
         };
         menu.Items.Add(copy);
+
+        var cut = new MenuFlyoutItem { Text = isMulti ? $"Vyjmout ({selected.Count} souborů)" : "Vyjmout" };
+        cut.Click += async (_, _) =>
+        {
+            await Services.PhotoOperationsService.CutFilesToClipboardAsync(
+                selected.Select(vm => vm.Entry.FilePath));
+        };
+        menu.Items.Add(cut);
+
+        var targetDirectory = System.IO.Path.GetDirectoryName(primary.Entry.FilePath);
+        if (!string.IsNullOrWhiteSpace(targetDirectory))
+        {
+            var paste = new MenuFlyoutItem { Text = "Vložit do této složky" };
+            paste.Click += async (_, _) =>
+            {
+                var pasted = await Services.PhotoOperationsService
+                    .PasteClipboardToDirectoryAsync(targetDirectory);
+                if (pasted.Count > 0)
+                    await App.ViewModel.RefreshFilesystemUiAsync();
+            };
+            menu.Items.Add(paste);
+
+            var newFolder = new MenuFlyoutItem { Text = "Nová složka zde" };
+            newFolder.Click += async (_, _) =>
+            {
+                Services.PhotoOperationsService.CreateNewFolder(targetDirectory);
+                await App.ViewModel.RefreshFilesystemUiAsync();
+            };
+            menu.Items.Add(newFolder);
+        }
 
         // Delete
         var delete = new MenuFlyoutItem { Text = isMulti ? $"Delete ({selected.Count})" : "Delete" };
@@ -622,10 +647,7 @@ public sealed partial class ImageGridView : UserControl
         {
             var deleted = await ops.DeleteToRecycleBinAsync(selected.Select(vm => vm.Entry));
             if (deleted.Count > 0)
-            {
-                // Refresh the grid; deleted IDs are gone from DB already
-                await ViewModel.LoadImagesAsync();
-            }
+                await App.ViewModel.RefreshFilesystemUiAsync();
         };
         menu.Items.Add(delete);
 
@@ -740,10 +762,10 @@ public sealed partial class ImageGridView : UserControl
             return;
         }
 
+        await App.ViewModel.RefreshFilesystemUiAsync();
+
         // Refresh the metadata panel for the renamed entry
         if (ViewModel.SelectedImage?.Entry == entry)
-        {
             App.ViewModel.MetadataPanel.ShowMetadata(entry);
-        }
     }
 }
