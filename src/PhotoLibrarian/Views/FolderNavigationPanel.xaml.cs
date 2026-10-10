@@ -985,7 +985,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             try
             {
-                var pasted = await Services.PhotoOperationsService
+                var pasted = await App.ViewModel.PhotoOps
                     .PasteClipboardToDirectoryAsync(targetPath);
                 if (pasted.Count > 0)
                     await App.ViewModel.RefreshFilesystemUiAsync();
@@ -1114,8 +1114,8 @@ public sealed partial class FolderNavigationPanel : UserControl
         if (string.IsNullOrWhiteSpace(newName))
             return;
 
-        var newPath = Services.PhotoOperationsService
-            .RenameDirectory(folderPath, newName);
+        var newPath = await App.ViewModel.PhotoOps
+            .RenameDirectoryAsync(folderPath, newName);
         if (newPath is null)
         {
             App.ViewModel.StatusText = "Přejmenování složky se nezdařilo.";
