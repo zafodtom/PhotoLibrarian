@@ -70,14 +70,31 @@ public partial class FolderNavigationViewModel : ObservableObject
                     StringComparison.OrdinalIgnoreCase))
                     continue;
 
+                // A descendant folder with its own .album belongs to a different
+                // album and is intentionally hidden from this album's folder tree.
+                if (FolderScannerService.HasAlbumMarker(dir))
+                    continue;
+
                 var child = new FolderNode
                 {
                     Path = dir,
                     Name = System.IO.Path.GetFileName(dir)
                 };
                 // Only one level deep initially; expand on demand
-                if (Directory.GetDirectories(dir).Length > 0)
-                    child.Children.Add(new FolderNode { Name = "Loading…", Path = "" }); // placeholder
+                if (Directory.EnumerateDirectories(dir).Any(candidate =>
+                        !string.Equals(
+                            System.IO.Path.GetFileName(candidate),
+                            PhotoLibrarian.AlbumService.AlbumFolderName,
+                            StringComparison.OrdinalIgnoreCase) &&
+                        !FolderScannerService.HasAlbumMarker(candidate)))
+                {
+                    child.Children.Add(
+                        new FolderNode
+                        {
+                            Name = "Loading…",
+                            Path = ""
+                        });
+                } // placeholder
                 parent.Children.Add(child);
             }
         }
