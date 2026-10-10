@@ -1041,7 +1041,7 @@ public sealed partial class FolderNavigationPanel : UserControl
                     new System.Diagnostics.ProcessStartInfo
                     {
                         FileName = "explorer.exe",
-                        Arguments = $""{targetPath}"",
+                        Arguments = $"\"{targetPath}\"",
                         UseShellExecute = true
                     });
             }
