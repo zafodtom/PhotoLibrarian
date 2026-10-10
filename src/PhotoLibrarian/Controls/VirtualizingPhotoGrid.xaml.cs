@@ -132,7 +132,11 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     private readonly HashSet<ImageThumbnailViewModel> _selectedItems = new();
     private ImageThumbnailViewModel? _anchorItem; // Anchor for shift-range selection
     private ImageThumbnailViewModel? _primaryItem; // Last clicked item (drives metadata panel + viewer)
-    private static readonly Windows.UI.Color SelectionColor = Windows.UI.Color.FromArgb(255, 100, 149, 237); // CornflowerBlue
+    private static readonly Windows.UI.Color SelectionColor = Windows.UI.Color.FromArgb(255, 83, 215, 232);
+    private static readonly Windows.UI.Color HoverColor = Windows.UI.Color.FromArgb(255, 52, 115, 138);
+    private static readonly Windows.UI.Color CardBackgroundColor = Windows.UI.Color.FromArgb(255, 12, 19, 27);
+    private static readonly Windows.UI.Color CardBorderColor = Windows.UI.Color.FromArgb(255, 36, 66, 82);
+    private static readonly Windows.UI.Color LabelBackgroundColor = Windows.UI.Color.FromArgb(230, 7, 11, 16);
     
     // Data source
     private System.Collections.ObjectModel.ObservableCollection<PhotoGroup>? _groups;
@@ -390,7 +394,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         {
             Tag = "FlatSelection",
             BorderThickness = new Thickness(3),
-            BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.CornflowerBlue),
+            BorderBrush = new SolidColorBrush(SelectionColor),
             IsHitTestVisible = false,
             Visibility = Visibility.Collapsed
         });
@@ -762,15 +766,16 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         {
             Width = size,
             Height = size,
-            CornerRadius = new CornerRadius(4),
-            Background = new SolidColorBrush(Microsoft.UI.Colors.DarkGray),
-            BorderThickness = new Thickness(3),
-            BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent)
+            CornerRadius = new CornerRadius(1),
+            Background = new SolidColorBrush(CardBackgroundColor),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(CardBorderColor)
         };
         
         var image = new Image
         {
-            Stretch = Stretch.Uniform
+            Stretch = Stretch.Uniform,
+            Margin = new Thickness(4, 4, 4, 24)
         };
         image.SetBinding(Image.SourceProperty, new Microsoft.UI.Xaml.Data.Binding
         {
@@ -797,15 +802,20 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         var overlay = new Border
         {
             VerticalAlignment = VerticalAlignment.Bottom,
-            CornerRadius = new CornerRadius(0, 0, 4, 4),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(153, 0, 0, 0)), // #99000000
-            Padding = new Thickness(6, 3, 6, 3)
+            Height = 24,
+            CornerRadius = new CornerRadius(0),
+            Background = new SolidColorBrush(LabelBackgroundColor),
+            BorderBrush = new SolidColorBrush(CardBorderColor),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(7, 3, 7, 3)
         };
         
         var fileName = new TextBlock
         {
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+            FontSize = 10,
+            FontFamily = new FontFamily("Consolas"),
+            CharacterSpacing = 20,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 230, 247, 250)),
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxLines = 1
         };
@@ -817,6 +827,36 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         
         overlay.Child = fileName;
         grid.Children.Add(overlay);
+
+        // Lightweight HUD accents: a top rail and two short corner bars.
+        grid.Children.Add(new Border
+        {
+            Height = 2,
+            Width = 44,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Background = new SolidColorBrush(SelectionColor),
+            IsHitTestVisible = false
+        });
+        grid.Children.Add(new Border
+        {
+            Width = 2,
+            Height = 14,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Background = new SolidColorBrush(SelectionColor),
+            IsHitTestVisible = false
+        });
+        grid.Children.Add(new Border
+        {
+            Height = 2,
+            Width = 26,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 22),
+            Background = new SolidColorBrush(HoverColor),
+            IsHitTestVisible = false
+        });
 
         // Flag badge (top-left) — visible only for flagged items
         var flagBadge = new Border
@@ -1005,7 +1045,8 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     {
         if (sender is Grid grid && grid.DataContext is ImageThumbnailViewModel vm && !_selectedItems.Contains(vm))
         {
-            grid.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.LightGray);
+            grid.BorderBrush = new SolidColorBrush(HoverColor);
+            grid.BorderThickness = new Thickness(2);
         }
     }
     
@@ -1013,7 +1054,8 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     {
         if (sender is Grid grid && grid.DataContext is ImageThumbnailViewModel vm && !_selectedItems.Contains(vm))
         {
-            grid.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            grid.BorderBrush = new SolidColorBrush(CardBorderColor);
+            grid.BorderThickness = new Thickness(1);
         }
     }
 
@@ -1135,7 +1177,12 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     {
         if (element is Grid grid)
         {
-            grid.BorderBrush = new SolidColorBrush(selected ? SelectionColor : Microsoft.UI.Colors.Transparent);
+            grid.BorderBrush = new SolidColorBrush(selected ? SelectionColor : CardBorderColor);
+            grid.BorderThickness = selected ? new Thickness(2) : new Thickness(1);
+            grid.Background = new SolidColorBrush(
+                selected
+                    ? Windows.UI.Color.FromArgb(255, 16, 35, 45)
+                    : CardBackgroundColor);
         }
     }
 
@@ -1337,13 +1384,18 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         {
             Height = HeaderHeight,
             Padding = new Thickness(12, 8, 12, 8),
-            Background = new SolidColorBrush(Microsoft.UI.Colors.Gray),
-            CornerRadius = new CornerRadius(4)
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 26, 36)),
+            BorderBrush = new SolidColorBrush(HoverColor),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            CornerRadius = new CornerRadius(0)
         };
         
         var text = new TextBlock
         {
-            FontSize = 16,
+            FontSize = 13,
+            FontFamily = new FontFamily("Consolas"),
+            CharacterSpacing = 80,
+            Foreground = new SolidColorBrush(SelectionColor),
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         };
         text.SetBinding(TextBlock.TextProperty, new Microsoft.UI.Xaml.Data.Binding
