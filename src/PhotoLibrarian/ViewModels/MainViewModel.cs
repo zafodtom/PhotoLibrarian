@@ -1095,6 +1095,28 @@ public partial class MainViewModel : ObservableObject
 
     public async Task RefreshFilesystemUiAsync()
     {
+        var folders = FolderNav.RootFolders
+            .Select(folder => (folder.Path, folder.IncludeSubfolders))
+            .ToList();
+
+        foreach (var folder in folders)
+        {
+            if (!Directory.Exists(folder.Path))
+                continue;
+
+            try
+            {
+                await _indexingService.IndexFolderAsync(
+                    folder.Path,
+                    folder.IncludeSubfolders);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.WriteLine(
+                    $"RefreshFilesystemUiAsync: scan failed for '{folder.Path}': {ex.Message}");
+            }
+        }
+
         await FolderNav.LoadWatchedFoldersAsync();
         await RefreshAfterIndexAsync();
 
