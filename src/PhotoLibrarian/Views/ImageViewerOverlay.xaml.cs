@@ -218,6 +218,7 @@ public sealed partial class ImageViewerOverlay : UserControl
     {
         this.InitializeComponent();
         this.Loaded += OnLoaded;
+        RootGrid.RightTapped += OnViewerRightTapped;
         ImageHost.SizeChanged += (_, _) =>
         {
             if (IsStraightening)
@@ -323,6 +324,55 @@ public sealed partial class ImageViewerOverlay : UserControl
         await (ViewModel?.NextImageCommand.ExecuteAsync(null) ?? Task.CompletedTask);
     private async void OnPrevious(object sender, RoutedEventArgs e) =>
         await (ViewModel?.PreviousImageCommand.ExecuteAsync(null) ?? Task.CompletedTask);
+
+    private async void OnDeleteCurrent(object sender, RoutedEventArgs e) =>
+        await DeleteCurrentAsync();
+
+    private async Task DeleteCurrentAsync()
+    {
+        var entry = ViewModel?.CurrentEntry;
+        if (entry is null || App.ViewModel is null)
+            return;
+
+        // Release a video source before asking Windows to move the file.
+        if (entry.MediaType == MediaType.Video)
+            StopVideo();
+
+        await App.ViewModel.DeleteEntriesAsync([entry]);
+        Focus(FocusState.Programmatic);
+    }
+
+    private void OnViewerRightTapped(
+        object sender,
+        Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        var entry = ViewModel?.CurrentEntry;
+        if (entry is null ||
+            IsCropping ||
+            IsStraightening ||
+            IsRedEyeRemoving ||
+            _isManualFaceTagging)
+        {
+            return;
+        }
+
+        var menu = new MenuFlyout();
+
+        var reveal = new MenuFlyoutItem { Text = "Open file location" };
+        reveal.Click += (_, _) =>
+            Services.PhotoOperationsService.RevealInExplorer(entry.FilePath);
+        menu.Items.Add(reveal);
+
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        var delete = new MenuFlyoutItem { Text = "Delete" };
+        delete.Click += async (_, _) => await DeleteCurrentAsync();
+        menu.Items.Add(delete);
+
+        var source = sender as FrameworkElement ?? RootGrid;
+        menu.ShowAt(source, e.GetPosition(source));
+        e.Handled = true;
+    }
     private void OnZoomIn(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
@@ -522,6 +572,10 @@ public sealed partial class ImageViewerOverlay : UserControl
             case Windows.System.VirtualKey.Left:
                 await ViewModel.PreviousImageCommand.ExecuteAsync(null);
                 e.Handled = true;
+                break;
+            case Windows.System.VirtualKey.Delete:
+                e.Handled = true;
+                await DeleteCurrentAsync();
                 break;
             case Windows.System.VirtualKey.Add:
                 ViewModel.ZoomInCommand.Execute(null);
