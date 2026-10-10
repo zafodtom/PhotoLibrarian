@@ -34,11 +34,26 @@
                 <StackPanel>
                     <TextBlock Text="Library" FontWeight="SemiBold" Margin="0,0,0,8" />
                     <TreeView x:Name="LibraryTree"
-                              SelectionMode="Multiple"
-                              ItemInvoked="OnLibraryItemInvoked"
+                              SelectionMode="None"
                               Expanding="OnLibraryExpanding"
-                              SelectionChanged="OnLibrarySelectionChanged"
-                              RightTapped="OnLibraryTreeRightTapped" />
+                              RightTapped="OnLibraryTreeRightTapped">
+                        <TreeView.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <CheckBox IsChecked="{Binding Content.IsSelected, Mode=TwoWay}"
+                                              Tag="{Binding Content}"
+                                              Click="OnFolderFilterCheckBoxClick"
+                                              VerticalAlignment="Center"
+                                              Width="20"
+                                              MinWidth="0"
+                                              Padding="0"
+                                              Margin="0" />
+                                    <TextBlock Text="{Binding Content}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
                 </StackPanel>
 
                 <!-- Date navigation retained in code, hidden for the current album UI. -->
@@ -76,8 +91,8 @@
                                     Spacing="2">
                             <Button Click="OnManageTagCatalogClick"
                                     Padding="5,3"
-                                    ToolTipService.ToolTip="Správa katalogu tagů"
-                                    AutomationProperties.Name="Správa katalogu tagů">
+                                    ToolTipService.ToolTip="Manage tag catalog"
+                                    AutomationProperties.Name="Manage tag catalog">
                                 <FontIcon Glyph="&#xE713;" FontSize="12" />
                             </Button>
                             <Button Click="OnExpandAllTagsClick"
