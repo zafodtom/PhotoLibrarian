@@ -110,6 +110,14 @@
                         Click="OnZoomIn" ToolTipService.ToolTip="Zoom in" Padding="8">
                     <FontIcon Glyph="&#xE8A3;" FontSize="14" Foreground="White" />
                 </Button>
+                <Button x:Name="FullscreenButton"
+                        AutomationProperties.AutomationId="ViewerFullscreen"
+                        AutomationProperties.Name="Toggle fullscreen"
+                        Click="OnToggleFullscreen"
+                        ToolTipService.ToolTip="Fullscreen (F11)"
+                        Padding="8">
+                    <FontIcon Glyph="&#xE740;" FontSize="14" Foreground="White" />
+                </Button>
                 <Button x:Name="DeleteCurrentButton"
                         AutomationProperties.AutomationId="ViewerDelete"
                         AutomationProperties.Name="Delete current item"
