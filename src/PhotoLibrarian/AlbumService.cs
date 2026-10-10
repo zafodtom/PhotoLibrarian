@@ -237,7 +237,15 @@ public static class AlbumService
     public static Task<string?> PickAlbumFolderAsync(Window owner)
     {
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(owner);
-        var dialog = (IFileDialog)new FileOpenDialogComObject();
+        var dialogType = Type.GetTypeFromCLSID(
+            new Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7"),
+            throwOnError: true)
+            ?? throw new InvalidOperationException(
+                "Windows folder picker COM type is unavailable.");
+        var dialog = (IFileDialog)(
+            Activator.CreateInstance(dialogType)
+            ?? throw new InvalidOperationException(
+                "Windows folder picker could not be created."));
 
         try
         {
@@ -318,12 +326,6 @@ public static class AlbumService
     private const uint FosPathMustExist = 0x00000800;
     private const uint SigdnFileSystemPath = 0x80058000;
     private const int ErrorCancelled = unchecked((int)0x800704C7);
-
-    [ComImport]
-    [Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
-    private sealed class FileOpenDialogComObject
-    {
-    }
 
     [ComImport]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
