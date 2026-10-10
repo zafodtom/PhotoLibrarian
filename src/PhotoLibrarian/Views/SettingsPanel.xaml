@@ -287,6 +287,36 @@
                 <Border Height="1"
                         Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
+                <StackPanel Spacing="8">
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}"
+                               Text="Library import" />
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="Import tags, tag hierarchy, and ratings from a digiKam SQLite core database. Source files and the digiKam database are never modified."
+                               TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="ImportDigiKamButton"
+                                AutomationProperties.AutomationId="ImportDigiKamButton"
+                                Content="Import from digiKam…"
+                                Click="OnImportDigiKam" />
+                        <ProgressRing x:Name="DigiKamImportProgressRing"
+                                      Width="20"
+                                      Height="20"
+                                      IsActive="False"
+                                      Visibility="Collapsed" />
+                    </StackPanel>
+                    <ProgressBar x:Name="DigiKamImportProgressBar"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Visibility="Collapsed" />
+                    <TextBlock x:Name="DigiKamImportStatusText"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Border Height="1"
+                        Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
                 <StackPanel Spacing="4">
                     <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}"
                                Text="Thumbnail cache" />
