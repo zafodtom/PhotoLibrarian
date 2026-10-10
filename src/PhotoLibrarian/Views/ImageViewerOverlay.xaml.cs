@@ -424,6 +424,12 @@ public sealed partial class ImageViewerOverlay : UserControl
             $"{Math.Round(zoom * 100, MidpointRounding.AwayFromZero):0} %";
     }
 
+    private void OnToggleFullscreen(object sender, RoutedEventArgs e)
+    {
+        App.MainWindow?.ToggleViewerFullscreen();
+        Focus(FocusState.Programmatic);
+    }
+
     private void OnZoomActualSize(object sender, RoutedEventArgs e)
     {
         if (IsStraightening) return;
@@ -630,8 +636,15 @@ public sealed partial class ImageViewerOverlay : UserControl
 
         switch (e.Key)
         {
+            case Windows.System.VirtualKey.F11:
+                App.MainWindow?.ToggleViewerFullscreen();
+                e.Handled = true;
+                break;
             case Windows.System.VirtualKey.Escape:
-                ViewModel.CloseCommand.Execute(null);
+                if (App.MainWindow?.IsViewerFullscreen == true)
+                    App.MainWindow.ExitViewerFullscreen();
+                else
+                    ViewModel.CloseCommand.Execute(null);
                 e.Handled = true;
                 break;
             case Windows.System.VirtualKey.Right:
