@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     private CropAspectRatio _pendingAspect = CropAspectRatio.Free;
     private bool _isClosing;
     private bool _isViewerFullscreen;
+    private GridLength _preFullscreenRailWidth;
     private GridLength _preFullscreenLeftWidth;
     private GridLength _preFullscreenRightWidth;
     private double _preFullscreenLeftMinWidth;
@@ -41,6 +42,7 @@ public sealed partial class MainWindow : Window
         if (_isViewerFullscreen || !ViewModel.ImageViewer.IsOpen)
             return;
 
+        _preFullscreenRailWidth = SystemRailColumn.Width;
         _preFullscreenLeftWidth = LeftPanelColumn.Width;
         _preFullscreenRightWidth = RightPanelColumn.Width;
         _preFullscreenLeftMinWidth = LeftPanelColumn.MinWidth;
@@ -49,10 +51,13 @@ public sealed partial class MainWindow : Window
 
         LeftPanelColumn.MinWidth = 0;
         RightPanelColumn.MinWidth = 0;
+        SystemRailColumn.Width = new GridLength(0);
         LeftPanelColumn.Width = new GridLength(0);
         RightPanelColumn.Width = new GridLength(0);
         LeftPanelSplitter.Visibility = Visibility.Collapsed;
         RightPanelSplitter.Visibility = Visibility.Collapsed;
+        GlobalHeader.Visibility = Visibility.Collapsed;
+        SystemRail.Visibility = Visibility.Collapsed;
         FolderNavPanel.Visibility = Visibility.Collapsed;
         MetadataDetailPanel.Visibility = Visibility.Collapsed;
         StatusBar.Visibility = Visibility.Collapsed;
@@ -72,10 +77,13 @@ public sealed partial class MainWindow : Window
 
         LeftPanelColumn.MinWidth = _preFullscreenLeftMinWidth;
         RightPanelColumn.MinWidth = _preFullscreenRightMinWidth;
+        SystemRailColumn.Width = _preFullscreenRailWidth;
         LeftPanelColumn.Width = _preFullscreenLeftWidth;
         RightPanelColumn.Width = _preFullscreenRightWidth;
         LeftPanelSplitter.Visibility = Visibility.Visible;
         RightPanelSplitter.Visibility = Visibility.Visible;
+        GlobalHeader.Visibility = Visibility.Visible;
+        SystemRail.Visibility = Visibility.Visible;
         FolderNavPanel.Visibility = Visibility.Visible;
         MetadataDetailPanel.Visibility = Visibility.Visible;
         StatusBar.Visibility = Visibility.Visible;
