@@ -297,18 +297,30 @@ public sealed partial class MainWindow : Window
 
             newProcess = AlbumService.StartAlbumInstance(albumPath);
 
-            await Task.Run(() =>
+            // InputIdle is not a visual readiness signal. Wait until Windows
+            // actually exposes a top-level window for the replacement process.
+            // Its first visible window is the cyan BootWindow in App.OnLaunched.
+            var replacementVisible = await Task.Run(async () =>
             {
-                try
+                var timeout = System.Diagnostics.Stopwatch.StartNew();
+                while (timeout.Elapsed < TimeSpan.FromSeconds(20))
                 {
-                    newProcess.WaitForInputIdle(10000);
+                    newProcess.Refresh();
+                    if (newProcess.HasExited)
+                        throw new InvalidOperationException(
+                            "Replacement archive process exited during startup.");
+
+                    if (newProcess.MainWindowHandle != IntPtr.Zero)
+                        return true;
+
+                    await Task.Delay(100);
                 }
-                catch
-                {
-                    // Some startup paths do not expose input-idle state reliably.
-                    // The timed overlap below still prevents an abrupt blank handoff.
-                }
+                return false;
             });
+
+            if (!replacementVisible)
+                throw new TimeoutException(
+                    "Replacement archive boot window was not detected.");
 
             transition.SetPhase(
                 6,
@@ -325,17 +337,26 @@ public sealed partial class MainWindow : Window
 
             await Task.Delay(350);
 
-            try
-            {
-                this.Close();
-            }
-            catch
-            {
-            }
+            // Finish the old session's async cleanup before leaving the
+            // process, while the warning window still covers the handoff.
+            // OnWindowClosed is not awaitable, so do not rely on its async-void
+            // event handler to complete before Application.Exit().
+            transition.SetPhase(
+                7, 100, "RELEASING OLD SESSION",
+                "Closing local indexing services and releasing database resources...",
+                warning: true);
+            ViewModel.PropertyChanged -= OnMainViewModelPropertyChanged;
+            ViewModel.ImageViewer.PropertyChanged -= OnImageViewerPropertyChanged;
+            ViewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
+            _isClosing = true;
+            ViewModel.ImageGrid.Cleanup();
+            await ViewModel.CleanupAsync();
 
+            // Prevent a second asynchronous cleanup from the Closed event.
+            this.Closed -= OnWindowClosed;
+            this.Close();
             transition.Close();
             transition = null;
-
             App.Current.Exit();
         }
         catch (Exception ex)
