@@ -375,6 +375,84 @@
                        Text="100 %" />
         </Border>
 
+
+        <!-- Persistent viewer HUD framing -->
+        <Grid Grid.Row="1"
+              Grid.ColumnSpan="2"
+              IsHitTestVisible="False">
+            <Path Data="M 0,52 L 0,0 L 86,0"
+                  Stroke="{StaticResource HiTechAccentBrush}"
+                  StrokeThickness="2"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Top"
+                  Margin="14" />
+            <Path Data="M 0,52 L 0,0 L 86,0"
+                  Stroke="{StaticResource HiTechAccentBrush}"
+                  StrokeThickness="2"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Bottom"
+                  Margin="14"
+                  RenderTransformOrigin="0.5,0.5">
+                <Path.RenderTransform>
+                    <RotateTransform Angle="180" />
+                </Path.RenderTransform>
+            </Path>
+
+            <StackPanel HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Margin="14,0,0,0"
+                        Spacing="8"
+                        Opacity="0.70">
+                <TextBlock Text="IMG"
+                           Style="{StaticResource HiTechTinyLabelStyle}" />
+                <Rectangle Width="2" Height="46"
+                           Fill="{StaticResource HiTechAccentMutedBrush}" />
+                <Rectangle Width="2" Height="18"
+                           Fill="{StaticResource HiTechAccentBrush}" />
+                <Rectangle Width="2" Height="32"
+                           Fill="{StaticResource HiTechAccentMutedBrush}" />
+            </StackPanel>
+
+            <StackPanel HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Margin="0,0,14,0"
+                        Spacing="6"
+                        Opacity="0.65">
+                <TextBlock Text="VIEW"
+                           HorizontalAlignment="Right"
+                           Style="{StaticResource HiTechTinyLabelStyle}" />
+                <Rectangle Width="34" Height="1"
+                           Fill="{StaticResource HiTechAccentBrush}" />
+                <TextBlock Text="OPTICAL"
+                           HorizontalAlignment="Right"
+                           Style="{StaticResource HiTechTinyLabelStyle}" />
+                <Rectangle Width="18" Height="1"
+                           HorizontalAlignment="Right"
+                           Fill="{StaticResource HiTechAccentMutedBrush}" />
+            </StackPanel>
+
+            <Grid HorizontalAlignment="Center"
+                  VerticalAlignment="Bottom"
+                  Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="70" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="70" />
+                </Grid.ColumnDefinitions>
+                <Rectangle Height="1"
+                           Fill="{StaticResource HiTechAccentMutedBrush}"
+                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1"
+                           Text="ACTIVE FRAME"
+                           Margin="10,0"
+                           Style="{StaticResource HiTechTinyLabelStyle}" />
+                <Rectangle Grid.Column="2"
+                           Height="1"
+                           Fill="{StaticResource HiTechAccentMutedBrush}"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </Grid>
+
         <!-- Navigation arrows -->
         <Button x:Name="PreviousButton" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Left"
                 AutomationProperties.AutomationId="ViewerPrevious"
