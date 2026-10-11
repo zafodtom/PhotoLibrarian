@@ -96,7 +96,7 @@
             </Grid>
 
             <!-- System telemetry -->
-            <Grid Grid.Column="2" Margin="10,8,16,8">
+            <Grid Grid.Column="2" Margin="10,8,150,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
