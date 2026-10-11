@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using PhotoLibrarian.Core.Services;
@@ -173,6 +174,16 @@ public sealed partial class MainWindow : Window
         FolderNavPanel.RefreshFlagTree();
     }
 
+    private static void CenterOnCurrentDisplay(AppWindow window)
+    {
+        var area = DisplayArea.GetFromWindowId(window.Id, DisplayAreaFallback.Primary);
+        var bounds = area.WorkArea;
+        var size = window.Size;
+        window.Move(new Windows.Graphics.PointInt32(
+            bounds.X + Math.Max(0, (bounds.Width - size.Width) / 2),
+            bounds.Y + Math.Max(0, (bounds.Height - size.Height) / 2)));
+    }
+
     public MainWindow()
     {
         this.InitializeComponent();
@@ -195,6 +206,21 @@ public sealed partial class MainWindow : Window
 
         var appWindow = this.AppWindow;
         appWindow.Resize(new Windows.Graphics.SizeInt32(1600, 900));
+        CenterOnCurrentDisplay(appWindow);
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(GlobalHeader);
+        if (appWindow.TitleBar is { } titleBar)
+        {
+            titleBar.BackgroundColor = Windows.UI.Color.FromArgb(255, 10, 18, 26);
+            titleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(255, 10, 18, 26);
+            titleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 83, 215, 232);
+            titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(255, 26, 52, 65);
+            titleBar.ButtonHoverForegroundColor = Windows.UI.Colors.White;
+            titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(255, 34, 80, 96);
+            titleBar.ButtonPressedForegroundColor = Windows.UI.Colors.White;
+            titleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(255, 10, 18, 26);
+            titleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(255, 95, 124, 136);
+        }
         appWindow.Title = App.HasActiveAlbum
             ? $"PhotoLibrarian — {System.IO.Path.GetFileName(App.CurrentAlbumPath)}"
             : "PhotoLibrarian";
