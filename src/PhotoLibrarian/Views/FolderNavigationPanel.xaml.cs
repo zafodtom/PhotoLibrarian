@@ -1290,6 +1290,26 @@ public sealed partial class FolderNavigationPanel : UserControl
         };
         menu.Items.Add(paste);
 
+        // Destructive catalog removal belongs exclusively to the active
+        // Photo Library root, not individual photo folders.
+        if (isAlbumRoot &&
+            string.Equals(
+                System.IO.Path.GetFullPath(targetPath).TrimEnd(
+                    System.IO.Path.DirectorySeparatorChar),
+                System.IO.Path.GetFullPath(App.CurrentAlbumPath!).TrimEnd(
+                    System.IO.Path.DirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            menu.Items.Add(new MenuFlyoutSeparator());
+            var deleteAlbum = new MenuFlyoutItem { Text = "DELETE ALBUM  //  WARNING" };
+            deleteAlbum.Click += async (_, _) =>
+            {
+                if (App.MainWindow is MainWindow mainWindow)
+                    await mainWindow.ConfirmDeleteAlbumAsync();
+            };
+            menu.Items.Add(deleteAlbum);
+        }
+
         if (!isAlbumRoot)
         {
             menu.Items.Add(new MenuFlyoutSeparator());
