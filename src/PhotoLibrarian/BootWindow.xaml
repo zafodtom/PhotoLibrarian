@@ -194,5 +194,6 @@
                 </Path>
             </Grid>
         </Border>
+        <Grid x:Name="BootDragRegion" Height="40" VerticalAlignment="Top" Background="Transparent" />
     </Grid>
 </Window>
