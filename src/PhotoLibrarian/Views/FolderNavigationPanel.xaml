@@ -89,6 +89,12 @@
                                               MinWidth="0"
                                               Padding="0"
                                               Margin="0" />
+                                    <FontIcon Glyph="&#xE8B7;" FontFamily="Segoe Fluent Icons"
+                                              FontSize="13" Foreground="{StaticResource HiTechAccentBrush}"
+                                              VerticalAlignment="Center" />
+                                    <FontIcon Glyph="&#xE8EC;" FontFamily="Segoe Fluent Icons"
+                                              FontSize="13" Foreground="{StaticResource HiTechAccentBrush}"
+                                              VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding Content}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
