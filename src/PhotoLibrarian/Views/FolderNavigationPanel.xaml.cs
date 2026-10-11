@@ -715,12 +715,16 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = "TAG // CATALOG CONTROL",
+            Title = null,
             Content = dialogHost,
             CloseButtonText = "CLOSE CONSOLE",
             XamlRoot = XamlRoot,
             MinWidth = 660,
-            RequestedTheme = ElementTheme.Dark
+            RequestedTheme = ElementTheme.Dark,
+            Background = panelBrush,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 230, 247, 250)),
+            BorderBrush = strongBorderBrush,
+            BorderThickness = new Thickness(1)
         };
 
         void ShowManagerStatus(string? message)
