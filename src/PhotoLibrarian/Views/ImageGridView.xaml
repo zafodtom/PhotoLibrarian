@@ -408,22 +408,132 @@
             </StackPanel>
         </Grid>
 
-        <!-- Empty state -->
-        <StackPanel x:Name="EmptyState" Grid.Row="2"
-                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                    RightTapped="OnGridBackgroundRightTapped"
-                    Background="{StaticResource HiTechPanelBackgroundBrush}"
-                    Spacing="8">
-            <FontIcon Glyph="&#xEB9F;" FontSize="48"
-                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                      HorizontalAlignment="Center" />
-            <TextBlock Text="No photos yet"
-                       Style="{StaticResource SubtitleTextBlockStyle}"
-                       HorizontalAlignment="Center"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <TextBlock Text="Click + in the Library panel to add a folder"
-                       HorizontalAlignment="Center"
-                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
-        </StackPanel>
+        <!-- Cinematic empty / indexing state -->
+        <Grid x:Name="EmptyState"
+              Grid.Row="2"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              RightTapped="OnGridBackgroundRightTapped"
+              Width="520"
+              Height="260">
+            <Border Background="#E60A121A"
+                    BorderBrush="{StaticResource HiTechBorderStrongBrush}"
+                    BorderThickness="1">
+                <Grid Margin="24">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="VISUAL FEED"
+                                   Style="{StaticResource HiTechSectionHeaderStyle}" />
+                        <Rectangle Grid.Column="1"
+                                   Height="1"
+                                   Margin="12,0"
+                                   Fill="{StaticResource HiTechAccentMutedBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2"
+                                   Text="IDX // 00"
+                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                    </Grid>
+
+                    <Grid Grid.Row="1"
+                          VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid Width="70" Height="70">
+                            <Ellipse Stroke="{StaticResource HiTechBorderStrongBrush}"
+                                     StrokeThickness="1" />
+                            <Ellipse Width="50"
+                                     Height="50"
+                                     Stroke="{StaticResource HiTechAccentMutedBrush}"
+                                     StrokeThickness="1"
+                                     StrokeDashArray="3,3" />
+                            <Line X1="35" Y1="6"
+                                  X2="35" Y2="64"
+                                  Stroke="{StaticResource HiTechAccentMutedBrush}"
+                                  StrokeThickness="1" />
+                            <Line X1="6" Y1="35"
+                                  X2="64" Y2="35"
+                                  Stroke="{StaticResource HiTechAccentMutedBrush}"
+                                  StrokeThickness="1" />
+                            <ProgressRing x:Name="EmptyStateProgress"
+                                          Width="34"
+                                          Height="34"
+                                          IsActive="False"
+                                          Foreground="{StaticResource HiTechAccentBrush}" />
+                        </Grid>
+
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Spacing="5">
+                            <TextBlock x:Name="EmptyStateTitle"
+                                       Text="ARCHIVE EMPTY"
+                                       FontFamily="Consolas"
+                                       FontSize="17"
+                                       FontWeight="SemiBold"
+                                       CharacterSpacing="80"
+                                       Foreground="{StaticResource HiTechTextPrimaryBrush}" />
+                            <TextBlock x:Name="EmptyStateSubtitle"
+                                       Text="Awaiting visual assets. Add or select a library folder."
+                                       FontFamily="Consolas"
+                                       FontSize="10"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}"
+                                       TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal"
+                                        Spacing="8"
+                                        Margin="0,6,0,0">
+                                <Rectangle Width="36"
+                                           Height="2"
+                                           Fill="{StaticResource HiTechAccentBrush}" />
+                                <Rectangle Width="18"
+                                           Height="2"
+                                           Fill="{StaticResource HiTechAccentMutedBrush}" />
+                                <Rectangle Width="8"
+                                           Height="2"
+                                           Fill="{StaticResource HiTechAccentMutedBrush}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="2">
+                        <TextBlock x:Name="EmptyStateCode"
+                                   Text="STATE / STANDBY"
+                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                        <TextBlock Text="LOCAL ARCHIVE"
+                                   HorizontalAlignment="Right"
+                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Path Data="M 0,34 L 0,0 L 70,0"
+                  Stroke="{StaticResource HiTechAccentBrush}"
+                  StrokeThickness="2"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Top"
+                  Margin="-6" />
+            <Path Data="M 0,34 L 0,0 L 70,0"
+                  Stroke="{StaticResource HiTechAccentBrush}"
+                  StrokeThickness="2"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Bottom"
+                  Margin="-6"
+                  RenderTransformOrigin="0.5,0.5">
+                <Path.RenderTransform>
+                    <RotateTransform Angle="180" />
+                </Path.RenderTransform>
+            </Path>
+        </Grid>
     </Grid>
 </UserControl>
