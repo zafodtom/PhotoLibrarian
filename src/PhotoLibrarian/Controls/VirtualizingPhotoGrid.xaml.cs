@@ -934,6 +934,54 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         });
         grid.Children.Add(flagBadge);
 
+
+        var activeHud = new Border
+        {
+            Tag = SelectionHudTag,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 5, 5, 0),
+            Padding = new Thickness(5, 2, 5, 2),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(220, 7, 20, 27)),
+            BorderBrush = new SolidColorBrush(SelectionColor),
+            BorderThickness = new Thickness(1),
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false
+        };
+        activeHud.Child = new TextBlock
+        {
+            Text = "ACTIVE",
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 8,
+            CharacterSpacing = 120,
+            Foreground = new SolidColorBrush(SelectionColor)
+        };
+        grid.Children.Add(activeHud);
+
+        var targetCross = new Grid
+        {
+            Tag = SelectionHudTag,
+            Width = 30,
+            Height = 30,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false
+        };
+        targetCross.Children.Add(new Border
+        {
+            Width = 1,
+            Height = 30,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(150, 83, 215, 232))
+        });
+        targetCross.Children.Add(new Border
+        {
+            Width = 30,
+            Height = 1,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(150, 83, 215, 232))
+        });
+        grid.Children.Add(targetCross);
+
         // Face highlight overlay — hidden by default, positioned/shown by SetFaceHighlight
         // when the user hovers a people-tags row in the Browse panel.
         var faceHighlight = new Border
@@ -964,6 +1012,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
 
     private const string FaceHighlightTag = "FaceHighlightBorder";
     private const string SelectionBracketTag = "SelectionBracket";
+    private const string SelectionHudTag = "SelectionHud";
     private FrameworkElement? _faceHighlightElement;
 
     /// <summary>
@@ -1243,6 +1292,13 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
                          .Where(border => Equals(border.Tag, SelectionBracketTag)))
             {
                 bracket.Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            foreach (var hudElement in grid.Children
+                         .OfType<FrameworkElement>()
+                         .Where(child => Equals(child.Tag, SelectionHudTag)))
+            {
+                hudElement.Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
             }
         }
     }
