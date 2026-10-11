@@ -678,13 +678,23 @@ public sealed partial class FolderNavigationPanel : UserControl
         content.Children.Add(rootDropZone);
         content.Children.Add(list);
 
+        var dialogHost = new Border
+        {
+            Background = panelBrush,
+            BorderBrush = strongBorderBrush,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(16),
+            Child = content
+        };
+
         var dialog = new ContentDialog
         {
             Title = "TAG CATALOG CONTROL",
-            Content = content,
+            Content = dialogHost,
             CloseButtonText = "CLOSE CONSOLE",
             XamlRoot = XamlRoot,
-            MinWidth = 760
+            MinWidth = 760,
+            RequestedTheme = ElementTheme.Dark
         };
 
         void ShowManagerStatus(string? message)
@@ -863,11 +873,19 @@ public sealed partial class FolderNavigationPanel : UserControl
             var createDialog = new ContentDialog
             {
                 Title = "TAG CREATION",
-                Content = panel,
+                Content = new Border
+                {
+                    Background = panelBrush,
+                    BorderBrush = strongBorderBrush,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(14),
+                    Child = panel
+                },
                 PrimaryButtonText = "CREATE TAG",
                 CloseButtonText = "CANCEL",
                 DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot
+                XamlRoot = XamlRoot,
+                RequestedTheme = ElementTheme.Dark
             };
 
             dialog.Hide();
@@ -963,11 +981,19 @@ public sealed partial class FolderNavigationPanel : UserControl
             var editDialog = new ContentDialog
             {
                 Title = "TAG MODIFICATION",
-                Content = panel,
+                Content = new Border
+                {
+                    Background = panelBrush,
+                    BorderBrush = strongBorderBrush,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(14),
+                    Child = panel
+                },
                 PrimaryButtonText = "SAVE TAG",
                 CloseButtonText = "CANCEL",
                 DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot
+                XamlRoot = XamlRoot,
+                RequestedTheme = ElementTheme.Dark
             };
 
             dialog.Hide();
@@ -1022,7 +1048,8 @@ public sealed partial class FolderNavigationPanel : UserControl
                 PrimaryButtonText = "REMOVE TAG",
                 CloseButtonText = "CANCEL",
                 DefaultButton = ContentDialogButton.Close,
-                XamlRoot = XamlRoot
+                XamlRoot = XamlRoot,
+                RequestedTheme = ElementTheme.Dark
             };
 
             dialog.Hide();
