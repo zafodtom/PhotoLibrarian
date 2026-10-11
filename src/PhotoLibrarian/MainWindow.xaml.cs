@@ -244,6 +244,9 @@ public sealed partial class MainWindow : Window
     private async void OnOpenAlbumClick(object sender, RoutedEventArgs e)
     {
         BootWindow? transition = null;
+        System.Diagnostics.Process? newProcess = null;
+        var transitionStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
         try
         {
             var albumPath = await AlbumService.PickAlbumFolderAsync(this);
@@ -259,7 +262,7 @@ public sealed partial class MainWindow : Window
                 "ARCHIVE CONTEXT SWITCH",
                 "External album root accepted. Preparing session handoff...",
                 warning: true);
-            await Task.Delay(180);
+            await Task.Delay(700);
 
             transition.SetPhase(
                 2,
@@ -267,36 +270,89 @@ public sealed partial class MainWindow : Window
                 "VALIDATING TARGET",
                 "Checking album manifest, portable metadata and local cache boundary...",
                 warning: true);
-            await Task.Delay(180);
+            await Task.Delay(700);
 
             transition.SetPhase(
                 3,
                 58,
                 "SESSION REBIND REQUIRED",
-                "Current archive session must be terminated before the new visual feed can mount.",
+                "Current archive session will remain visible until the replacement process is online.",
                 warning: true);
-            await Task.Delay(220);
+            await Task.Delay(700);
 
             transition.SetPhase(
                 4,
                 78,
-                "DISCONNECTING CURRENT FEED",
-                "Releasing local session state and preparing restart vector...",
+                "PREPARING HANDOFF",
+                "Arming replacement process and preserving visual continuity...",
                 warning: true);
-            await Task.Delay(180);
+            await Task.Delay(700);
 
             transition.SetPhase(
                 5,
-                96,
-                "RESTART VECTOR ARMED",
-                "Launching PhotoLibrarian with the selected archive root...",
+                92,
+                "LAUNCHING REPLACEMENT NODE",
+                "Starting new PhotoLibrarian process with the selected archive root...",
                 warning: true);
-            await Task.Delay(180);
 
-            AlbumService.RestartForAlbum(albumPath);
+            newProcess = AlbumService.StartAlbumInstance(albumPath);
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    newProcess.WaitForInputIdle(10000);
+                }
+                catch
+                {
+                    // Some startup paths do not expose input-idle state reliably.
+                    // The timed overlap below still prevents an abrupt blank handoff.
+                }
+            });
+
+            transition.SetPhase(
+                6,
+                100,
+                "HANDOFF CONFIRMED",
+                "Replacement node responded. Transferring visual control...",
+                warning: true);
+
+            const int minimumTransitionMs = 5000;
+            var remainingTransitionMs =
+                minimumTransitionMs - (int)transitionStopwatch.ElapsedMilliseconds;
+            if (remainingTransitionMs > 0)
+                await Task.Delay(remainingTransitionMs);
+
+            await Task.Delay(350);
+
+            try
+            {
+                this.Close();
+            }
+            catch
+            {
+            }
+
+            transition.Close();
+            transition = null;
+
+            App.Current.Exit();
         }
         catch (Exception ex)
         {
+            try
+            {
+                if (newProcess is not null &&
+                    !newProcess.HasExited &&
+                    newProcess.MainWindowHandle == IntPtr.Zero)
+                {
+                    newProcess.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+            }
+
             if (transition is not null)
             {
                 transition.SetPhase(
@@ -306,7 +362,7 @@ public sealed partial class MainWindow : Window
                     ex.Message,
                     warning: false,
                     fatal: true);
-                await Task.Delay(1200);
+                await Task.Delay(1800);
                 transition.Close();
             }
             else
