@@ -243,22 +243,84 @@ public sealed partial class MainWindow : Window
 
     private async void OnOpenAlbumClick(object sender, RoutedEventArgs e)
     {
+        BootWindow? transition = null;
         try
         {
             var albumPath = await AlbumService.PickAlbumFolderAsync(this);
-            if (albumPath is not null)
-                AlbumService.RestartForAlbum(albumPath);
+            if (albumPath is null)
+                return;
+
+            transition = new BootWindow();
+            transition.Activate();
+
+            transition.SetPhase(
+                1,
+                12,
+                "ARCHIVE CONTEXT SWITCH",
+                "External album root accepted. Preparing session handoff...",
+                warning: true);
+            await Task.Delay(180);
+
+            transition.SetPhase(
+                2,
+                34,
+                "VALIDATING TARGET",
+                "Checking album manifest, portable metadata and local cache boundary...",
+                warning: true);
+            await Task.Delay(180);
+
+            transition.SetPhase(
+                3,
+                58,
+                "SESSION REBIND REQUIRED",
+                "Current archive session must be terminated before the new visual feed can mount.",
+                warning: true);
+            await Task.Delay(220);
+
+            transition.SetPhase(
+                4,
+                78,
+                "DISCONNECTING CURRENT FEED",
+                "Releasing local session state and preparing restart vector...",
+                warning: true);
+            await Task.Delay(180);
+
+            transition.SetPhase(
+                5,
+                96,
+                "RESTART VECTOR ARMED",
+                "Launching PhotoLibrarian with the selected archive root...",
+                warning: true);
+            await Task.Delay(180);
+
+            AlbumService.RestartForAlbum(albumPath);
         }
         catch (Exception ex)
         {
-            var dialog = new ContentDialog
+            if (transition is not null)
             {
-                Title = "Could not open album",
-                Content = ex.Message,
-                CloseButtonText = "OK",
-                XamlRoot = AppRoot.XamlRoot
-            };
-            await dialog.ShowAsync();
+                transition.SetPhase(
+                    99,
+                    100,
+                    "ARCHIVE SWITCH FAILED",
+                    ex.Message,
+                    warning: false,
+                    fatal: true);
+                await Task.Delay(1200);
+                transition.Close();
+            }
+            else
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "FATAL ERROR // ALBUM OPEN",
+                    Content = ex.Message,
+                    CloseButtonText = "ACKNOWLEDGE",
+                    XamlRoot = AppRoot.XamlRoot,
+                    RequestedTheme = ElementTheme.Dark
+                };
+                await dialog.ShowAsync();
+            }
         }
     }
 
