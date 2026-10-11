@@ -1418,5 +1418,7 @@ public partial class MainViewModel : ObservableObject
         Settings.AutoTaggingSettingsChanged -= OnAutoTaggingSettingsChanged;
         _faceResources.Dispose();
         _scanner.Dispose();
+        _db.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
     }
 }
