@@ -267,6 +267,26 @@ public sealed partial class MainWindow : Window
         this.Closed += OnWindowClosed;
     }
 
+    public async Task DeleteCurrentAlbumAsync()
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            throw new InvalidOperationException("No album is active.");
+
+        var albumPath = App.CurrentAlbumPath;
+        _isClosing = true;
+        ViewModel.PropertyChanged -= OnMainViewModelPropertyChanged;
+        ViewModel.ImageViewer.PropertyChanged -= OnImageViewerPropertyChanged;
+        ViewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
+        ViewModel.ImageGrid.Cleanup();
+        await ViewModel.CleanupAsync();
+
+        // Database handles are now closed. Do not call asynchronous cleanup again.
+        AlbumService.DeleteAlbumBookkeeping(albumPath);
+        Closed -= OnWindowClosed;
+        Close();
+        App.Current.Exit();
+    }
+
     private async void OnOpenAlbumClick(object sender, RoutedEventArgs e)
     {
         BootWindow? transition = null;
