@@ -79,4 +79,38 @@
         <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
     </Style>
 
+    <Style x:Key="HiTechModuleStyle" TargetType="Border">
+        <Setter Property="Background" Value="#A60A1118" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="1" />
+        <Setter Property="Padding" Value="10" />
+    </Style>
+
+    <Style x:Key="HiTechInputStyle" TargetType="TextBox">
+        <Setter Property="Background" Value="#C90A121A" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderStrongBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="1" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="SelectionHighlightColor" Value="{StaticResource HiTechAccentMutedBrush}" />
+    </Style>
+
+    <Style x:Key="HiTechComboStyle" TargetType="ComboBox">
+        <Setter Property="Background" Value="#C90A121A" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderStrongBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="1" />
+        <Setter Property="FontFamily" Value="Consolas" />
+    </Style>
+
+    <Style x:Key="HiTechTinyLabelStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HiTechAccentMutedBrush}" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontSize" Value="9" />
+        <Setter Property="CharacterSpacing" Value="160" />
+    </Style>
+
 </ResourceDictionary>
