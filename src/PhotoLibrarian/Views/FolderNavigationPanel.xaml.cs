@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Rectangle = Microsoft.UI.Xaml.Shapes.Rectangle;
 using PhotoLibrarian.ViewModels;
 using PhotoLibrarian.Diagnostics;
 using System;
@@ -506,19 +507,58 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         await metadata.ReloadAvailableTagsAsync();
 
+        var primaryButtonStyle =
+            (Style)Application.Current.Resources["HiTechPrimaryButtonStyle"];
+        var iconButtonStyle =
+            (Style)Application.Current.Resources["HiTechIconButtonStyle"];
+        var inputStyle =
+            (Style)Application.Current.Resources["HiTechInputStyle"];
+        var comboStyle =
+            (Style)Application.Current.Resources["HiTechComboStyle"];
+
+        var accentBrush = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 83, 215, 232));
+        var borderBrush = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 36, 66, 82));
+        var strongBorderBrush = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 52, 115, 138));
+        var panelBrush = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 10, 18, 26));
+        var secondaryTextBrush = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 140, 169, 179));
+
         var list = new ListView
         {
             SelectionMode = ListViewSelectionMode.Single,
-            MinWidth = 520,
-            MaxHeight = 520,
+            MinWidth = 0,
+            MinHeight = 118,
+            MaxHeight = 360,
             CanDragItems = true,
             CanReorderItems = false,
-            AllowDrop = true
+            AllowDrop = true,
+            Background = panelBrush,
+            BorderBrush = borderBrush,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4)
         };
 
-        var addTagButton = new Button { Content = "New tag", Padding = new Thickness(10, 5, 10, 5) };
-        var editButton = new Button { Content = "Edit", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
-        var removeButton = new Button { Content = "Remove from catalog", Padding = new Thickness(10, 5, 10, 5), IsEnabled = false };
+        var addTagButton = new Button
+        {
+            Content = "NEW TAG",
+            Style = primaryButtonStyle
+        };
+        var editButton = new Button
+        {
+            Content = "EDIT",
+            Style = iconButtonStyle,
+            IsEnabled = false
+        };
+        var removeButton = new Button
+        {
+            Content = "REMOVE",
+            Style = iconButtonStyle,
+            IsEnabled = false
+        };
 
         var toolbar = new StackPanel
         {
@@ -531,9 +571,11 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var hint = new TextBlock
         {
-            Text = "Every item is a tag. Hierarchy is defined by tag paths. Removing a used tag from the catalog keeps its assignments on photos. Drag a tag onto another tag to move it below it, or use the root drop zone.",
+            Text = "Drag a tag onto another to nest it, or drop it on ROOT to move it to the top level. Removing a used tag keeps its photo assignments.",
             TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.7
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 10,
+            Foreground = secondaryTextBrush
         };
 
         var managerStatus = new TextBlock
@@ -545,37 +587,161 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var content = new StackPanel
         {
-            Spacing = 10,
-            MinWidth = 560
+            Spacing = 8,
+            Width = 460
         };
+
+        var consoleHeader = new Grid
+        {
+            Height = 46
+        };
+        consoleHeader.ColumnDefinitions.Add(
+            new ColumnDefinition { Width = new GridLength(6) });
+        consoleHeader.ColumnDefinitions.Add(
+            new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        consoleHeader.ColumnDefinitions.Add(
+            new ColumnDefinition { Width = GridLength.Auto });
+
+        var headerRail = new Rectangle
+        {
+            Width = 4,
+            Fill = accentBrush
+        };
+        consoleHeader.Children.Add(headerRail);
+
+        var headerText = new StackPanel
+        {
+            Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = 1
+        };
+        Grid.SetColumn(headerText, 1);
+        headerText.Children.Add(new TextBlock
+        {
+            Text = "TAG // CATALOG",
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 17,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            CharacterSpacing = 100,
+            Foreground = new SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 230, 247, 250))
+        });
+        headerText.Children.Add(new TextBlock
+        {
+            Text = "HIERARCHY / ASSIGNMENT / INDEX",
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 9,
+            CharacterSpacing = 150,
+            Foreground = strongBorderBrush
+        });
+        consoleHeader.Children.Add(headerText);
+
+        var headerCode = new TextBlock
+        {
+            Text = "CAT // T01",
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 9,
+            CharacterSpacing = 120,
+            Foreground = strongBorderBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(headerCode, 2);
+        consoleHeader.Children.Add(headerCode);
+
         var rootDropZone = new Border
         {
-            Padding = new Thickness(10, 6, 10, 6),
-            CornerRadius = new CornerRadius(6),
+            MinHeight = 38,
+            Padding = new Thickness(12, 8, 12, 8),
+            CornerRadius = new CornerRadius(1),
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Gray),
+            BorderBrush = strongBorderBrush,
+            Background = new SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 13, 29, 37)),
             AllowDrop = true,
             Child = new TextBlock
             {
-                Text = "Move to album root",
+                Text = "ROOT LEVEL  //  DROP TAG HERE",
+                TextWrapping = TextWrapping.Wrap,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Opacity = 0.8
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 10,
+                CharacterSpacing = 70,
+                Foreground = accentBrush
             }
         };
 
+        content.Children.Add(consoleHeader);
         content.Children.Add(toolbar);
         content.Children.Add(hint);
         content.Children.Add(managerStatus);
+        var emptyCatalogHint = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = 6,
+            IsHitTestVisible = false,
+            Visibility = Visibility.Collapsed
+        };
+        emptyCatalogHint.Children.Add(new TextBlock
+        {
+            Text = "CATALOG EMPTY",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 14,
+            Foreground = accentBrush
+        });
+        emptyCatalogHint.Children.Add(new TextBlock
+        {
+            Text = "USE NEW TAG TO INITIALIZE THE CATALOG",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 10,
+            Foreground = secondaryTextBrush
+        });
+        var listHost = new Grid { MinHeight = 230 };
+        listHost.Children.Add(list);
+        listHost.Children.Add(emptyCatalogHint);
+        content.Children.Add(listHost);
         content.Children.Add(rootDropZone);
-        content.Children.Add(list);
+
+        var dialogHost = new Border
+        {
+            Background = panelBrush,
+            BorderBrush = strongBorderBrush,
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(14),
+            Child = content
+        };
 
         var dialog = new ContentDialog
         {
-            Title = "Tag catalog manager",
-            Content = content,
-            CloseButtonText = "Close",
-            XamlRoot = XamlRoot
+            Title = null,
+            Content = dialogHost,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+            Background = panelBrush,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 230, 247, 250)),
+            BorderBrush = strongBorderBrush,
+            BorderThickness = new Thickness(1)
         };
+
+        var closeConsole = new Button
+        {
+            Content = "CLOSE CONSOLE",
+            Width = 152,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Style = iconButtonStyle
+        };
+        closeConsole.Click += (_, _) => dialog.Hide();
+        var footerRail = new Border
+        {
+            BorderBrush = strongBorderBrush,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(0, 12, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = closeConsole
+        };
+        content.Children.Add(footerRail);
 
         void ShowManagerStatus(string? message)
         {
@@ -587,9 +753,13 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         void ReloadRows()
         {
-            list.ItemsSource = metadata.AvailableTags
+            var rows = metadata.AvailableTags
                 .Select(item => new CatalogManagerRow(item))
                 .ToList();
+            list.ItemsSource = rows;
+            emptyCatalogHint.Visibility = rows.Count == 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             editButton.IsEnabled = false;
             removeButton.IsEnabled = false;
             ShowManagerStatus(null);
@@ -722,7 +892,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             var parentBox = new ComboBox
             {
                 Header = "Parent tag",
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Style = comboStyle
             };
             parentBox.Items.Add("(root)");
             foreach (var parentTag in parentTags)
@@ -732,21 +903,39 @@ public sealed partial class FolderNavigationPanel : UserControl
             var nameBox = new TextBox
             {
                 Header = "Tag name",
-                PlaceholderText = "e.g. Red"
+                PlaceholderText = "e.g. Red",
+                Style = inputStyle
             };
 
-            var panel = new StackPanel { Spacing = 10 };
+            var panel = new StackPanel { Spacing = 12, MinWidth = 460 };
+            panel.Children.Add(new TextBlock
+            {
+                Text = "TAG // CREATE",
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 14,
+                CharacterSpacing = 100,
+                Foreground = accentBrush
+            });
+            panel.Children.Add(new Border { Height = 1, Background = borderBrush });
             panel.Children.Add(parentBox);
             panel.Children.Add(nameBox);
 
             var createDialog = new ContentDialog
             {
-                Title = "New tag",
-                Content = panel,
-                PrimaryButtonText = "Create",
-                CloseButtonText = "Cancel",
+                Title = "TAG CREATION",
+                Content = new Border
+                {
+                    Background = panelBrush,
+                    BorderBrush = strongBorderBrush,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(14),
+                    Child = panel
+                },
+                PrimaryButtonText = "CREATE TAG",
+                CloseButtonText = "CANCEL",
                 DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot
+                XamlRoot = XamlRoot,
+                RequestedTheme = ElementTheme.Dark
             };
 
             dialog.Hide();
@@ -802,7 +991,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             var parentBox = new ComboBox
             {
                 Header = "Parent tag",
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Style = comboStyle
             };
             parentBox.Items.Add("(root)");
             foreach (var parentTag in parentTags)
@@ -821,21 +1011,39 @@ public sealed partial class FolderNavigationPanel : UserControl
             var nameBox = new TextBox
             {
                 Header = "Tag name",
-                Text = item.Name
+                Text = item.Name,
+                Style = inputStyle
             };
 
-            var panel = new StackPanel { Spacing = 10 };
+            var panel = new StackPanel { Spacing = 12, MinWidth = 460 };
+            panel.Children.Add(new TextBlock
+            {
+                Text = "TAG // MODIFY",
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 14,
+                CharacterSpacing = 100,
+                Foreground = accentBrush
+            });
+            panel.Children.Add(new Border { Height = 1, Background = borderBrush });
             panel.Children.Add(parentBox);
             panel.Children.Add(nameBox);
 
             var editDialog = new ContentDialog
             {
-                Title = "Edit tag",
-                Content = panel,
-                PrimaryButtonText = "Save",
-                CloseButtonText = "Cancel",
+                Title = "TAG MODIFICATION",
+                Content = new Border
+                {
+                    Background = panelBrush,
+                    BorderBrush = strongBorderBrush,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(14),
+                    Child = panel
+                },
+                PrimaryButtonText = "SAVE TAG",
+                CloseButtonText = "CANCEL",
                 DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot
+                XamlRoot = XamlRoot,
+                RequestedTheme = ElementTheme.Dark
             };
 
             dialog.Hide();
@@ -883,14 +1091,15 @@ public sealed partial class FolderNavigationPanel : UserControl
             var item = row.Item;
             var confirm = new ContentDialog
             {
-                Title = "Remove tag from catalog?",
+                Title = "TAG REMOVAL CONFIRMATION",
                 Content = item.IsUsedInAlbum
                     ? "This tag is used on photos. Removing it from the catalog will keep those assignments."
                     : "The tag will be removed from the album catalog.",
-                PrimaryButtonText = "Remove",
-                CloseButtonText = "Cancel",
+                PrimaryButtonText = "REMOVE TAG",
+                CloseButtonText = "CANCEL",
                 DefaultButton = ContentDialogButton.Close,
-                XamlRoot = XamlRoot
+                XamlRoot = XamlRoot,
+                RequestedTheme = ElementTheme.Dark
             };
 
             dialog.Hide();
@@ -978,7 +1187,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         ISet<string>? selectedPaths = null)
     {
         // Create display text with icon
-        string icon = "📁";
+        string icon = "";
         string displayName = folderNode.Name;
         string displayText = isRootFolder 
             ? $"{icon} {folderNode.Path}"  // Show full path for root folders
@@ -1626,11 +1835,10 @@ public sealed partial class FolderNavigationPanel : UserControl
         public override string ToString()
         {
             var indent = new string(' ', Math.Max(0, Item.Depth) * 4);
-            var icon = "🏷️";
             var state = string.IsNullOrWhiteSpace(Item.SourceLabel)
                 ? ""
                 : $"  [{Item.SourceLabel}]";
-            return $"{indent}{icon} {Item.Name}{state}";
+            return $"{indent}{Item.Name}{state}";
         }
     }
 
@@ -1653,7 +1861,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             if (TagNode.IsRoot)
                 return $"{TagNode.Name} ({TagNode.Count})";
 
-            return $"🏷️ {TagNode.Name} ({TagNode.Count})";
+            return $"{TagNode.Name} ({TagNode.Count})";
         }
     }
 }

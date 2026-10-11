@@ -362,22 +362,43 @@ public partial class ImageGridViewModel : ObservableObject
 
                 DebugLog.WriteLine($"LoadImagesAsync: Scanning folder '{folderPath}' for any new/missing files...");
                 
-                // Scan for files not in database
-                var missingFiles = await Task.Run(() =>
+                // Scan for files not in database. A newer grid refresh cancels the
+                // previous load token; that is an expected superseded-refresh condition, not
+                // an application error.
+                List<string> missingFiles;
+                try
                 {
-                    var result = new List<string>();
-                    foreach (var filePath in Directory.EnumerateFiles(folderPath, "*.*",
-                        new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
+                    missingFiles = await Task.Run(() =>
                     {
-                        if (ct.IsCancellationRequested) break;
-                        
-                        if (FolderScannerService.IsSupportedFile(filePath) && !indexedPaths.Contains(filePath))
+                        var result = new List<string>();
+                        foreach (var filePath in Directory.EnumerateFiles(
+                                     folderPath,
+                                     "*.*",
+                                     new EnumerationOptions
+                                     {
+                                         RecurseSubdirectories = true,
+                                         IgnoreInaccessible = true
+                                     }))
                         {
-                            result.Add(filePath);
+                            if (ct.IsCancellationRequested)
+                                break;
+
+                            if (FolderScannerService.IsSupportedFile(filePath) &&
+                                !indexedPaths.Contains(filePath))
+                            {
+                                result.Add(filePath);
+                            }
                         }
-                    }
-                    return result;
-                }, ct);
+
+                        return result;
+                    }, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    DebugLog.WriteLine(
+                        "LoadImagesAsync: superseded by a newer refresh during folder scan");
+                    return;
+                }
                 
                 if (missingFiles.Count > 0)
                 {

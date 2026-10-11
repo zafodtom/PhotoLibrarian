@@ -65,9 +65,23 @@ public partial class App : Application
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
+        BootWindow? bootWindow = null;
+        var bootStopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             CurrentAlbumPath = AlbumService.GetAlbumPathFromCommandLine();
+
+            bootWindow = new BootWindow();
+            bootWindow.Activate();
+            bootWindow.SetPhase(
+                1,
+                5,
+                "RESOLVING ARCHIVE",
+                CurrentAlbumPath is null
+                    ? "Preparing clean local session..."
+                    : "Resolving portable album root...");
+            // Give WinUI a real render opportunity before startup work continues.
+            await Task.Delay(90);
 
         string dbPath;
         if (CurrentAlbumPath is not null)
@@ -82,11 +96,30 @@ public partial class App : Application
 
         AlbumPathStorage.Configure(CurrentAlbumPath);
 
+        bootWindow.SetPhase(
+            2,
+            18,
+            "OPENING CACHE",
+            "Connecting local cache database...");
+
         // Create services
         var db = new CacheDatabase(dbPath);
         await db.InitializeAsync();
+
+        bootWindow.SetPhase(
+            3,
+            34,
+            "VALIDATING DATABASE",
+            "Checking portable paths and album schema...");
         if (CurrentAlbumPath is not null)
             await db.MigrateAlbumPathsToRelativeAsync(CurrentAlbumPath);
+
+        bootWindow.SetPhase(
+            4,
+            48,
+            "LINKING SERVICES",
+            "Connecting metadata, index and thumbnail subsystems...");
+
         var imageRepo = new ImageRepository(db);
         var tagRepo = new TagRepository(db);
         var faceRepo = new FaceRepository(db);
@@ -133,6 +166,12 @@ public partial class App : Application
         var autoTaggingSettingsStore = new AutoTaggingSettingsStore();
 
         // Note: ThumbnailRepository removed - we use Windows thumbnail cache instead
+        bootWindow.SetPhase(
+            5,
+            62,
+            "INITIALIZING WORKSPACE",
+            "Constructing local archive control matrix...");
+
         ViewModel = new MainViewModel(
             db,
             imageRepo,
@@ -151,9 +190,16 @@ public partial class App : Application
             activityGate);
 
         _window = new MainWindow();
-        _window.Activate();
 
         await ViewModel.InitializeAsync();
+
+        bootWindow.SetPhase(
+            6,
+            76,
+            "MOUNTING ARCHIVE",
+            CurrentAlbumPath is null
+                ? "Preparing album selection interface..."
+                : "Loading album navigation and cached records...");
 
         if (CurrentAlbumPath is not null)
         {
@@ -162,6 +208,12 @@ public partial class App : Application
             // RootFolders is populated only after AddOrSelectFolderAsync. Starting
             // the startup scan before this point silently did nothing for existing
             // albums because StartBackgroundIndexing saw an empty folder list.
+            bootWindow.SetPhase(
+                7,
+                91,
+                "STARTING VISUAL FEED",
+                "Attaching folder tree and background index feed...");
+
             ViewModel.StartBackgroundIndexing();
             ViewModel.StatusText = $"Album: {CurrentAlbumPath}";
         }
@@ -169,9 +221,47 @@ public partial class App : Application
         {
             ViewModel.StatusText = "Open or create an album";
         }
+
+        bootWindow.SetPhase(
+            8,
+            100,
+            "VISUAL FEED READY",
+            CurrentAlbumPath is null
+                ? "Archive console ready."
+                : "Album mounted. Rendering workspace...");
+
+        const int minimumBootMs = 5000;
+        var remainingBootMs =
+            minimumBootMs - (int)bootStopwatch.ElapsedMilliseconds;
+        if (remainingBootMs > 0)
+            await Task.Delay(remainingBootMs);
+
+        _window.Activate();
+        await Task.Delay(180);
+        bootWindow.Close();
+        bootWindow = null;
         }
         catch (Exception ex)
         {
+            try
+            {
+                if (bootWindow is not null)
+                {
+                    bootWindow.SetPhase(
+                        99,
+                        100,
+                        "INITIALIZATION FAILED",
+                        ex.Message,
+                        warning: false,
+                        fatal: true);
+                    await Task.Delay(1200);
+                    bootWindow.Close();
+                }
+            }
+            catch
+            {
+            }
+
             CrashLog.Write("App.OnLaunched", ex, CurrentAlbumPath);
             throw;
         }

@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using PhotoLibrarian.Core.Services;
@@ -19,8 +20,16 @@ public sealed partial class MainWindow : Window
     private CropAspectRatio _pendingAspect = CropAspectRatio.Free;
     private bool _isClosing;
     private bool _isViewerFullscreen;
+    private GridLength _preFullscreenHeaderHeight;
+    private GridLength _preFullscreenViewerCommandHeight;
+    private GridLength _preFullscreenStatusHeight;
+    private GridLength _preFullscreenRailWidth;
     private GridLength _preFullscreenLeftWidth;
+    private GridLength _preFullscreenLeftSplitterWidth;
+    private GridLength _preFullscreenRightSplitterWidth;
     private GridLength _preFullscreenRightWidth;
+    private Thickness _preFullscreenViewportMargin;
+    private Thickness _preFullscreenViewportBorderThickness;
     private double _preFullscreenLeftMinWidth;
     private double _preFullscreenRightMinWidth;
     private Microsoft.UI.Windowing.AppWindowPresenterKind _preFullscreenPresenterKind =
@@ -41,22 +50,42 @@ public sealed partial class MainWindow : Window
         if (_isViewerFullscreen || !ViewModel.ImageViewer.IsOpen)
             return;
 
+        _preFullscreenHeaderHeight = GlobalHeaderRow.Height;
+        _preFullscreenViewerCommandHeight = ViewerCommandRow.Height;
+        _preFullscreenStatusHeight = StatusRow.Height;
+        _preFullscreenRailWidth = SystemRailColumn.Width;
         _preFullscreenLeftWidth = LeftPanelColumn.Width;
+        _preFullscreenLeftSplitterWidth = LeftSplitterColumn.Width;
+        _preFullscreenRightSplitterWidth = RightSplitterColumn.Width;
         _preFullscreenRightWidth = RightPanelColumn.Width;
+        _preFullscreenViewportMargin = MainViewportFrame.Margin;
+        _preFullscreenViewportBorderThickness = MainViewportBorder.BorderThickness;
         _preFullscreenLeftMinWidth = LeftPanelColumn.MinWidth;
         _preFullscreenRightMinWidth = RightPanelColumn.MinWidth;
         _preFullscreenPresenterKind = AppWindow.Presenter.Kind;
 
+        GlobalHeaderRow.Height = new GridLength(0);
+        ViewerCommandRow.Height = new GridLength(0);
+        StatusRow.Height = new GridLength(0);
+
         LeftPanelColumn.MinWidth = 0;
         RightPanelColumn.MinWidth = 0;
+        SystemRailColumn.Width = new GridLength(0);
         LeftPanelColumn.Width = new GridLength(0);
+        LeftSplitterColumn.Width = new GridLength(0);
+        RightSplitterColumn.Width = new GridLength(0);
         RightPanelColumn.Width = new GridLength(0);
         LeftPanelSplitter.Visibility = Visibility.Collapsed;
         RightPanelSplitter.Visibility = Visibility.Collapsed;
+        GlobalHeader.Visibility = Visibility.Collapsed;
+        SystemRail.Visibility = Visibility.Collapsed;
         FolderNavPanel.Visibility = Visibility.Collapsed;
         MetadataDetailPanel.Visibility = Visibility.Collapsed;
         StatusBar.Visibility = Visibility.Collapsed;
         TopRibbon.Visibility = Visibility.Collapsed;
+        MainViewportDecorations.Visibility = Visibility.Collapsed;
+        MainViewportFrame.Margin = new Thickness(0);
+        MainViewportBorder.BorderThickness = new Thickness(0);
 
         AppWindow.SetPresenter(
             Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
@@ -70,15 +99,27 @@ public sealed partial class MainWindow : Window
 
         AppWindow.SetPresenter(_preFullscreenPresenterKind);
 
+        GlobalHeaderRow.Height = _preFullscreenHeaderHeight;
+        ViewerCommandRow.Height = _preFullscreenViewerCommandHeight;
+        StatusRow.Height = _preFullscreenStatusHeight;
+
         LeftPanelColumn.MinWidth = _preFullscreenLeftMinWidth;
         RightPanelColumn.MinWidth = _preFullscreenRightMinWidth;
+        SystemRailColumn.Width = _preFullscreenRailWidth;
         LeftPanelColumn.Width = _preFullscreenLeftWidth;
+        LeftSplitterColumn.Width = _preFullscreenLeftSplitterWidth;
+        RightSplitterColumn.Width = _preFullscreenRightSplitterWidth;
         RightPanelColumn.Width = _preFullscreenRightWidth;
         LeftPanelSplitter.Visibility = Visibility.Visible;
         RightPanelSplitter.Visibility = Visibility.Visible;
+        GlobalHeader.Visibility = Visibility.Visible;
+        SystemRail.Visibility = Visibility.Visible;
         FolderNavPanel.Visibility = Visibility.Visible;
         MetadataDetailPanel.Visibility = Visibility.Visible;
         StatusBar.Visibility = Visibility.Visible;
+        MainViewportDecorations.Visibility = Visibility.Visible;
+        MainViewportFrame.Margin = _preFullscreenViewportMargin;
+        MainViewportBorder.BorderThickness = _preFullscreenViewportBorderThickness;
 
         _isViewerFullscreen = false;
         UpdateRibbonVisibility();
@@ -133,6 +174,16 @@ public sealed partial class MainWindow : Window
         FolderNavPanel.RefreshFlagTree();
     }
 
+    private static void CenterOnCurrentDisplay(AppWindow window)
+    {
+        var area = DisplayArea.GetFromWindowId(window.Id, DisplayAreaFallback.Primary);
+        var bounds = area.WorkArea;
+        var size = window.Size;
+        window.Move(new Windows.Graphics.PointInt32(
+            bounds.X + Math.Max(0, (bounds.Width - size.Width) / 2),
+            bounds.Y + Math.Max(0, (bounds.Height - size.Height) / 2)));
+    }
+
     public MainWindow()
     {
         this.InitializeComponent();
@@ -155,6 +206,21 @@ public sealed partial class MainWindow : Window
 
         var appWindow = this.AppWindow;
         appWindow.Resize(new Windows.Graphics.SizeInt32(1600, 900));
+        CenterOnCurrentDisplay(appWindow);
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(GlobalHeader);
+        if (appWindow.TitleBar is { } titleBar)
+        {
+            titleBar.BackgroundColor = Windows.UI.Color.FromArgb(255, 10, 18, 26);
+            titleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(255, 10, 18, 26);
+            titleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 83, 215, 232);
+            titleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(255, 26, 52, 65);
+            titleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+            titleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(255, 34, 80, 96);
+            titleBar.ButtonPressedForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+            titleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(255, 10, 18, 26);
+            titleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(255, 95, 124, 136);
+        }
         appWindow.Title = App.HasActiveAlbum
             ? $"PhotoLibrarian — {System.IO.Path.GetFileName(App.CurrentAlbumPath)}"
             : "PhotoLibrarian";
@@ -203,22 +269,161 @@ public sealed partial class MainWindow : Window
 
     private async void OnOpenAlbumClick(object sender, RoutedEventArgs e)
     {
+        BootWindow? transition = null;
+        System.Diagnostics.Process? newProcess = null;
+        var transitionStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
         try
         {
             var albumPath = await AlbumService.PickAlbumFolderAsync(this);
-            if (albumPath is not null)
-                AlbumService.RestartForAlbum(albumPath);
+            if (albumPath is null)
+                return;
+
+            transition = new BootWindow();
+            transition.Activate();
+
+            transition.SetPhase(
+                1,
+                12,
+                "ARCHIVE CONTEXT SWITCH",
+                "External album root accepted. Preparing session handoff...",
+                warning: true);
+            await Task.Delay(700);
+
+            transition.SetPhase(
+                2,
+                34,
+                "VALIDATING TARGET",
+                "Checking album manifest, portable metadata and local cache boundary...",
+                warning: true);
+            await Task.Delay(700);
+
+            transition.SetPhase(
+                3,
+                58,
+                "SESSION REBIND REQUIRED",
+                "Current archive session will remain visible until the replacement process is online.",
+                warning: true);
+            await Task.Delay(700);
+
+            transition.SetPhase(
+                4,
+                78,
+                "PREPARING HANDOFF",
+                "Arming replacement process and preserving visual continuity...",
+                warning: true);
+            await Task.Delay(700);
+
+            transition.SetPhase(
+                5,
+                92,
+                "LAUNCHING REPLACEMENT NODE",
+                "Starting new PhotoLibrarian process with the selected archive root...",
+                warning: true);
+
+            newProcess = AlbumService.StartAlbumInstance(albumPath);
+
+            // InputIdle is not a visual readiness signal. Wait until Windows
+            // actually exposes a top-level window for the replacement process.
+            // Its first visible window is the cyan BootWindow in App.OnLaunched.
+            var replacementVisible = await Task.Run(async () =>
+            {
+                var timeout = System.Diagnostics.Stopwatch.StartNew();
+                while (timeout.Elapsed < TimeSpan.FromSeconds(20))
+                {
+                    newProcess.Refresh();
+                    if (newProcess.HasExited)
+                        throw new InvalidOperationException(
+                            "Replacement archive process exited during startup.");
+
+                    if (newProcess.MainWindowHandle != IntPtr.Zero)
+                        return true;
+
+                    await Task.Delay(100);
+                }
+                return false;
+            });
+
+            if (!replacementVisible)
+                throw new TimeoutException(
+                    "Replacement archive boot window was not detected.");
+
+            transition.SetPhase(
+                6,
+                100,
+                "HANDOFF CONFIRMED",
+                "Replacement node responded. Transferring visual control...",
+                warning: true);
+
+            const int minimumTransitionMs = 5000;
+            var remainingTransitionMs =
+                minimumTransitionMs - (int)transitionStopwatch.ElapsedMilliseconds;
+            if (remainingTransitionMs > 0)
+                await Task.Delay(remainingTransitionMs);
+
+            await Task.Delay(350);
+
+            // Finish the old session's async cleanup before leaving the
+            // process, while the warning window still covers the handoff.
+            // OnWindowClosed is not awaitable, so do not rely on its async-void
+            // event handler to complete before Application.Exit().
+            transition.SetPhase(
+                7, 100, "RELEASING OLD SESSION",
+                "Closing local indexing services and releasing database resources...",
+                warning: true);
+            ViewModel.PropertyChanged -= OnMainViewModelPropertyChanged;
+            ViewModel.ImageViewer.PropertyChanged -= OnImageViewerPropertyChanged;
+            ViewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
+            _isClosing = true;
+            ViewModel.ImageGrid.Cleanup();
+            await ViewModel.CleanupAsync();
+
+            // Prevent a second asynchronous cleanup from the Closed event.
+            this.Closed -= OnWindowClosed;
+            this.Close();
+            transition.Close();
+            transition = null;
+            App.Current.Exit();
         }
         catch (Exception ex)
         {
-            var dialog = new ContentDialog
+            try
             {
-                Title = "Could not open album",
-                Content = ex.Message,
-                CloseButtonText = "OK",
-                XamlRoot = AppRoot.XamlRoot
-            };
-            await dialog.ShowAsync();
+                if (newProcess is not null &&
+                    !newProcess.HasExited &&
+                    newProcess.MainWindowHandle == IntPtr.Zero)
+                {
+                    newProcess.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+            }
+
+            if (transition is not null)
+            {
+                transition.SetPhase(
+                    99,
+                    100,
+                    "ARCHIVE SWITCH FAILED",
+                    ex.Message,
+                    warning: false,
+                    fatal: true);
+                await Task.Delay(1800);
+                transition.Close();
+            }
+            else
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "FATAL ERROR // ALBUM OPEN",
+                    Content = ex.Message,
+                    CloseButtonText = "ACKNOWLEDGE",
+                    XamlRoot = AppRoot.XamlRoot,
+                    RequestedTheme = ElementTheme.Dark
+                };
+                await dialog.ShowAsync();
+            }
         }
     }
 

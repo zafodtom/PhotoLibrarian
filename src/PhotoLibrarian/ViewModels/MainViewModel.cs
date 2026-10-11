@@ -568,7 +568,21 @@ public partial class MainViewModel : ObservableObject
                     {
                         App.MainWindow?.DispatcherQueue.TryEnqueue(async () =>
                         {
-                            await RefreshAfterIndexAsync();
+                            try
+                            {
+                                await RefreshAfterIndexAsync();
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                DebugLog.WriteLine(
+                                    "Background index refresh was superseded by a newer grid load");
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugLog.WriteLine(
+                                    $"Background index refresh failed: {ex}");
+                                StatusText = $"Library refresh failed: {ex.Message}";
+                            }
                         });
                     }
 
@@ -591,8 +605,24 @@ public partial class MainViewModel : ObservableObject
             {
                 App.MainWindow?.DispatcherQueue.TryEnqueue(async () =>
                 {
-                    if (!ct.IsCancellationRequested)
+                    if (ct.IsCancellationRequested)
+                        return;
+
+                    try
+                    {
                         await RefreshAfterIndexAsync();
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        DebugLog.WriteLine(
+                            "Final background index refresh was superseded by a newer grid load");
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugLog.WriteLine(
+                            $"Final background index refresh failed: {ex}");
+                        StatusText = $"Library refresh failed: {ex.Message}";
+                    }
                 });
             }
         }, ct);
@@ -1165,7 +1195,17 @@ public partial class MainViewModel : ObservableObject
 
     public async Task RefreshAfterIndexAsync()
     {
-        await ImageGrid.LoadImagesAsync();
+        try
+        {
+            await ImageGrid.LoadImagesAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            DebugLog.WriteLine(
+                "RefreshAfterIndexAsync: image-grid refresh superseded; skipping stale refresh");
+            return;
+        }
+
         TotalImages = await _imageRepo.GetCountAsync();
         StatusText = $"{TotalImages:N0} items";
         // Refresh date and tag navigation data

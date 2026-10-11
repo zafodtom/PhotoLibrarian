@@ -563,6 +563,28 @@ public static class AlbumService
         ref Guid interfaceId,
         [MarshalAs(UnmanagedType.Interface)] out IShellItem shellItem);
 
+    public static System.Diagnostics.Process StartAlbumInstance(string albumRoot)
+    {
+        var processPath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(processPath) || !File.Exists(processPath))
+        {
+            throw new InvalidOperationException(
+                "PhotoLibrarian executable path could not be resolved for album handoff.");
+        }
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = processPath,
+            UseShellExecute = false
+        };
+        startInfo.ArgumentList.Add("--album");
+        startInfo.ArgumentList.Add(albumRoot);
+
+        return System.Diagnostics.Process.Start(startInfo)
+               ?? throw new InvalidOperationException(
+                   "The new PhotoLibrarian process could not be started.");
+    }
+
     public static void RestartForAlbum(string albumRoot)
     {
         var escaped = albumRoot.Replace("\"", "\\\"");
