@@ -10,75 +10,253 @@
           RequestedTheme="Dark"
           Background="{StaticResource HiTechAppBackgroundBrush}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="66" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="30" />
         </Grid.RowDefinitions>
 
-        <!-- Top ribbon (shown when viewer is open) -->
-        <views:TopRibbon x:Name="TopRibbon" Grid.Row="0" Visibility="Collapsed" />
-
-        <!-- Main 3-panel layout -->
-        <Grid x:Name="MainLayout" Grid.Row="1">
+        <!-- Persistent global command / identity header -->
+        <Grid x:Name="GlobalHeader"
+              Grid.Row="0"
+              Background="#0A121A"
+              BorderBrush="{StaticResource HiTechAccentMutedBrush}"
+              BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="LeftPanelColumn" Width="280" MinWidth="200" />
-                <ColumnDefinition x:Name="LeftSplitterColumn" Width="Auto" />
-                <ColumnDefinition x:Name="CenterColumn" Width="*" />
-                <ColumnDefinition x:Name="RightSplitterColumn" Width="Auto" />
-                <ColumnDefinition x:Name="RightPanelColumn" Width="300" MinWidth="200" />
+                <ColumnDefinition Width="310" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="330" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left: Folder Navigation -->
-            <Grid Grid.Column="0" Margin="8,8,0,8">
-                <Border Style="{StaticResource HiTechPanelStyle}">
+            <!-- Brand block -->
+            <Grid Grid.Column="0" Margin="16,8,10,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Rectangle Width="4"
+                           Fill="{StaticResource HiTechAccentBrush}"
+                           HorizontalAlignment="Left" />
+                <StackPanel Grid.Column="1"
+                            Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            Spacing="0">
+                    <TextBlock Text="PHOTO // LIBRARIAN"
+                               FontFamily="Consolas"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               CharacterSpacing="110"
+                               Foreground="{StaticResource HiTechTextPrimaryBrush}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="LOCAL VISUAL ARCHIVE"
+                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                        <Rectangle Width="30" Height="1"
+                                   VerticalAlignment="Center"
+                                   Fill="{StaticResource HiTechAccentMutedBrush}" />
+                        <TextBlock Text="PL-01"
+                                   Foreground="{StaticResource HiTechAccentBrush}"
+                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <!-- Workspace route / telemetry -->
+            <Grid Grid.Column="1" Margin="8,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="1">
+                    <TextBlock Text="ARCHIVE WORKSPACE"
+                               HorizontalAlignment="Center"
+                               Style="{StaticResource HiTechSectionHeaderStyle}"
+                               FontSize="13" />
+                    <TextBlock Text="CATALOG / INSPECT / CLASSIFY"
+                               HorizontalAlignment="Center"
+                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                </StackPanel>
+
+                <Grid Grid.Row="1" Height="12">
+                    <Path Data="M 0,10 L 70,10 L 82,0 L 142,0"
+                          Stroke="{StaticResource HiTechAccentMutedBrush}"
+                          StrokeThickness="1"
+                          HorizontalAlignment="Left" />
+                    <Rectangle Height="1"
+                               Margin="150,0"
+                               Fill="{StaticResource HiTechBorderBrush}"
+                               VerticalAlignment="Bottom" />
+                    <Path Data="M 0,0 L 60,0 L 72,10 L 142,10"
+                          Stroke="{StaticResource HiTechAccentMutedBrush}"
+                          StrokeThickness="1"
+                          HorizontalAlignment="Right" />
+                </Grid>
+            </Grid>
+
+            <!-- System telemetry -->
+            <Grid Grid.Column="2" Margin="10,8,16,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="SYSTEM STATUS"
+                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Ellipse Width="7" Height="7"
+                                 Fill="{StaticResource HiTechAccentBrush}"
+                                 VerticalAlignment="Center" />
+                        <TextBlock Text="INDEX ONLINE"
+                                   FontFamily="Consolas"
+                                   FontSize="11"
+                                   Foreground="{StaticResource HiTechTextPrimaryBrush}" />
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="NODE"
+                               HorizontalAlignment="Right"
+                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                    <TextBlock Text="LOCAL"
+                               HorizontalAlignment="Right"
+                               FontFamily="Consolas"
+                               FontSize="12"
+                               Foreground="{StaticResource HiTechAccentBrush}" />
+                </StackPanel>
+            </Grid>
+
+            <Rectangle Grid.ColumnSpan="3"
+                       Height="2"
+                       Width="92"
+                       HorizontalAlignment="Left"
+                       VerticalAlignment="Bottom"
+                       Margin="16,0,0,-1"
+                       Fill="{StaticResource HiTechAccentBrush}" />
+            <Rectangle Grid.ColumnSpan="3"
+                       Height="2"
+                       Width="54"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Bottom"
+                       Margin="0,0,16,-1"
+                       Fill="{StaticResource HiTechAccentMutedBrush}" />
+        </Grid>
+
+        <!-- Viewer edit command rail -->
+        <views:TopRibbon x:Name="TopRibbon"
+                         Grid.Row="1"
+                         Visibility="Collapsed" />
+
+        <!-- Main workspace -->
+        <Grid x:Name="MainLayout"
+              Grid.Row="2"
+              Margin="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="SystemRailColumn" Width="48" />
+                <ColumnDefinition x:Name="LeftPanelColumn" Width="245" MinWidth="200" />
+                <ColumnDefinition x:Name="LeftSplitterColumn" Width="8" />
+                <ColumnDefinition x:Name="CenterColumn" Width="*" />
+                <ColumnDefinition x:Name="RightSplitterColumn" Width="8" />
+                <ColumnDefinition x:Name="RightPanelColumn" Width="330" MinWidth="230" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left system rail -->
+            <Grid x:Name="SystemRail"
+                  Grid.Column="0"
+                  Background="#091018"
+                  BorderBrush="{StaticResource HiTechBorderBrush}"
+                  BorderThickness="0,0,1,0">
+                <StackPanel VerticalAlignment="Top"
+                            HorizontalAlignment="Center"
+                            Margin="0,14,0,0"
+                            Spacing="8">
+                    <TextBlock Text="01"
+                               FontFamily="Consolas"
+                               FontSize="17"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource HiTechAccentBrush}" />
+                    <Rectangle Width="1" Height="48"
+                               Fill="{StaticResource HiTechAccentMutedBrush}" />
+                    <TextBlock Text="NAV"
+                               FontFamily="Consolas"
+                               FontSize="9"
+                               CharacterSpacing="150"
+                               Foreground="{StaticResource HiTechTextSecondaryBrush}">
+                        <TextBlock.RenderTransform>
+                            <RotateTransform Angle="-90" CenterX="10" CenterY="10" />
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel VerticalAlignment="Bottom"
+                            HorizontalAlignment="Center"
+                            Margin="0,0,0,14"
+                            Spacing="7">
+                    <Rectangle Width="18" Height="2"
+                               Fill="{StaticResource HiTechAccentBrush}" />
+                    <Rectangle Width="8" Height="1"
+                               Fill="{StaticResource HiTechAccentMutedBrush}" />
+                    <Rectangle Width="14" Height="1"
+                               Fill="{StaticResource HiTechAccentMutedBrush}" />
+                    <TextBlock Text="PL"
+                               FontFamily="Consolas"
+                               FontSize="9"
+                               Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Navigation bay -->
+            <Grid Grid.Column="1" Margin="8,10,0,10">
+                <Border Background="#C90A1118"
+                        BorderBrush="{StaticResource HiTechBorderBrush}"
+                        BorderThickness="1">
                     <views:FolderNavigationPanel x:Name="FolderNavPanel" />
                 </Border>
-                <Path Data="M 0,22 L 0,0 L 22,0"
+                <Path Data="M 0,26 L 0,0 L 34,0"
                       Stroke="{StaticResource HiTechAccentBrush}"
                       StrokeThickness="2"
                       HorizontalAlignment="Left"
                       VerticalAlignment="Top"
                       IsHitTestVisible="False" />
-                <Path Data="M 0,22 L 0,0 L 22,0"
-                      Stroke="{StaticResource HiTechAccentMutedBrush}"
-                      StrokeThickness="2"
-                      HorizontalAlignment="Right"
-                      VerticalAlignment="Bottom"
-                      RenderTransformOrigin="0.5,0.5"
-                      IsHitTestVisible="False">
-                    <Path.RenderTransform>
-                        <RotateTransform Angle="180" />
-                    </Path.RenderTransform>
-                </Path>
+                <TextBlock Text="NAV BAY"
+                           Margin="12,0,0,8"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Bottom"
+                           Style="{StaticResource HiTechTinyLabelStyle}"
+                           IsHitTestVisible="False"
+                           Opacity="0.55" />
             </Grid>
 
-            <!-- Resizable splitter -->
             <controls:GridSplitter x:Name="LeftPanelSplitter"
-                                   Grid.Column="1" 
-                                   Width="12"
+                                   Grid.Column="2"
+                                   Width="8"
                                    ResizeBehavior="BasedOnAlignment"
                                    ResizeDirection="Auto"
                                    Background="Transparent"
                                    HorizontalAlignment="Stretch" />
 
-            <!-- Center: Image Grid with Viewer Overlay -->
-            <Grid Grid.Column="2" Margin="0,8,0,8">
-                <Border Style="{StaticResource HiTechPanelAltStyle}">
+            <!-- Main viewport -->
+            <Grid Grid.Column="3" Margin="2,10">
+                <Border Background="#0A121A"
+                        BorderBrush="{StaticResource HiTechBorderStrongBrush}"
+                        BorderThickness="1">
                     <Grid>
                         <views:ImageGridView x:Name="ImageGridPanel" />
-
-                        <!-- Overlay: Image Viewer (only over grid area) -->
                         <views:ImageViewerOverlay x:Name="ViewerOverlay"
                                                   Visibility="Collapsed" />
                     </Grid>
                 </Border>
-                <Path Data="M 0,28 L 0,0 L 42,0"
+
+                <!-- large frame brackets -->
+                <Path Data="M 0,40 L 0,0 L 72,0"
                       Stroke="{StaticResource HiTechAccentBrush}"
                       StrokeThickness="2"
                       HorizontalAlignment="Left"
                       VerticalAlignment="Top"
                       IsHitTestVisible="False" />
-                <Path Data="M 0,28 L 0,0 L 42,0"
+                <Path Data="M 0,40 L 0,0 L 72,0"
                       Stroke="{StaticResource HiTechAccentBrush}"
                       StrokeThickness="2"
                       HorizontalAlignment="Right"
@@ -89,23 +267,33 @@
                         <RotateTransform Angle="180" />
                     </Path.RenderTransform>
                 </Path>
+                <Border Width="96"
+                        Height="5"
+                        Background="{StaticResource HiTechAccentFillBrush}"
+                        BorderBrush="{StaticResource HiTechAccentMutedBrush}"
+                        BorderThickness="1"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="0,-2,76,0"
+                        IsHitTestVisible="False" />
             </Grid>
 
-            <!-- Resizable splitter -->
             <controls:GridSplitter x:Name="RightPanelSplitter"
-                                   Grid.Column="3" 
-                                   Width="12"
+                                   Grid.Column="4"
+                                   Width="8"
                                    ResizeBehavior="BasedOnAlignment"
                                    ResizeDirection="Auto"
                                    Background="Transparent"
                                    HorizontalAlignment="Stretch" />
 
-            <!-- Right: Metadata Panel -->
-            <Grid Grid.Column="4" Margin="0,8,8,8">
-                <Border Style="{StaticResource HiTechPanelStyle}">
+            <!-- Inspection bay -->
+            <Grid Grid.Column="5" Margin="0,10,10,10">
+                <Border Background="#C90A1118"
+                        BorderBrush="{StaticResource HiTechBorderBrush}"
+                        BorderThickness="1">
                     <views:MetadataPanel x:Name="MetadataDetailPanel" />
                 </Border>
-                <Path Data="M 0,22 L 0,0 L 22,0"
+                <Path Data="M 0,28 L 0,0 L 42,0"
                       Stroke="{StaticResource HiTechAccentBrush}"
                       StrokeThickness="2"
                       HorizontalAlignment="Right"
@@ -116,51 +304,60 @@
                         <ScaleTransform ScaleX="-1" />
                     </Path.RenderTransform>
                 </Path>
-                <Path Data="M 0,22 L 0,0 L 22,0"
-                      Stroke="{StaticResource HiTechAccentMutedBrush}"
-                      StrokeThickness="2"
-                      HorizontalAlignment="Left"
-                      VerticalAlignment="Bottom"
-                      RenderTransformOrigin="0.5,0.5"
-                      IsHitTestVisible="False">
-                    <Path.RenderTransform>
-                        <ScaleTransform ScaleY="-1" />
-                    </Path.RenderTransform>
-                </Path>
+                <TextBlock Text="INSPECTION BAY // 03"
+                           Margin="0,0,12,8"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Bottom"
+                           Style="{StaticResource HiTechTinyLabelStyle}"
+                           IsHitTestVisible="False"
+                           Opacity="0.55" />
             </Grid>
         </Grid>
 
-        <!-- Start screen shown when no album was supplied. -->
+        <!-- Start screen -->
         <Grid x:Name="AlbumStartOverlay"
-              Grid.Row="1"
+              Grid.Row="2"
               Background="{StaticResource HiTechAppBackgroundBrush}"
               Visibility="Collapsed">
-            <StackPanel Width="420"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Spacing="16">
-                <TextBlock Text="PHOTOLIBRARIAN"
-                           FontSize="30"
-                           HorizontalAlignment="Center"
-                           Style="{StaticResource HiTechTitleStyle}" />
-                <TextBlock Text="Choose an existing album folder or a regular photo folder. If it is not an album yet, PhotoLibrarian will create one automatically."
-                           TextWrapping="Wrap"
-                           TextAlignment="Center"
-                           Foreground="{StaticResource HiTechTextSecondaryBrush}" />
-                <Button Content="Open / create album"
-                        Click="OnOpenAlbumClick"
-                        HorizontalAlignment="Stretch"
-                        Padding="16,10"
-                        Style="{StaticResource HiTechPrimaryButtonStyle}" />
-            </StackPanel>
+            <Border Width="540"
+                    Padding="32"
+                    Style="{StaticResource HiTechModuleStyle}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="PHOTO // LIBRARIAN"
+                               FontSize="28"
+                               HorizontalAlignment="Center"
+                               Style="{StaticResource HiTechTitleStyle}" />
+                    <TextBlock Text="INITIALIZE VISUAL ARCHIVE"
+                               HorizontalAlignment="Center"
+                               Style="{StaticResource HiTechSectionHeaderStyle}" />
+                    <Rectangle Height="1"
+                               Fill="{StaticResource HiTechAccentMutedBrush}" />
+                    <TextBlock Text="Choose an existing album folder or a regular photo folder. If it is not an album yet, PhotoLibrarian will create one automatically."
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                    <Button Content="OPEN / CREATE ALBUM"
+                            Click="OnOpenAlbumClick"
+                            HorizontalAlignment="Stretch"
+                            Padding="16,10"
+                            Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!-- Overlay: Image Editor -->
-        <views:ImageEditorView x:Name="EditorOverlay" Grid.Row="0" Grid.RowSpan="2"
-                                Visibility="Collapsed" />
+        <views:ImageEditorView x:Name="EditorOverlay"
+                               Grid.Row="0"
+                               Grid.RowSpan="3"
+                               Visibility="Collapsed" />
 
         <!-- Overlay: Settings Panel -->
-        <Border x:Name="SettingsOverlay" Grid.Row="0" Grid.RowSpan="2" Visibility="Collapsed"
+        <Border x:Name="SettingsOverlay"
+                Grid.Row="0"
+                Grid.RowSpan="3"
+                Visibility="Collapsed"
                 Background="{StaticResource HiTechAppBackgroundBrush}">
             <Border Style="{StaticResource HiTechPanelAltStyle}"
                     MaxWidth="760"
@@ -171,18 +368,22 @@
             </Border>
         </Border>
 
-        <!-- Status bar -->
+        <!-- Bottom system rail -->
         <Grid x:Name="StatusBar"
-              Grid.Row="2"
-              Padding="12,6"
-              Background="{StaticResource HiTechPanelBackgroundAltBrush}">
+              Grid.Row="3"
+              Padding="12,5"
+              Background="#091018"
+              BorderBrush="{StaticResource HiTechBorderBrush}"
+              BorderThickness="0,1,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="10"
+                        VerticalAlignment="Center">
                 <TextBlock Text="SYS"
                            Foreground="{StaticResource HiTechAccentBrush}"
                            Style="{StaticResource HiTechCaptionStyle}" />
@@ -207,7 +408,6 @@
                     AutomationProperties.AutomationId="SettingsButton"
                     AutomationProperties.Name="Settings"
                     Click="OnSettingsClick"
-                    Padding="8,4"
                     ToolTipService.ToolTip="Settings"
                     Style="{StaticResource HiTechIconButtonStyle}">
                 <FontIcon Glyph="&#xE713;" FontSize="14" />
