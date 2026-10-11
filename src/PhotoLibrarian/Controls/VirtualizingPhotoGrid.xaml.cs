@@ -858,6 +858,59 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
             IsHitTestVisible = false
         });
 
+        // Selected-photo target brackets. These stay lightweight and are toggled
+        // together with the existing selection border.
+        foreach (var bracket in new[]
+        {
+            new Border
+            {
+                Tag = SelectionBracketTag,
+                Width = 22, Height = 22,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                BorderBrush = new SolidColorBrush(SelectionColor),
+                BorderThickness = new Thickness(3, 3, 0, 0),
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            },
+            new Border
+            {
+                Tag = SelectionBracketTag,
+                Width = 22, Height = 22,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                BorderBrush = new SolidColorBrush(SelectionColor),
+                BorderThickness = new Thickness(0, 3, 3, 0),
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            },
+            new Border
+            {
+                Tag = SelectionBracketTag,
+                Width = 22, Height = 22,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                BorderBrush = new SolidColorBrush(SelectionColor),
+                BorderThickness = new Thickness(3, 0, 0, 3),
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            },
+            new Border
+            {
+                Tag = SelectionBracketTag,
+                Width = 22, Height = 22,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                BorderBrush = new SolidColorBrush(SelectionColor),
+                BorderThickness = new Thickness(0, 0, 3, 3),
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            }
+        })
+        {
+            grid.Children.Add(bracket);
+        }
+
         // Flag badge (top-left) — visible only for flagged items
         var flagBadge = new Border
         {
@@ -910,6 +963,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     }
 
     private const string FaceHighlightTag = "FaceHighlightBorder";
+    private const string SelectionBracketTag = "SelectionBracket";
     private FrameworkElement? _faceHighlightElement;
 
     /// <summary>
@@ -1183,6 +1237,13 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
                 selected
                     ? Windows.UI.Color.FromArgb(255, 16, 35, 45)
                     : CardBackgroundColor);
+
+            foreach (var bracket in grid.Children
+                         .OfType<Border>()
+                         .Where(border => Equals(border.Tag, SelectionBracketTag)))
+            {
+                bracket.Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
+            }
         }
     }
 
