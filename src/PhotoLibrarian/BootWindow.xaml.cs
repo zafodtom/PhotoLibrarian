@@ -10,6 +10,20 @@ public sealed partial class BootWindow : Window
         InitializeComponent();
 
         AppWindow.Resize(new Windows.Graphics.SizeInt32(760, 430));
+        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
+        var bounds = area.WorkArea;
+        AppWindow.Move(new Windows.Graphics.PointInt32(
+            bounds.X + System.Math.Max(0, (bounds.Width - AppWindow.Size.Width) / 2),
+            bounds.Y + System.Math.Max(0, (bounds.Height - AppWindow.Size.Height) / 2)));
+
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(BootDragRegion);
+        if (AppWindow.TitleBar is { } titleBar)
+        {
+            titleBar.BackgroundColor = Windows.UI.Color.FromArgb(255, 7, 11, 16);
+            titleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(255, 7, 11, 16);
+            titleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 83, 215, 232);
+        }
         AppWindow.Title = "PhotoLibrarian // Boot";
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
