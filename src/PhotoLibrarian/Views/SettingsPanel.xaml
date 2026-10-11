@@ -448,6 +448,22 @@
             </ScrollViewer>
         </Grid>
 
+        <!-- Destructive album control: deliberately separate from cache actions -->
+        <Grid Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+              Margin="0,0,32,26">
+            <Button x:Name="DeleteAlbumButton"
+                    Content="DELETE ALBUM"
+                    Click="OnDeleteAlbum"
+                    Padding="18,10"
+                    FontFamily="Consolas"
+                    FontWeight="SemiBold"
+                    BorderBrush="#FF4657"
+                    BorderThickness="2"
+                    Background="#321016"
+                    Foreground="#FF7180"
+                    ToolTipService.ToolTip="Remove PhotoLibrarian catalog files; keep your photographs" />
+        </Grid>
+
         <!-- Footer command rail -->
         <Grid Grid.Row="2"
               Background="#091018"
