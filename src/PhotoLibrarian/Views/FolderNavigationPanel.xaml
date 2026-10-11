@@ -40,13 +40,39 @@
 
         <!-- Sections: Library, Date, People, Tags, Flags -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Spacing="16">
+            <StackPanel Spacing="10">
+                <Grid Height="18">
+                    <TextBlock Text="NAV / INDEX"
+                               Style="{StaticResource HiTechTinyLabelStyle}"
+                               VerticalAlignment="Center" />
+                    <Rectangle Height="1"
+                               Margin="78,0,0,0"
+                               Fill="{StaticResource HiTechAccentMutedBrush}"
+                               VerticalAlignment="Center" />
+                </Grid>
                 
                 <!-- Library Section -->
-                <StackPanel>
-                    <TextBlock Text="LIBRARY"
-                               Style="{StaticResource HiTechSectionHeaderStyle}"
-                               Margin="0,0,0,8" />
+                <Border Style="{StaticResource HiTechModuleStyle}">
+                    <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Width="3" Height="14"
+                                   Fill="{StaticResource HiTechAccentBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   Text="LIBRARY"
+                                   Style="{StaticResource HiTechSectionHeaderStyle}"
+                                   Margin="8,0,0,0"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2"
+                                   Text="A01"
+                                   Style="{StaticResource HiTechTinyLabelStyle}"
+                                   VerticalAlignment="Center" />
+                    </Grid>
                     <TreeView x:Name="LibraryTree"
                               Style="{StaticResource HiTechTreeViewStyle}"
                               SelectionMode="None"
@@ -69,7 +95,8 @@
                             </DataTemplate>
                         </TreeView.ItemTemplate>
                     </TreeView>
-                </StackPanel>
+                    </StackPanel>
+                </Border>
 
                 <!-- Date navigation retained in code, hidden for the current album UI. -->
                 <StackPanel Visibility="Collapsed">
@@ -92,32 +119,44 @@
                 </StackPanel>
 
                 <!-- Tags Section -->
-                <StackPanel>
+                <Border Style="{StaticResource HiTechModuleStyle}">
+                    <StackPanel>
                     <Grid Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="TAGS"
-                                   Style="{StaticResource HiTechSectionHeaderStyle}"
-                                   VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Rectangle Width="3" Height="14"
+                                       Fill="{StaticResource HiTechAccentBrush}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="TAGS"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="B02"
+                                       Style="{StaticResource HiTechTinyLabelStyle}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
                         <StackPanel Grid.Column="1"
                                     Orientation="Horizontal"
                                     Spacing="2">
                             <Button Click="OnManageTagCatalogClick"
                                     Padding="5,3"
+                                    Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Manage tag catalog"
                                     AutomationProperties.Name="Manage tag catalog">
                                 <FontIcon Glyph="&#xE713;" FontSize="12" />
                             </Button>
                             <Button Click="OnExpandAllTagsClick"
                                     Padding="5,3"
+                                    Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Expand all tags"
                                     AutomationProperties.Name="Expand all tags">
                                 <FontIcon Glyph="&#xE70D;" FontSize="12" />
                             </Button>
                             <Button Click="OnCollapseAllTagsClick"
                                     Padding="5,3"
+                                    Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Collapse all tags"
                                     AutomationProperties.Name="Collapse all tags">
                                 <FontIcon Glyph="&#xE70E;" FontSize="12" />
@@ -149,7 +188,8 @@
                             </DataTemplate>
                         </TreeView.ItemTemplate>
                     </TreeView>
-                </StackPanel>
+                    </StackPanel>
+                </Border>
 
                 <!-- Flags retained in code, hidden for the current album UI. -->
                 <StackPanel Visibility="Collapsed">
