@@ -509,14 +509,34 @@ public sealed partial class MetadataPanel : UserControl
         panel.Children.Add(nameBox);
         panel.Children.Add(info);
 
+        var hudContent = new StackPanel { Spacing = 12, MinWidth = 420 };
+        hudContent.Children.Add(CreateTagDialogHost(panel, "MANAGE CATALOG TAG"));
+        var actionRail = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = 8
+        };
+        var saveButton = new Button { Content = "SAVE CHANGES" };
+        var removeButton = new Button { Content = "REMOVE FROM CATALOG" };
+        var cancelButton = new Button { Content = "CANCEL" };
+        saveButton.Style = (Style)Application.Current.Resources["HiTechPrimaryButtonStyle"];
+        removeButton.Style = (Style)Application.Current.Resources["HiTechIconButtonStyle"];
+        cancelButton.Style = (Style)Application.Current.Resources["HiTechIconButtonStyle"];
+        actionRail.Children.Add(saveButton);
+        actionRail.Children.Add(removeButton);
+        actionRail.Children.Add(cancelButton);
+        hudContent.Children.Add(new Border
+        {
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 52, 115, 138)),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(0, 12, 0, 0),
+            Child = actionRail
+        });
         var dialog = new ContentDialog
         {
             Title = null,
-            Content = CreateTagDialogHost(panel, "MANAGE CATALOG TAG"),
-            PrimaryButtonText = "SAVE CHANGES",
-            SecondaryButtonText = "REMOVE FROM CATALOG",
-            CloseButtonText = "CANCEL",
-            DefaultButton = ContentDialogButton.Primary,
+            Content = hudContent,
             XamlRoot = XamlRoot,
             RequestedTheme = ElementTheme.Dark,
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 9, 16, 24)),
@@ -525,7 +545,11 @@ public sealed partial class MetadataPanel : UserControl
             BorderThickness = new Thickness(1)
         };
 
-        var result = await dialog.ShowAsync();
+        var result = ContentDialogResult.None;
+        saveButton.Click += (_, _) => { result = ContentDialogResult.Primary; dialog.Hide(); };
+        removeButton.Click += (_, _) => { result = ContentDialogResult.Secondary; dialog.Hide(); };
+        cancelButton.Click += (_, _) => dialog.Hide();
+        await dialog.ShowAsync();
 
         if (result == ContentDialogResult.Secondary)
         {
