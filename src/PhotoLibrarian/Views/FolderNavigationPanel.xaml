@@ -145,7 +145,7 @@
                                     Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Manage tag catalog"
                                     AutomationProperties.Name="Manage tag catalog">
-                                <FontIcon Glyph="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                                <SymbolIcon Symbol="Setting" Width="16" Height="16" />
                             </Button>
                             <Button Click="OnExpandAllTagsClick"
                                     Padding="5,3"
