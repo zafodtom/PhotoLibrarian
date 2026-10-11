@@ -315,7 +315,7 @@ public sealed partial class SettingsPanel : UserControl
         var panel = new StackPanel { Spacing = 14, MinWidth = 500 };
         panel.Children.Add(new TextBlock
         {
-            Text = "⚠  WARNING // ARCHIVE TERMINATION",
+            Text = "WARNING // ARCHIVE TERMINATION",
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
             FontSize = 19, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
             Foreground = red
