@@ -83,6 +83,46 @@
                 </Button>
             </StackPanel>
 
+            <!-- Central FUI identity block -->
+            <StackPanel Grid.Column="2"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="1">
+                <TextBlock Text="VISUAL INDEX"
+                           HorizontalAlignment="Center"
+                           Style="{StaticResource HiTechSectionHeaderStyle}" />
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Spacing="6">
+                    <TextBlock Text="LIBRARY FEED"
+                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                    <Rectangle Width="32"
+                               Height="1"
+                               Fill="{StaticResource HiTechAccentMutedBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="LIVE"
+                               Foreground="{StaticResource HiTechAccentBrush}"
+                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                </StackPanel>
+            </StackPanel>
+
+            <Path Grid.Column="2"
+                  Data="M 0,0 L 16,0 L 24,8 L 58,8"
+                  Stroke="{StaticResource HiTechAccentMutedBrush}"
+                  StrokeThickness="1"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Bottom"
+                  Margin="14,0,0,2"
+                  IsHitTestVisible="False" />
+            <Path Grid.Column="2"
+                  Data="M 0,8 L 34,8 L 42,0 L 58,0"
+                  Stroke="{StaticResource HiTechAccentMutedBrush}"
+                  StrokeThickness="1"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Top"
+                  Margin="0,2,14,0"
+                  IsHitTestVisible="False" />
+
             <!-- Refinement filters -->
             <Button x:Name="FilterButton"
                     AutomationProperties.AutomationId="GridFilterButton"
@@ -338,9 +378,35 @@
         </ScrollViewer>
 
         <!-- Custom Virtualizing Photo Grid -->
-        <local:VirtualizingPhotoGrid x:Name="PhotoGrid"
-                                     Grid.Row="2"
-                                     RightTapped="OnGridBackgroundRightTapped" />
+        <Grid Grid.Row="2">
+            <local:VirtualizingPhotoGrid x:Name="PhotoGrid"
+                                         RightTapped="OnGridBackgroundRightTapped" />
+            <StackPanel HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Margin="6,10,0,0"
+                        Spacing="6"
+                        IsHitTestVisible="False"
+                        Opacity="0.55">
+                <Rectangle Width="18" Height="2"
+                           Fill="{StaticResource HiTechAccentBrush}" />
+                <Rectangle Width="8" Height="1"
+                           Fill="{StaticResource HiTechAccentMutedBrush}" />
+                <Rectangle Width="14" Height="1"
+                           Fill="{StaticResource HiTechAccentMutedBrush}" />
+            </StackPanel>
+            <StackPanel HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Margin="0,0,8,8"
+                        Spacing="4"
+                        IsHitTestVisible="False"
+                        Opacity="0.45">
+                <TextBlock Text="IDX"
+                           HorizontalAlignment="Right"
+                           Style="{StaticResource HiTechTinyLabelStyle}" />
+                <Rectangle Width="38" Height="1"
+                           Fill="{StaticResource HiTechAccentMutedBrush}" />
+            </StackPanel>
+        </Grid>
 
         <!-- Empty state -->
         <StackPanel x:Name="EmptyState" Grid.Row="2"
