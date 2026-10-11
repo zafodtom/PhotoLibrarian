@@ -531,6 +531,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             SelectionMode = ListViewSelectionMode.Single,
             MinWidth = 520,
+            MinHeight = 260,
             MaxHeight = 440,
             CanDragItems = true,
             CanReorderItems = false,
@@ -649,7 +650,8 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var rootDropZone = new Border
         {
-            Padding = new Thickness(8, 7, 8, 7),
+            MinHeight = 38,
+            Padding = new Thickness(12, 8, 12, 8),
             CornerRadius = new CornerRadius(1),
             BorderThickness = new Thickness(1),
             BorderBrush = strongBorderBrush,
@@ -658,7 +660,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             AllowDrop = true,
             Child = new TextBlock
             {
-                Text = "ROOT DROP ZONE  //  MOVE TO ROOT",
+                Text = "ROOT DROP ZONE  //  DROP TAG HERE TO MOVE TO ROOT",
+                TextWrapping = TextWrapping.Wrap,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 10,
