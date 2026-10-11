@@ -14,13 +14,17 @@
             <Setter Property="FontSize" Value="13" />
         </Style>
         <Style x:Key="InfoLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource HiTechTextSecondaryBrush}" />
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource HiTechAccentMutedBrush}" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="CharacterSpacing" Value="60" />
             <Setter Property="Width" Value="90" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style x:Key="InfoValueStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
@@ -47,6 +51,12 @@
                 </Grid.RowDefinitions>
 
                 <!-- ═══ Row 0: Editable sections ═══ -->
+                <Border Grid.Row="0"
+                        Background="#66070D13"
+                        BorderBrush="{StaticResource HiTechBorderBrush}"
+                        BorderThickness="0,0,0,1"
+                        Margin="0,0,0,8"
+                        IsHitTestVisible="False" />
                 <StackPanel Grid.Row="0" Spacing="0">
                     <Grid Margin="0,10,0,8" Height="28">
                         <Grid.ColumnDefinitions>
