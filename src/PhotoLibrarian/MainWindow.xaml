@@ -439,7 +439,7 @@
                     Click="OnSettingsClick"
                     ToolTipService.ToolTip="Settings"
                     Style="{StaticResource HiTechIconButtonStyle}">
-                <FontIcon Glyph="&#xE713;" FontFamily="Segoe Fluent Icons" FontSize="16" />
+                <PathIcon Data="M19.14,12.94 A7.9,7.9 0 0 0 19.2,11.06 L21,9.66 19,6.2 16.88,7.03 A7.8,7.8 0 0 0 15.25,6.08 L14.93,3.8 10.93,3.8 10.61,6.08 A7.8,7.8 0 0 0 8.98,7.03 L6.86,6.2 4.86,9.66 6.66,11.06 A7.9,7.9 0 0 0 6.66,12.94 L4.86,14.34 6.86,17.8 8.98,16.97 A7.8,7.8 0 0 0 10.61,17.92 L10.93,20.2 14.93,20.2 15.25,17.92 A7.8,7.8 0 0 0 16.88,16.97 L19,17.8 21,14.34 Z M12.93,15 A3,3 0 1 1 12.93,9 A3,3 0 1 1 12.93,15 Z" Width="16" Height="16" Foreground="{StaticResource HiTechAccentBrush}" />
             </Button>
         </Grid>
     </Grid>
