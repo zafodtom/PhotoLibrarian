@@ -531,13 +531,14 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             SelectionMode = ListViewSelectionMode.Single,
             MinWidth = 520,
-            MaxHeight = 520,
+            MaxHeight = 440,
             CanDragItems = true,
             CanReorderItems = false,
             AllowDrop = true,
             Background = panelBrush,
             BorderBrush = borderBrush,
-            BorderThickness = new Thickness(1)
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4)
         };
 
         var addTagButton = new Button
@@ -569,7 +570,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var hint = new TextBlock
         {
-            Text = "Every item is a tag. Hierarchy is defined by tag paths. Removing a used tag from the catalog keeps its assignments on photos. Drag a tag onto another tag to move it below it, or use the root drop zone.",
+            Text = "Drag a tag onto another to nest it, or drop it on ROOT to move it to the top level. Removing a used tag keeps its photo assignments.",
             TextWrapping = TextWrapping.Wrap,
             FontFamily = new FontFamily("Consolas"),
             FontSize = 10,
@@ -585,13 +586,13 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var content = new StackPanel
         {
-            Spacing = 12,
-            MinWidth = 700
+            Spacing = 9,
+            MinWidth = 580
         };
 
         var consoleHeader = new Grid
         {
-            Height = 54
+            Height = 46
         };
         consoleHeader.ColumnDefinitions.Add(
             new ColumnDefinition { Width = new GridLength(6) });
@@ -648,7 +649,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var rootDropZone = new Border
         {
-            Padding = new Thickness(12, 9, 12, 9),
+            Padding = new Thickness(8, 7, 8, 7),
             CornerRadius = new CornerRadius(1),
             BorderThickness = new Thickness(1),
             BorderBrush = strongBorderBrush,
@@ -657,7 +658,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             AllowDrop = true,
             Child = new TextBlock
             {
-                Text = "ROOT DROP ZONE  //  MOVE TAG TO ALBUM ROOT",
+                Text = "ROOT DROP ZONE  //  MOVE TO ROOT",
                 HorizontalAlignment = HorizontalAlignment.Center,
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 10,
@@ -683,17 +684,17 @@ public sealed partial class FolderNavigationPanel : UserControl
             Background = panelBrush,
             BorderBrush = strongBorderBrush,
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(16),
+            Padding = new Thickness(14),
             Child = content
         };
 
         var dialog = new ContentDialog
         {
-            Title = "TAG CATALOG CONTROL",
+            Title = "TAG // CATALOG CONTROL",
             Content = dialogHost,
             CloseButtonText = "CLOSE CONSOLE",
             XamlRoot = XamlRoot,
-            MinWidth = 760,
+            MinWidth = 660,
             RequestedTheme = ElementTheme.Dark
         };
 
