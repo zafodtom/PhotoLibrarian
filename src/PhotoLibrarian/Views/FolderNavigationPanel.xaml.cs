@@ -660,7 +660,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             AllowDrop = true,
             Child = new TextBlock
             {
-                Text = "↥  ROOT  //  DROP TAG HERE TO MOVE TO TOP LEVEL",
+                Text = "ROOT LEVEL  //  DROP TAG HERE",
                 TextWrapping = TextWrapping.Wrap,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 FontFamily = new FontFamily("Consolas"),
@@ -679,18 +679,35 @@ public sealed partial class FolderNavigationPanel : UserControl
         content.Children.Add(toolbar);
         content.Children.Add(hint);
         content.Children.Add(managerStatus);
-        content.Children.Add(list);
-        content.Children.Add(rootDropZone);
-        var emptyCatalogHint = new TextBlock
+        var emptyCatalogHint = new StackPanel
         {
-            Text = "NO TAGS IN CATALOG  //  CREATE A NEW TAG ABOVE",
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 11,
-            Foreground = secondaryTextBrush,
             HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = 6,
+            IsHitTestVisible = false,
             Visibility = Visibility.Collapsed
         };
-        content.Children.Add(emptyCatalogHint);
+        emptyCatalogHint.Children.Add(new TextBlock
+        {
+            Text = "CATALOG EMPTY",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 14,
+            Foreground = accentBrush
+        });
+        emptyCatalogHint.Children.Add(new TextBlock
+        {
+            Text = "USE NEW TAG TO INITIALIZE THE CATALOG",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 10,
+            Foreground = secondaryTextBrush
+        });
+        var listHost = new Grid { MinHeight = 230 };
+        listHost.Children.Add(list);
+        listHost.Children.Add(emptyCatalogHint);
+        content.Children.Add(listHost);
+        content.Children.Add(rootDropZone);
 
         var dialogHost = new Border
         {
