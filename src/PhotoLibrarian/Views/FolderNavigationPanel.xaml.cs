@@ -681,6 +681,16 @@ public sealed partial class FolderNavigationPanel : UserControl
         content.Children.Add(managerStatus);
         content.Children.Add(rootDropZone);
         content.Children.Add(list);
+        var emptyCatalogHint = new TextBlock
+        {
+            Text = "NO TAGS IN CATALOG  //  CREATE A NEW TAG ABOVE",
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 11,
+            Foreground = secondaryTextBrush,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Visibility = Visibility.Collapsed
+        };
+        content.Children.Add(emptyCatalogHint);
 
         var dialogHost = new Border
         {
@@ -711,9 +721,13 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         void ReloadRows()
         {
-            list.ItemsSource = metadata.AvailableTags
+            var rows = metadata.AvailableTags
                 .Select(item => new CatalogManagerRow(item))
                 .ToList();
+            list.ItemsSource = rows;
+            emptyCatalogHint.Visibility = rows.Count == 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             editButton.IsEnabled = false;
             removeButton.IsEnabled = false;
             ShowManagerStatus(null);
@@ -1141,7 +1155,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         ISet<string>? selectedPaths = null)
     {
         // Create display text with icon
-        string icon = "📁";
+        string icon = "";
         string displayName = folderNode.Name;
         string displayText = isRootFolder 
             ? $"{icon} {folderNode.Path}"  // Show full path for root folders
@@ -1789,11 +1803,10 @@ public sealed partial class FolderNavigationPanel : UserControl
         public override string ToString()
         {
             var indent = new string(' ', Math.Max(0, Item.Depth) * 4);
-            var icon = "🏷️";
             var state = string.IsNullOrWhiteSpace(Item.SourceLabel)
                 ? ""
                 : $"  [{Item.SourceLabel}]";
-            return $"{indent}{icon} {Item.Name}{state}";
+            return $"{indent}{Item.Name}{state}";
         }
     }
 
@@ -1816,7 +1829,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             if (TagNode.IsRoot)
                 return $"{TagNode.Name} ({TagNode.Count})";
 
-            return $"🏷️ {TagNode.Name} ({TagNode.Count})";
+            return $"{TagNode.Name} ({TagNode.Count})";
         }
     }
 }
