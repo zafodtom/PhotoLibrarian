@@ -439,7 +439,7 @@
                     Click="OnSettingsClick"
                     ToolTipService.ToolTip="Settings"
                     Style="{StaticResource HiTechIconButtonStyle}">
-                <SymbolIcon Symbol="Setting" Width="18" Height="18" />
+                <FontIcon Glyph="&#xE713;" FontFamily="Segoe Fluent Icons" FontSize="16" />
             </Button>
         </Grid>
     </Grid>
