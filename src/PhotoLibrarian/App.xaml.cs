@@ -230,7 +230,7 @@ public partial class App : Application
                 ? "Archive console ready."
                 : "Album mounted. Rendering workspace...");
 
-        var minimumBootMs = CurrentAlbumPath is null ? 700 : 950;
+        const int minimumBootMs = 5000;
         var remainingBootMs =
             minimumBootMs - (int)bootStopwatch.ElapsedMilliseconds;
         if (remainingBootMs > 0)
