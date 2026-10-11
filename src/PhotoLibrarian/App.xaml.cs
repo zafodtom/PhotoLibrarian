@@ -66,6 +66,7 @@ public partial class App : Application
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
         BootWindow? bootWindow = null;
+        var bootStopwatch = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             CurrentAlbumPath = AlbumService.GetAlbumPathFromCommandLine();
@@ -79,7 +80,8 @@ public partial class App : Application
                 CurrentAlbumPath is null
                     ? "Preparing clean local session..."
                     : "Resolving portable album root...");
-            await Task.Yield();
+            // Give WinUI a real render opportunity before startup work continues.
+            await Task.Delay(90);
 
         string dbPath;
         if (CurrentAlbumPath is not null)
@@ -228,8 +230,14 @@ public partial class App : Application
                 ? "Archive console ready."
                 : "Album mounted. Rendering workspace...");
 
+        var minimumBootMs = CurrentAlbumPath is null ? 700 : 950;
+        var remainingBootMs =
+            minimumBootMs - (int)bootStopwatch.ElapsedMilliseconds;
+        if (remainingBootMs > 0)
+            await Task.Delay(remainingBootMs);
+
         _window.Activate();
-        await Task.Delay(120);
+        await Task.Delay(180);
         bootWindow.Close();
         bootWindow = null;
         }
@@ -237,7 +245,18 @@ public partial class App : Application
         {
             try
             {
-                bootWindow?.Close();
+                if (bootWindow is not null)
+                {
+                    bootWindow.SetPhase(
+                        99,
+                        100,
+                        "INITIALIZATION FAILED",
+                        ex.Message,
+                        warning: false,
+                        fatal: true);
+                    await Task.Delay(1200);
+                    bootWindow.Close();
+                }
             }
             catch
             {
