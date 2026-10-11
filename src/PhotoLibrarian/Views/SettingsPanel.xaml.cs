@@ -308,6 +308,7 @@ public sealed partial class SettingsPanel : UserControl
             return;
 
         var root = App.CurrentAlbumPath;
+        var xmpCount = AlbumService.FindAlbumXmpSidecars(root).Count;
         var red = new Microsoft.UI.Xaml.Media.SolidColorBrush(
             Windows.UI.Color.FromArgb(255, 255, 80, 94));
         var text = new Microsoft.UI.Xaml.Media.SolidColorBrush(
@@ -339,8 +340,10 @@ public sealed partial class SettingsPanel : UserControl
         panel.Children.Add(new TextBlock
         {
             Text = "PhotoLibrarian catalog, cache and matching album launchers will be deleted. " +
-                   "Original folders and images remain untouched. Embedded image metadata " +
-                   "and external sidecars are NOT erased. The app will close.",
+                   $"All {xmpCount} XMP sidecar file(s) within this album will also be deleted, " +
+                   "including XMP originally created by other software. " +
+                   "Original image/video files and folders remain. Embedded metadata in images " +
+                   "is NOT reverted. Other standalone albums are excluded. The app will close.",
             TextWrapping = TextWrapping.Wrap, Foreground = text
         });
         panel.Children.Add(new TextBlock
