@@ -36,12 +36,40 @@ public sealed partial class BootWindow : Window
         int phase,
         int percent,
         string status,
-        string detail)
+        string detail,
+        bool warning = false,
+        bool fatal = false)
     {
+        var alert = fatal
+            ? "FATAL ERROR"
+            : warning
+                ? "WARNING // ARCHIVE CONTEXT CHANGE"
+                : string.Empty;
+
+        AlertText.Text = alert;
+        AlertText.Visibility = string.IsNullOrEmpty(alert)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        var activeColor = fatal
+            ? Windows.UI.Color.FromArgb(255, 255, 52, 64)
+            : warning
+                ? Windows.UI.Color.FromArgb(255, 255, 90, 100)
+                : Windows.UI.Color.FromArgb(255, 83, 215, 232);
+
+        var brush = new Microsoft.UI.Xaml.Media.SolidColorBrush(activeColor);
+        AlertText.Foreground = brush;
+        BootProgress.Foreground = brush;
+        StatusText.Foreground = fatal || warning
+            ? brush
+            : new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 230, 247, 250));
+
         PhaseCodeText.Text = $"BOOT // {phase:00}";
         StatusText.Text = status;
         DetailText.Text = detail;
         BootProgress.Value = percent;
         PercentText.Text = $"{percent:000}%";
+        PercentText.Foreground = brush;
     }
 }
