@@ -531,7 +531,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             SelectionMode = ListViewSelectionMode.Single,
             MinWidth = 520,
-            MinHeight = 260,
+            MinHeight = 230,
             MaxHeight = 440,
             CanDragItems = true,
             CanReorderItems = false,
@@ -650,8 +650,8 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var rootDropZone = new Border
         {
-            MinHeight = 38,
-            Padding = new Thickness(12, 8, 12, 8),
+            MinHeight = 48,
+            Padding = new Thickness(14, 12, 14, 12),
             CornerRadius = new CornerRadius(1),
             BorderThickness = new Thickness(1),
             BorderBrush = strongBorderBrush,
@@ -660,7 +660,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             AllowDrop = true,
             Child = new TextBlock
             {
-                Text = "ROOT DROP ZONE  //  DROP TAG HERE TO MOVE TO ROOT",
+                Text = "↥  ROOT  //  DROP TAG HERE TO MOVE TO TOP LEVEL",
                 TextWrapping = TextWrapping.Wrap,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 FontFamily = new FontFamily("Consolas"),
@@ -679,8 +679,8 @@ public sealed partial class FolderNavigationPanel : UserControl
         content.Children.Add(toolbar);
         content.Children.Add(hint);
         content.Children.Add(managerStatus);
-        content.Children.Add(rootDropZone);
         content.Children.Add(list);
+        content.Children.Add(rootDropZone);
         var emptyCatalogHint = new TextBlock
         {
             Text = "NO TAGS IN CATALOG  //  CREATE A NEW TAG ABOVE",
