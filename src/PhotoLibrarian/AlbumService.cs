@@ -131,6 +131,43 @@ public static class AlbumService
             Path.AltDirectorySeparatorChar);
     }
 
+    // Enumerate only physical directories belonging to this album; never
+    // follow junctions/symlinks or descend into independently managed albums.
+    public static IReadOnlyList<string> FindAlbumXmpSidecars(string albumRoot)
+    {
+        var root = NormalizeAlbumRoot(albumRoot);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(root);
+
+        var found = new List<string>();
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            var directory = pending.Pop();
+            foreach (var file in Directory.EnumerateFiles(directory))
+            {
+                if (Path.GetExtension(file).Equals(".xmp", StringComparison.OrdinalIgnoreCase) &&
+                    !File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint))
+                    found.Add(file);
+            }
+
+            foreach (var child in Directory.EnumerateDirectories(directory))
+            {
+                var name = Path.GetFileName(child);
+                if (name.Equals(AlbumFolderName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (File.GetAttributes(child).HasFlag(FileAttributes.ReparsePoint))
+                    continue;
+                // Other PhotoLibrarian album roots own their metadata.
+                if (File.Exists(Path.Combine(child, AlbumFolderName, AlbumManifestName)))
+                    continue;
+                pending.Push(child);
+            }
+        }
+        return found;
+    }
+
     // Removes PhotoLibrarian's own album bookkeeping only. Never traverse the
     // photo tree; preserve user folders, originals and embedded/XMP metadata.
     // Call only after the active album database has been fully closed.
@@ -160,6 +197,12 @@ public static class AlbumService
             .Where(path => string.Equals(TryResolveAlbumLauncher(path), root,
                 StringComparison.OrdinalIgnoreCase))
             .ToList();
+
+        // Sidecar removal is explicitly authorized by the red warning dialog.
+        // Re-enumerate after closing the database to avoid relying on stale UI.
+        var sidecars = FindAlbumXmpSidecars(root);
+        foreach (var xmp in sidecars)
+            File.Delete(xmp);
 
         // Delete the manifest last so interrupted deletion remains identifiable.
         foreach (var name in allowed.Where(n => !n.Equals(AlbumManifestName,
