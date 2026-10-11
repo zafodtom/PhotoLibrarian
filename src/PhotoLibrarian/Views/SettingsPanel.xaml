@@ -7,7 +7,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="78" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="42" />
+            <RowDefinition Height="58" />
         </Grid.RowDefinitions>
 
         <!-- Settings global header -->
@@ -453,7 +453,7 @@
               Background="#091018"
               BorderBrush="{StaticResource HiTechBorderBrush}"
               BorderThickness="0,1,0,0"
-              Padding="16,5">
+              Padding="16,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -472,6 +472,10 @@
                            Style="{StaticResource HiTechTinyLabelStyle}" />
             </StackPanel>
             <Button Grid.Column="1"
+                    MinWidth="144"
+                    Height="34"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Right"
                     AutomationProperties.AutomationId="CloseSettingsButton"
                     Content="CLOSE CONFIG"
                     Click="OnClose"
