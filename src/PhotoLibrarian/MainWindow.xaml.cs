@@ -24,6 +24,8 @@ public sealed partial class MainWindow : Window
     private GridLength _preFullscreenStatusHeight;
     private GridLength _preFullscreenRailWidth;
     private GridLength _preFullscreenLeftWidth;
+    private GridLength _preFullscreenLeftSplitterWidth;
+    private GridLength _preFullscreenRightSplitterWidth;
     private GridLength _preFullscreenRightWidth;
     private Thickness _preFullscreenViewportMargin;
     private Thickness _preFullscreenViewportBorderThickness;
@@ -52,6 +54,8 @@ public sealed partial class MainWindow : Window
         _preFullscreenStatusHeight = StatusRow.Height;
         _preFullscreenRailWidth = SystemRailColumn.Width;
         _preFullscreenLeftWidth = LeftPanelColumn.Width;
+        _preFullscreenLeftSplitterWidth = LeftSplitterColumn.Width;
+        _preFullscreenRightSplitterWidth = RightSplitterColumn.Width;
         _preFullscreenRightWidth = RightPanelColumn.Width;
         _preFullscreenViewportMargin = MainViewportFrame.Margin;
         _preFullscreenViewportBorderThickness = MainViewportBorder.BorderThickness;
@@ -67,6 +71,8 @@ public sealed partial class MainWindow : Window
         RightPanelColumn.MinWidth = 0;
         SystemRailColumn.Width = new GridLength(0);
         LeftPanelColumn.Width = new GridLength(0);
+        LeftSplitterColumn.Width = new GridLength(0);
+        RightSplitterColumn.Width = new GridLength(0);
         RightPanelColumn.Width = new GridLength(0);
         LeftPanelSplitter.Visibility = Visibility.Collapsed;
         RightPanelSplitter.Visibility = Visibility.Collapsed;
@@ -100,6 +106,8 @@ public sealed partial class MainWindow : Window
         RightPanelColumn.MinWidth = _preFullscreenRightMinWidth;
         SystemRailColumn.Width = _preFullscreenRailWidth;
         LeftPanelColumn.Width = _preFullscreenLeftWidth;
+        LeftSplitterColumn.Width = _preFullscreenLeftSplitterWidth;
+        RightSplitterColumn.Width = _preFullscreenRightSplitterWidth;
         RightPanelColumn.Width = _preFullscreenRightWidth;
         LeftPanelSplitter.Visibility = Visibility.Visible;
         RightPanelSplitter.Visibility = Visibility.Visible;
