@@ -439,7 +439,7 @@
                     Click="OnSettingsClick"
                     ToolTipService.ToolTip="Settings"
                     Style="{StaticResource HiTechIconButtonStyle}">
-                <PathIcon Data="M19.14,12.94 A7.9,7.9 0 0 0 19.2,11.06 L21,9.66 19,6.2 16.88,7.03 A7.8,7.8 0 0 0 15.25,6.08 L14.93,3.8 10.93,3.8 10.61,6.08 A7.8,7.8 0 0 0 8.98,7.03 L6.86,6.2 4.86,9.66 6.66,11.06 A7.9,7.9 0 0 0 6.66,12.94 L4.86,14.34 6.86,17.8 8.98,16.97 A7.8,7.8 0 0 0 10.61,17.92 L10.93,20.2 14.93,20.2 15.25,17.92 A7.8,7.8 0 0 0 16.88,16.97 L19,17.8 21,14.34 Z M12.93,15 A3,3 0 1 1 12.93,9 A3,3 0 1 1 12.93,15 Z" Width="16" Height="16" Foreground="{StaticResource HiTechAccentBrush}" />
+                <Viewbox Width="16" Height="16"><Grid Width="24" Height="24"><Path Data="M12,2 L12,5 M12,19 L12,22 M2,12 L5,12 M19,12 L22,12 M4.9,4.9 L7,7 M17,17 L19.1,19.1 M19.1,4.9 L17,7 M7,17 L4.9,19.1" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/><Ellipse Width="13" Height="13" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6"/><Ellipse Width="4" Height="4" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2"/></Grid></Viewbox>
             </Button>
         </Grid>
     </Grid>
