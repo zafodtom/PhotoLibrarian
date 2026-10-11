@@ -530,7 +530,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         var list = new ListView
         {
             SelectionMode = ListViewSelectionMode.Single,
-            MinWidth = 520,
+            MinWidth = 0,
             MinHeight = 118,
             MaxHeight = 360,
             CanDragItems = true,
@@ -588,7 +588,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         var content = new StackPanel
         {
             Spacing = 8,
-            MinWidth = 580
+            Width = 460
         };
 
         var consoleHeader = new Grid
@@ -702,7 +702,6 @@ public sealed partial class FolderNavigationPanel : UserControl
         listHost.Children.Add(list);
         listHost.Children.Add(emptyCatalogHint);
         content.Children.Add(listHost);
-        content.Children.Add(new Border { Height = 1, Background = accentBrush });
         content.Children.Add(rootDropZone);
 
         var dialogHost = new Border
@@ -719,7 +718,6 @@ public sealed partial class FolderNavigationPanel : UserControl
             Title = null,
             Content = dialogHost,
             XamlRoot = XamlRoot,
-            MinWidth = 660,
             RequestedTheme = ElementTheme.Dark,
             Background = panelBrush,
             Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 230, 247, 250)),
@@ -730,7 +728,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         var closeConsole = new Button
         {
             Content = "CLOSE CONSOLE",
-            MinWidth = 160,
+            Width = 152,
             HorizontalAlignment = HorizontalAlignment.Right,
             Style = iconButtonStyle
         };
@@ -740,6 +738,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             BorderBrush = strongBorderBrush,
             BorderThickness = new Thickness(0, 1, 0, 0),
             Padding = new Thickness(0, 12, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Child = closeConsole
         };
         content.Children.Add(footerRail);
