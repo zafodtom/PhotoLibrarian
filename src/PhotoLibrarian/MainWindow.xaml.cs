@@ -19,9 +19,14 @@ public sealed partial class MainWindow : Window
     private CropAspectRatio _pendingAspect = CropAspectRatio.Free;
     private bool _isClosing;
     private bool _isViewerFullscreen;
+    private GridLength _preFullscreenHeaderHeight;
+    private GridLength _preFullscreenViewerCommandHeight;
+    private GridLength _preFullscreenStatusHeight;
     private GridLength _preFullscreenRailWidth;
     private GridLength _preFullscreenLeftWidth;
     private GridLength _preFullscreenRightWidth;
+    private Thickness _preFullscreenViewportMargin;
+    private Thickness _preFullscreenViewportBorderThickness;
     private double _preFullscreenLeftMinWidth;
     private double _preFullscreenRightMinWidth;
     private Microsoft.UI.Windowing.AppWindowPresenterKind _preFullscreenPresenterKind =
@@ -42,12 +47,21 @@ public sealed partial class MainWindow : Window
         if (_isViewerFullscreen || !ViewModel.ImageViewer.IsOpen)
             return;
 
+        _preFullscreenHeaderHeight = GlobalHeaderRow.Height;
+        _preFullscreenViewerCommandHeight = ViewerCommandRow.Height;
+        _preFullscreenStatusHeight = StatusRow.Height;
         _preFullscreenRailWidth = SystemRailColumn.Width;
         _preFullscreenLeftWidth = LeftPanelColumn.Width;
         _preFullscreenRightWidth = RightPanelColumn.Width;
+        _preFullscreenViewportMargin = MainViewportFrame.Margin;
+        _preFullscreenViewportBorderThickness = MainViewportBorder.BorderThickness;
         _preFullscreenLeftMinWidth = LeftPanelColumn.MinWidth;
         _preFullscreenRightMinWidth = RightPanelColumn.MinWidth;
         _preFullscreenPresenterKind = AppWindow.Presenter.Kind;
+
+        GlobalHeaderRow.Height = new GridLength(0);
+        ViewerCommandRow.Height = new GridLength(0);
+        StatusRow.Height = new GridLength(0);
 
         LeftPanelColumn.MinWidth = 0;
         RightPanelColumn.MinWidth = 0;
@@ -62,6 +76,9 @@ public sealed partial class MainWindow : Window
         MetadataDetailPanel.Visibility = Visibility.Collapsed;
         StatusBar.Visibility = Visibility.Collapsed;
         TopRibbon.Visibility = Visibility.Collapsed;
+        MainViewportDecorations.Visibility = Visibility.Collapsed;
+        MainViewportFrame.Margin = new Thickness(0);
+        MainViewportBorder.BorderThickness = new Thickness(0);
 
         AppWindow.SetPresenter(
             Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
@@ -75,6 +92,10 @@ public sealed partial class MainWindow : Window
 
         AppWindow.SetPresenter(_preFullscreenPresenterKind);
 
+        GlobalHeaderRow.Height = _preFullscreenHeaderHeight;
+        ViewerCommandRow.Height = _preFullscreenViewerCommandHeight;
+        StatusRow.Height = _preFullscreenStatusHeight;
+
         LeftPanelColumn.MinWidth = _preFullscreenLeftMinWidth;
         RightPanelColumn.MinWidth = _preFullscreenRightMinWidth;
         SystemRailColumn.Width = _preFullscreenRailWidth;
@@ -87,6 +108,9 @@ public sealed partial class MainWindow : Window
         FolderNavPanel.Visibility = Visibility.Visible;
         MetadataDetailPanel.Visibility = Visibility.Visible;
         StatusBar.Visibility = Visibility.Visible;
+        MainViewportDecorations.Visibility = Visibility.Visible;
+        MainViewportFrame.Margin = _preFullscreenViewportMargin;
+        MainViewportBorder.BorderThickness = _preFullscreenViewportBorderThickness;
 
         _isViewerFullscreen = false;
         UpdateRibbonVisibility();
