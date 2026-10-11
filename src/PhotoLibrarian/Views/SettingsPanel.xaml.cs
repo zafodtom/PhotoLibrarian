@@ -302,6 +302,100 @@ public sealed partial class SettingsPanel : UserControl
         }
     }
 
+    private async void OnDeleteAlbum(object sender, RoutedEventArgs e)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            return;
+
+        var root = App.CurrentAlbumPath;
+        var red = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 255, 80, 94));
+        var text = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 229, 240, 244));
+        var panel = new StackPanel { Spacing = 14, MinWidth = 500 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "⚠  WARNING // ARCHIVE TERMINATION",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 19, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = red
+        });
+        panel.Children.Add(new Border
+        {
+            Height = 3, Background = red
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "CRITICAL OPERATION  //  IRREVERSIBLE",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 13, Foreground = red
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "TARGET: " + root,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            TextWrapping = TextWrapping.Wrap, Foreground = text
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "PhotoLibrarian catalog, cache and matching album launchers will be deleted. " +
+                   "Original folders and images remain untouched. Embedded image metadata " +
+                   "and external sidecars are NOT erased. The app will close.",
+            TextWrapping = TextWrapping.Wrap, Foreground = text
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "TYPE DELETE TO AUTHORIZE TERMINATION",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            Foreground = red
+        });
+        var phrase = new TextBox { PlaceholderText = "DELETE", MaxLength = 6 };
+        panel.Children.Add(phrase);
+        var dialog = new ContentDialog
+        {
+            Title = null,
+            Content = new Border
+            {
+                Padding = new Thickness(22),
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    Windows.UI.Color.FromArgb(255, 22, 7, 13)),
+                BorderBrush = red, BorderThickness = new Thickness(2),
+                Child = panel
+            },
+            PrimaryButtonText = "CONFIRM DELETE",
+            CloseButtonText = "ABORT",
+            IsPrimaryButtonEnabled = false,
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+            XamlRoot = XamlRoot
+        };
+        phrase.TextChanged += (_, _) =>
+            dialog.IsPrimaryButtonEnabled = string.Equals(
+                phrase.Text, "DELETE", StringComparison.Ordinal);
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        DeleteAlbumButton.IsEnabled = false;
+        try
+        {
+            if (App.MainWindow is MainWindow window)
+                await window.DeleteCurrentAlbumAsync();
+        }
+        catch (Exception ex)
+        {
+            DeleteAlbumButton.IsEnabled = true;
+            var error = new ContentDialog
+            {
+                Title = "FATAL ERROR // ALBUM DELETE ABORTED",
+                Content = ex.Message + "\nThe application must be restarted before retrying.",
+                CloseButtonText = "ACKNOWLEDGE",
+                RequestedTheme = ElementTheme.Dark,
+                XamlRoot = XamlRoot
+            };
+            await error.ShowAsync();
+        }
+    }
+
     private async void OnClose(
         object sender,
         RoutedEventArgs e)
