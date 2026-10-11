@@ -28,12 +28,12 @@
                         AutomationProperties.Name="Open another album"
                         Click="OnManageFoldersClick" Padding="6"
                         Style="{StaticResource HiTechIconButtonStyle}">
-                    <FontIcon Glyph="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                    <PathIcon Data="M2,5 L9,5 11,7 22,7 22,19 2,19 Z" Width="14" Height="14" />
                 </Button>
                 <Button x:Name="RefreshButton" ToolTipService.ToolTip="Refresh"
                         Click="OnRefreshClick" Padding="6"
                         Style="{StaticResource HiTechIconButtonStyle}">
-                    <FontIcon Glyph="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                    <PathIcon Data="M20,7 L20,2 18,4 A9,9 0 1 0 21,12 L19,12 A7,7 0 1 1 17,5 L14,7 Z" Width="14" Height="14" />
                 </Button>
             </StackPanel>
         </Grid>
@@ -89,12 +89,8 @@
                                               MinWidth="0"
                                               Padding="0"
                                               Margin="0" />
-                                    <FontIcon Glyph="&#xE8B7;" FontFamily="Segoe Fluent Icons"
-                                              FontSize="13" Foreground="{StaticResource HiTechAccentBrush}"
-                                              VerticalAlignment="Center" />
-                                    <FontIcon Glyph="&#xE8EC;" FontFamily="Segoe Fluent Icons"
-                                              FontSize="13" Foreground="{StaticResource HiTechAccentBrush}"
-                                              VerticalAlignment="Center" />
+                                    <PathIcon Data="M2,5 L9,5 11,7 22,7 22,19 2,19 Z" Width="13" Height="13" Foreground="{StaticResource HiTechAccentBrush}" VerticalAlignment="Center" />
+                                    <PathIcon Data="M3,3 L13,3 22,12 12,22 3,13 Z M8,7 A1.5,1.5 0 1 0 8,10 A1.5,1.5 0 1 0 8,7 Z" Width="13" Height="13" Foreground="{StaticResource HiTechAccentBrush}" VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding Content}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
@@ -151,21 +147,21 @@
                                     Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Manage tag catalog"
                                     AutomationProperties.Name="Manage tag catalog">
-                                <FontIcon Glyph="&#xE713;" FontFamily="Segoe Fluent Icons" FontSize="13" />
+                                <PathIcon Data="M19.14,12.94 A7.9,7.9 0 0 0 19.2,11.06 L21,9.66 19,6.2 16.88,7.03 A7.8,7.8 0 0 0 15.25,6.08 L14.93,3.8 10.93,3.8 10.61,6.08 A7.8,7.8 0 0 0 8.98,7.03 L6.86,6.2 4.86,9.66 6.66,11.06 A7.9,7.9 0 0 0 6.66,12.94 L4.86,14.34 6.86,17.8 8.98,16.97 A7.8,7.8 0 0 0 10.61,17.92 L10.93,20.2 14.93,20.2 15.25,17.92 A7.8,7.8 0 0 0 16.88,16.97 L19,17.8 21,14.34 Z M12.93,15 A3,3 0 1 1 12.93,9 A3,3 0 1 1 12.93,15 Z" Width="14" Height="14" Foreground="{StaticResource HiTechAccentBrush}" />
                             </Button>
                             <Button Click="OnExpandAllTagsClick"
                                     Padding="5,3"
                                     Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Expand all tags"
                                     AutomationProperties.Name="Expand all tags">
-                                <FontIcon Glyph="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                                <PathIcon Data="M4,14 L12,6 20,14 18,16 12,10 6,16 Z" Width="12" Height="12" />
                             </Button>
                             <Button Click="OnCollapseAllTagsClick"
                                     Padding="5,3"
                                     Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Collapse all tags"
                                     AutomationProperties.Name="Collapse all tags">
-                                <FontIcon Glyph="&#xE70E;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                                <PathIcon Data="M4,10 L6,8 12,14 18,8 20,10 12,18 Z" Width="12" Height="12" />
                             </Button>
                         </StackPanel>
                     </Grid>
