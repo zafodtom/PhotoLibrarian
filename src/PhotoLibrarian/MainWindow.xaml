@@ -10,10 +10,10 @@
           RequestedTheme="Dark"
           Background="{StaticResource HiTechAppBackgroundBrush}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="66" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="30" />
+            <RowDefinition x:Name="GlobalHeaderRow" Height="66" />
+            <RowDefinition x:Name="ViewerCommandRow" Height="Auto" />
+            <RowDefinition x:Name="WorkspaceRow" Height="*" />
+            <RowDefinition x:Name="StatusRow" Height="30" />
         </Grid.RowDefinitions>
 
         <!-- Persistent global command / identity header -->
@@ -244,8 +244,11 @@
                                    HorizontalAlignment="Stretch" />
 
             <!-- Main viewport -->
-            <Grid Grid.Column="3" Margin="2,10">
-                <Border Background="#0A121A"
+            <Grid x:Name="MainViewportFrame"
+                  Grid.Column="3"
+                  Margin="2,10">
+                <Border x:Name="MainViewportBorder"
+                        Background="#0A121A"
                         BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1">
                     <Grid>
@@ -256,6 +259,8 @@
                 </Border>
 
                 <!-- large frame brackets -->
+                <Grid x:Name="MainViewportDecorations"
+                      IsHitTestVisible="False">
                 <Path Data="M 0,40 L 0,0 L 72,0"
                       Stroke="{StaticResource HiTechAccentBrush}"
                       StrokeThickness="2"
@@ -282,6 +287,7 @@
                         VerticalAlignment="Top"
                         Margin="0,-2,76,0"
                         IsHitTestVisible="False" />
+                </Grid>
             </Grid>
 
             <controls:GridSplitter x:Name="RightPanelSplitter"
@@ -362,16 +368,33 @@
         <!-- Overlay: Settings Panel -->
         <Border x:Name="SettingsOverlay"
                 Grid.Row="0"
-                Grid.RowSpan="3"
+                Grid.RowSpan="4"
                 Visibility="Collapsed"
-                Background="{StaticResource HiTechAppBackgroundBrush}">
-            <Border Style="{StaticResource HiTechPanelAltStyle}"
-                    MaxWidth="760"
-                    Margin="24"
-                    VerticalAlignment="Stretch"
-                    HorizontalAlignment="Center">
-                <views:SettingsPanel x:Name="SettingsPanel" />
-            </Border>
+                Background="#F2070B10">
+            <Grid Margin="18">
+                <Border Background="#0A121A"
+                        BorderBrush="{StaticResource HiTechBorderStrongBrush}"
+                        BorderThickness="1">
+                    <views:SettingsPanel x:Name="SettingsPanel" />
+                </Border>
+                <Path Data="M 0,42 L 0,0 L 86,0"
+                      Stroke="{StaticResource HiTechAccentBrush}"
+                      StrokeThickness="2"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Top"
+                      IsHitTestVisible="False" />
+                <Path Data="M 0,42 L 0,0 L 86,0"
+                      Stroke="{StaticResource HiTechAccentBrush}"
+                      StrokeThickness="2"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Bottom"
+                      RenderTransformOrigin="0.5,0.5"
+                      IsHitTestVisible="False">
+                    <Path.RenderTransform>
+                        <RotateTransform Angle="180" />
+                    </Path.RenderTransform>
+                </Path>
+            </Grid>
         </Border>
 
         <!-- Bottom system rail -->
