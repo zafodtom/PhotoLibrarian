@@ -5,9 +5,12 @@
 
     <UserControl.Resources>
         <!-- Icon-above-label command button, the Photo Gallery ribbon idiom. -->
-        <Style x:Key="RibbonCommandStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
+        <Style x:Key="RibbonCommandStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundAltBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="1" />
             <Setter Property="Padding" Value="12,4" />
             <Setter Property="MinWidth" Value="64" />
             <Setter Property="MinHeight" Value="56" />
@@ -19,26 +22,45 @@
             <Setter Property="HorizontalAlignment" Value="Center" />
         </Style>
 
-        <Style x:Key="RibbonCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+        <Style x:Key="RibbonCaptionStyle" TargetType="TextBlock">
             <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="CharacterSpacing" Value="80" />
+            <Setter Property="Foreground" Value="{StaticResource HiTechTextSecondaryBrush}" />
         </Style>
 
         <Style x:Key="RibbonSeparatorStyle" TargetType="Rectangle">
             <Setter Property="Width" Value="1" />
             <Setter Property="Margin" Value="8,12" />
-            <Setter Property="Fill" Value="{ThemeResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="Fill" Value="{StaticResource HiTechAccentMutedBrush}" />
         </Style>
     </UserControl.Resources>
 
-    <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+    <Border BorderBrush="{StaticResource HiTechAccentMutedBrush}"
             BorderThickness="0,0,0,1"
-            Background="{ThemeResource LayerFillColorDefaultBrush}">
-        <Grid Padding="8,0" MinHeight="64" ColumnSpacing="8">
+            Background="{StaticResource HiTechPanelBackgroundBrush}">
+        <Grid Padding="10,6" MinHeight="72" ColumnSpacing="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+
+            <Border Grid.ColumnSpan="3"
+                    Height="2"
+                    Width="90"
+                    Background="{StaticResource HiTechAccentBrush}"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    IsHitTestVisible="False" />
+            <TextBlock Grid.Column="2"
+                       Text="CTRL / VIEWER"
+                       Style="{StaticResource HiTechTinyLabelStyle}"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Top"
+                       Margin="0,2,74,0"
+                       IsHitTestVisible="False" />
 
             <!-- ===== Viewer mode (default) ===== -->
             <StackPanel x:Name="ViewerTools" Orientation="Horizontal" VerticalAlignment="Center">
@@ -183,15 +205,21 @@
 
             <!-- Centre: current file name plus a mode hint -->
             <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="2">
+                <TextBlock Text="ACTIVE ASSET"
+                           HorizontalAlignment="Center"
+                           Style="{StaticResource HiTechTinyLabelStyle}" />
                 <TextBlock x:Name="ContextLabel"
                            HorizontalAlignment="Center"
                            TextTrimming="CharacterEllipsis"
-                           Style="{StaticResource BodyStrongTextBlockStyle}"
+                           FontFamily="Consolas"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource HiTechTextPrimaryBrush}"
                            Text="" />
                 <TextBlock x:Name="ContextSubLabel"
                            HorizontalAlignment="Center"
-                           Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           FontFamily="Consolas"
+                           FontSize="10"
+                           Foreground="{StaticResource HiTechTextSecondaryBrush}"
                            Visibility="Collapsed"
                            Text="" />
             </StackPanel>
