@@ -63,9 +63,22 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
+                    <TextBlock x:Name="AlertText"
+                               Text=""
+                               Visibility="Collapsed"
+                               FontFamily="Consolas"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               CharacterSpacing="160"
+                               Foreground="#FF5A64"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,4" />
+
                     <TextBlock x:Name="PhaseCodeText"
+                               Grid.Row="1"
                                Text="BOOT // 01"
                                FontFamily="Consolas"
                                FontSize="10"
@@ -74,7 +87,7 @@
                                HorizontalAlignment="Center" />
 
                     <TextBlock x:Name="StatusText"
-                               Grid.Row="1"
+                               Grid.Row="2"
                                Text="INITIALIZING ARCHIVE"
                                Margin="0,8,0,0"
                                FontFamily="Consolas"
@@ -84,7 +97,7 @@
                                Foreground="#E6F7FA"
                                HorizontalAlignment="Center" />
 
-                    <StackPanel Grid.Row="2"
+                    <StackPanel Grid.Row="3"
                                 Margin="60,22,60,0"
                                 Spacing="6">
                         <Grid Height="12">
@@ -115,7 +128,7 @@
                         </Grid>
                     </StackPanel>
 
-                    <Grid Grid.Row="3"
+                    <Grid Grid.Row="4"
                           Margin="60,22,60,0">
                         <Path Data="M 0,14 L 0,0 L 62,0"
                               Stroke="#53D7E8"
