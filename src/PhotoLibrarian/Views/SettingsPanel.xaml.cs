@@ -353,12 +353,11 @@ public sealed partial class SettingsPanel : UserControl
         });
         panel.Children.Add(new TextBlock
         {
-            Text = "TYPE DELETE TO AUTHORIZE TERMINATION",
+            Text = "CONFIRMATION REQUIRED  //  ORIGINAL PHOTOS ARE PRESERVED",
             FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 11,
             Foreground = red
         });
-        var phrase = new TextBox { PlaceholderText = "DELETE", MaxLength = 6 };
-        panel.Children.Add(phrase);
         var dialog = new ContentDialog
         {
             Title = null,
@@ -366,20 +365,21 @@ public sealed partial class SettingsPanel : UserControl
             {
                 Padding = new Thickness(22),
                 Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Windows.UI.Color.FromArgb(255, 22, 7, 13)),
-                BorderBrush = red, BorderThickness = new Thickness(2),
+                    Windows.UI.Color.FromArgb(255, 12, 17, 26)),
+                BorderBrush = red,
+                BorderThickness = new Thickness(2),
                 Child = panel
             },
-            PrimaryButtonText = "CONFIRM DELETE",
+            PrimaryButtonText = "DELETE ALBUM",
             CloseButtonText = "ABORT",
-            IsPrimaryButtonEnabled = false,
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = ElementTheme.Dark,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 9, 16, 24)),
+            BorderBrush = red,
+            BorderThickness = new Thickness(1),
             XamlRoot = XamlRoot
         };
-        phrase.TextChanged += (_, _) =>
-            dialog.IsPrimaryButtonEnabled = string.Equals(
-                phrase.Text, "DELETE", StringComparison.Ordinal);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
@@ -392,12 +392,47 @@ public sealed partial class SettingsPanel : UserControl
         catch (Exception ex)
         {
             DeleteAlbumButton.IsEnabled = true;
+            var errorPanel = new StackPanel { Spacing = 12, MinWidth = 450 };
+            errorPanel.Children.Add(new TextBlock
+            {
+                Text = "FATAL ERROR // ALBUM TERMINATION FAILED",
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                FontSize = 17,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = red
+            });
+            errorPanel.Children.Add(new Border { Height = 3, Background = red });
+            errorPanel.Children.Add(new TextBlock
+            {
+                Text = ex.Message,
+                Foreground = text,
+                TextWrapping = TextWrapping.Wrap
+            });
+            errorPanel.Children.Add(new TextBlock
+            {
+                Text = "ALBUM DATA MAY BE PARTIALLY REMOVED. RESTART BEFORE RETRYING.",
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                Foreground = red,
+                TextWrapping = TextWrapping.Wrap
+            });
             var error = new ContentDialog
             {
-                Title = "FATAL ERROR // ALBUM DELETE ABORTED",
-                Content = ex.Message + "\nThe application must be restarted before retrying.",
+                Title = null,
+                Content = new Border
+                {
+                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                        Windows.UI.Color.FromArgb(255, 12, 17, 26)),
+                    BorderBrush = red,
+                    BorderThickness = new Thickness(2),
+                    Padding = new Thickness(20),
+                    Child = errorPanel
+                },
                 CloseButtonText = "ACKNOWLEDGE",
                 RequestedTheme = ElementTheme.Dark,
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    Windows.UI.Color.FromArgb(255, 9, 16, 24)),
+                BorderBrush = red,
+                BorderThickness = new Thickness(1),
                 XamlRoot = XamlRoot
             };
             await error.ShowAsync();
