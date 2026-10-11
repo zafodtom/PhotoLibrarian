@@ -48,6 +48,33 @@
 
                 <!-- ═══ Row 0: Editable sections ═══ -->
                 <StackPanel Grid.Row="0" Spacing="0">
+                    <Grid Margin="0,10,0,8" Height="28">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Width="4"
+                                   Height="20"
+                                   Fill="{StaticResource HiTechAccentBrush}"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1"
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="ASSET METADATA"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                            <TextBlock Text="EDIT / INDEX / INSPECT"
+                                       Style="{StaticResource HiTechTinyLabelStyle}" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2"
+                                   Text="M03"
+                                   Style="{StaticResource HiTechTinyLabelStyle}"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <Border Height="1"
+                            Background="{StaticResource HiTechAccentMutedBrush}"
+                            Margin="0,0,0,6" />
+
                     <!-- Multi-select header (visible only with multi) -->
                     <Border x:Name="MultiSelectBanner" Visibility="Collapsed"
                             Background="{StaticResource HiTechAccentFillBrush}"
@@ -114,6 +141,7 @@
 
                     <TextBlock Text="Caption" Style="{StaticResource SectionHeaderStyle}" />
                     <TextBox x:Name="CaptionBox"
+                             Style="{StaticResource HiTechInputStyle}"
                              PlaceholderText="Add caption"
                              AcceptsReturn="True"
                              TextWrapping="Wrap"
@@ -165,20 +193,21 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="NewTagBox" Grid.Column="0"
+                                     Style="{StaticResource HiTechInputStyle}"
                                      PlaceholderText="Add or choose tag"
                                      TextChanged="OnTagTextChanged"
                                      KeyDown="OnNewTagKeyDown"
                                      FontSize="13" />
                             <Button Grid.Column="1"
                                     Click="OnShowAllTagsClick"
-                                    Padding="6,4"
+                                    Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Show all available tags"
                                     AutomationProperties.Name="Show all available tags">
                                 <FontIcon Glyph="&#xE70D;" FontSize="12" />
                             </Button>
                             <Button Grid.Column="2"
                                     Click="OnAddTagClick"
-                                    Padding="6,4"
+                                    Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Add tag to all selected">
                                 <FontIcon Glyph="&#xE109;" FontSize="12" />
                             </Button>
@@ -188,11 +217,8 @@
                              the Flyout focus hand-off that interrupted typing. -->
                         <Border x:Name="TagSuggestionsPanel"
                                 Visibility="Collapsed"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="8"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                                Style="{StaticResource HiTechModuleStyle}"
+                                Padding="8">
                             <StackPanel Spacing="6">
                                 <Button Content="New tag"
                                         Click="OnNewCatalogTagClick"
@@ -381,9 +407,33 @@
                 <!-- ═══ Row 1: Spacer (pushes info to bottom when viewport is tall) ═══ -->
 
                 <!-- ═══ Row 2: Information block ═══ -->
-                <StackPanel Grid.Row="2" Spacing="0">
-                    <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" Margin="0,8,0,8" />
-                    <TextBlock Text="File &amp; EXIF" Style="{StaticResource SectionHeaderStyle}" Margin="0,0,0,8" />
+                <Border Grid.Row="2"
+                        Style="{StaticResource HiTechModuleStyle}"
+                        Margin="0,10,0,10">
+                    <StackPanel Spacing="0">
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Rectangle Width="3"
+                                       Height="14"
+                                       Fill="{StaticResource HiTechAccentBrush}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1"
+                                       Text="FILE / EXIF"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2"
+                                       Text="DATA"
+                                       Style="{StaticResource HiTechTinyLabelStyle}"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1"
+                                Background="{StaticResource HiTechAccentMutedBrush}"
+                                Margin="0,0,0,8" />
 
                     <StackPanel Spacing="6">
                         <Grid>
@@ -493,7 +543,8 @@
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         </Grid>
                     </StackPanel>
-                </StackPanel>
+                    </StackPanel>
+                </Border>
             </Grid>
         </ScrollViewer>
     </Grid>
