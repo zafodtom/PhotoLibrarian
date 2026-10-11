@@ -702,6 +702,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         listHost.Children.Add(list);
         listHost.Children.Add(emptyCatalogHint);
         content.Children.Add(listHost);
+        content.Children.Add(new Border { Height = 1, Background = accentBrush });
         content.Children.Add(rootDropZone);
 
         var dialogHost = new Border
@@ -717,7 +718,6 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             Title = null,
             Content = dialogHost,
-            CloseButtonText = "CLOSE CONSOLE",
             XamlRoot = XamlRoot,
             MinWidth = 660,
             RequestedTheme = ElementTheme.Dark,
@@ -726,6 +726,23 @@ public sealed partial class FolderNavigationPanel : UserControl
             BorderBrush = strongBorderBrush,
             BorderThickness = new Thickness(1)
         };
+
+        var closeConsole = new Button
+        {
+            Content = "CLOSE CONSOLE",
+            MinWidth = 160,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Style = iconButtonStyle
+        };
+        closeConsole.Click += (_, _) => dialog.Hide();
+        var footerRail = new Border
+        {
+            BorderBrush = strongBorderBrush,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(0, 12, 0, 0),
+            Child = closeConsole
+        };
+        content.Children.Add(footerRail);
 
         void ShowManagerStatus(string? message)
         {
