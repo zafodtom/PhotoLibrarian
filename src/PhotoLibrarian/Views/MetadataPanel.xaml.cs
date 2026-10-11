@@ -418,8 +418,7 @@ public sealed partial class MetadataPanel : UserControl
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 9, 16, 24)),
             Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 230, 247, 250)),
             BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 52, 115, 138)),
-            BorderThickness = new Thickness(1),
-            RequestedTheme = ElementTheme.Dark
+            BorderThickness = new Thickness(1)
         };
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
