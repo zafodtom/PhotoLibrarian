@@ -131,6 +131,51 @@ public static class AlbumService
             Path.AltDirectorySeparatorChar);
     }
 
+    // Removes PhotoLibrarian's own album bookkeeping only. Never traverse the
+    // photo tree; preserve user folders, originals and embedded/XMP metadata.
+    // Call only after the active album database has been fully closed.
+    public static void DeleteAlbumBookkeeping(string albumRoot)
+    {
+        var root = NormalizeAlbumRoot(albumRoot);
+        var albumDir = Path.Combine(root, AlbumFolderName);
+        if (!Directory.Exists(root) || !Directory.Exists(albumDir) ||
+            !File.Exists(Path.Combine(albumDir, AlbumManifestName)))
+            throw new InvalidOperationException("This folder is not a PhotoLibrarian album.");
+
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            AlbumManifestName, AlbumTagsName, AlbumCacheName,
+            AlbumCacheName + "-wal", AlbumCacheName + "-shm",
+            AlbumCacheName + "-journal"
+        };
+        if (Directory.EnumerateDirectories(albumDir).Any() ||
+            Directory.EnumerateFiles(albumDir).Any(path =>
+                !allowed.Contains(Path.GetFileName(path))))
+            throw new InvalidOperationException(
+                "The .album folder contains unrecognized files. No files were removed.");
+
+        // Only remove a PLA launcher if its JSON resolves to this exact album.
+        var launchers = Directory.EnumerateFiles(root, "*" + AlbumLauncherExtension,
+                SearchOption.TopDirectoryOnly)
+            .Where(path => string.Equals(TryResolveAlbumLauncher(path), root,
+                StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // Delete the manifest last so interrupted deletion remains identifiable.
+        foreach (var name in allowed.Where(n => !n.Equals(AlbumManifestName,
+                     StringComparison.OrdinalIgnoreCase)))
+        {
+            var path = Path.Combine(albumDir, name);
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        foreach (var launcher in launchers)
+            File.Delete(launcher);
+
+        File.Delete(Path.Combine(albumDir, AlbumManifestName));
+        Directory.Delete(albumDir, recursive: false);
+    }
+
     public static string EnsureAlbum(string rootPath)
     {
         var root = NormalizeAlbumRoot(rootPath);
