@@ -304,6 +304,11 @@ public sealed partial class SettingsPanel : UserControl
 
     private async void OnDeleteAlbum(object sender, RoutedEventArgs e)
     {
+        await ConfirmDeleteAlbumAsync();
+    }
+
+    public async Task ConfirmDeleteAlbumAsync()
+    {
         if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
             return;
 
