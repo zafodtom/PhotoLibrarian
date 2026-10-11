@@ -333,6 +333,46 @@ public sealed partial class MetadataPanel : UserControl
         AddCurrentTag();
     }
 
+    // Shared dark HUD host for inline tag dialogs. Keep native ContentDialog
+    // buttons and result handling; only the presentation is customized.
+    private static Border CreateTagDialogHost(StackPanel fields, string heading)
+    {
+        var accent = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 83, 215, 232));
+        var muted = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 140, 169, 179));
+        var title = new TextBlock
+        {
+            Text = heading,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 15,
+            CharacterSpacing = 100,
+            Foreground = accent
+        };
+        var caption = new TextBlock
+        {
+            Text = "HIERARCHY  //  CATALOG CONTROL",
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 10,
+            Foreground = muted
+        };
+        var content = new StackPanel { Spacing = 12, MinWidth = 390 };
+        content.Children.Add(title);
+        content.Children.Add(caption);
+        content.Children.Add(new Border
+        {
+            Height = 1,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 36, 66, 82))
+        });
+        content.Children.Add(fields);
+        return new Border
+        {
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 10, 18, 26)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 52, 115, 138)),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(18),
+            Child = content
+        };
+    }
+
     private async void OnNewCatalogTagClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null) return;
@@ -368,12 +408,13 @@ public sealed partial class MetadataPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = "New tag",
-            Content = panel,
+            Title = "TAG // CREATE",
+            Content = CreateTagDialogHost(panel, "NEW CATALOG TAG"),
             PrimaryButtonText = "Create",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ElementTheme.Dark
         };
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
@@ -466,11 +507,11 @@ public sealed partial class MetadataPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = "Manage tag",
-            Content = panel,
-            PrimaryButtonText = "Save changes",
-            SecondaryButtonText = "Remove from catalog",
-            CloseButtonText = "Cancel",
+            Title = "TAG // MODIFY",
+            Content = CreateTagDialogHost(panel, "MANAGE CATALOG TAG"),
+            PrimaryButtonText = "SAVE CHANGES",
+            SecondaryButtonText = "REMOVE FROM CATALOG",
+            CloseButtonText = "CANCEL",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot
         };
