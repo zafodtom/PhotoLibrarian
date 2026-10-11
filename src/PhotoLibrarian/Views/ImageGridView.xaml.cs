@@ -5,6 +5,7 @@ using PhotoLibrarian.Core.Models;
 using PhotoLibrarian.ViewModels;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 
 namespace PhotoLibrarian.Views;
@@ -64,16 +65,10 @@ public sealed partial class ImageGridView : UserControl
         // Wire up custom virtualization control with initial (possibly empty) collection
         PhotoGrid.SetGroups(ViewModel.GroupedImages);
         
-        // Hide empty state when images are loaded
-        ViewModel.Images.CollectionChanged += (s, e) =>
-        {
-            var shouldShow = ViewModel.Images.Count == 0;
-            System.Diagnostics.Debug.WriteLine($"[GRIDVIEW] Images changed, EmptyState visibility={shouldShow}");
-            EmptyState.Visibility = shouldShow ? Visibility.Visible : Visibility.Collapsed;
-        };
-        
-        EmptyState.Visibility = ViewModel.Images.Count == 0
-            ? Visibility.Visible : Visibility.Collapsed;
+        // Cinematic empty/indexing state.
+        ViewModel.Images.CollectionChanged += (_, _) => UpdateEmptyState();
+        App.ViewModel.PropertyChanged += OnMainViewModelPropertyChanged;
+        UpdateEmptyState();
             
         // Initialize UI controls to match ViewModel defaults
         UpdateGroupByCombo();
@@ -83,6 +78,47 @@ public sealed partial class ImageGridView : UserControl
         InitializeRefinementControls(ViewModel.Refinement);
         await RefreshPeopleAsync();
         UpdateActiveFilterChips();
+    }
+
+    private void OnMainViewModelPropertyChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.IsIndexing))
+            DispatcherQueue.TryEnqueue(UpdateEmptyState);
+    }
+
+    private void UpdateEmptyState()
+    {
+        if (ViewModel is null)
+            return;
+
+        var isEmpty = ViewModel.Images.Count == 0;
+        EmptyState.Visibility = isEmpty
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (!isEmpty)
+            return;
+
+        var isIndexing = App.ViewModel.IsIndexing;
+        EmptyStateProgress.IsActive = isIndexing;
+        EmptyStateProgress.Visibility = Visibility.Visible;
+
+        if (isIndexing)
+        {
+            EmptyStateTitle.Text = "SCANNING ARCHIVE";
+            EmptyStateSubtitle.Text =
+                "Building visual feed from the local index. Incoming assets will appear automatically.";
+            EmptyStateCode.Text = "STATE / ACQUIRING";
+        }
+        else
+        {
+            EmptyStateTitle.Text = "ARCHIVE EMPTY";
+            EmptyStateSubtitle.Text =
+                "No visual assets are currently available in this view. Select or add a library folder.";
+            EmptyStateCode.Text = "STATE / STANDBY";
+        }
     }
 
     public async System.Threading.Tasks.Task RefreshPeopleAsync()
