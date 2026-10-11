@@ -531,8 +531,8 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             SelectionMode = ListViewSelectionMode.Single,
             MinWidth = 520,
-            MinHeight = 230,
-            MaxHeight = 440,
+            MinHeight = 118,
+            MaxHeight = 360,
             CanDragItems = true,
             CanReorderItems = false,
             AllowDrop = true,
@@ -587,7 +587,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var content = new StackPanel
         {
-            Spacing = 9,
+            Spacing = 8,
             MinWidth = 580
         };
 
@@ -650,8 +650,8 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var rootDropZone = new Border
         {
-            MinHeight = 48,
-            Padding = new Thickness(14, 12, 14, 12),
+            MinHeight = 38,
+            Padding = new Thickness(12, 8, 12, 8),
             CornerRadius = new CornerRadius(1),
             BorderThickness = new Thickness(1),
             BorderBrush = strongBorderBrush,
@@ -671,11 +671,6 @@ public sealed partial class FolderNavigationPanel : UserControl
         };
 
         content.Children.Add(consoleHeader);
-        content.Children.Add(new Border
-        {
-            Height = 1,
-            Background = borderBrush
-        });
         content.Children.Add(toolbar);
         content.Children.Add(hint);
         content.Children.Add(managerStatus);
