@@ -101,7 +101,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
+                <StackPanel VerticalAlignment="Center" Spacing="3">
                     <TextBlock Text="SYSTEM STATUS"
                                Style="{StaticResource HiTechTinyLabelStyle}" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -112,6 +112,12 @@
                                    FontFamily="Consolas"
                                    FontSize="11"
                                    Foreground="{StaticResource HiTechTextPrimaryBrush}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="DB / READY"
+                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                        <TextBlock Text="CACHE / LOCAL"
+                                   Style="{StaticResource HiTechTinyLabelStyle}" />
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="1"
