@@ -267,6 +267,9 @@ public sealed partial class MainWindow : Window
         this.Closed += OnWindowClosed;
     }
 
+    public Task ConfirmDeleteAlbumAsync() =>
+        SettingsPanel.ConfirmDeleteAlbumAsync();
+
     public async Task DeleteCurrentAlbumAsync()
     {
         if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
