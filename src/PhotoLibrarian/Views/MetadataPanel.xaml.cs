@@ -408,12 +408,17 @@ public sealed partial class MetadataPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = "TAG // CREATE",
+            Title = null,
             Content = CreateTagDialogHost(panel, "NEW CATALOG TAG"),
             PrimaryButtonText = "Create",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 9, 16, 24)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 230, 247, 250)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 52, 115, 138)),
+            BorderThickness = new Thickness(1),
             RequestedTheme = ElementTheme.Dark
         };
 
@@ -507,13 +512,18 @@ public sealed partial class MetadataPanel : UserControl
 
         var dialog = new ContentDialog
         {
-            Title = "TAG // MODIFY",
+            Title = null,
             Content = CreateTagDialogHost(panel, "MANAGE CATALOG TAG"),
             PrimaryButtonText = "SAVE CHANGES",
             SecondaryButtonText = "REMOVE FROM CATALOG",
             CloseButtonText = "CANCEL",
             DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot
+            XamlRoot = XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 9, 16, 24)),
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 230, 247, 250)),
+            BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 52, 115, 138)),
+            BorderThickness = new Thickness(1)
         };
 
         var result = await dialog.ShowAsync();
