@@ -293,7 +293,7 @@ public sealed partial class MetadataPanel : UserControl
     {
         if (ViewModel is null) return;
 
-        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(1000));
         NewTagBox.Focus(FocusState.Programmatic);
     }
 
@@ -310,7 +310,7 @@ public sealed partial class MetadataPanel : UserControl
 
         var matches = ViewModel.AvailableTags
             .Where(item => item.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
-            .Take(50)
+            .Take(1000)
             .ToList();
 
         if (matches.Count == 0)
@@ -444,7 +444,7 @@ public sealed partial class MetadataPanel : UserControl
 
         AlbumService.AddSelectedTag(fullTag);
         await ViewModel.ReloadAvailableTagsAsync();
-        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(1000));
     }
 
     private async void OnManageCatalogItemClick(object sender, RoutedEventArgs e)
@@ -554,7 +554,7 @@ public sealed partial class MetadataPanel : UserControl
         if (result == ContentDialogResult.Secondary)
         {
             await ViewModel.RemoveCatalogItemAsync(item);
-            ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+            ShowTagSuggestions(ViewModel.AvailableTags.Take(1000));
             return;
         }
 
@@ -591,7 +591,7 @@ public sealed partial class MetadataPanel : UserControl
             App.ViewModel.StatusText = $"Přejmenování se nezdařilo: {ex.Message}";
         }
 
-        ShowTagSuggestions(ViewModel.AvailableTags.Take(100));
+        ShowTagSuggestions(ViewModel.AvailableTags.Take(1000));
     }
 
     private async void OnToggleAlbumTagSelectionClick(object sender, RoutedEventArgs e)
@@ -605,10 +605,10 @@ public sealed partial class MetadataPanel : UserControl
         // Keep the picker open and refresh its current contents after toggling.
         var query = NewTagBox.Text?.Trim() ?? "";
         var visible = string.IsNullOrEmpty(query)
-            ? ViewModel.AvailableTags.Take(100).ToList()
+            ? ViewModel.AvailableTags.Take(1000).ToList()
             : ViewModel.AvailableTags
                 .Where(tag => tag.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .Take(50)
+                .Take(1000)
                 .ToList();
 
         ShowTagSuggestions(visible);
