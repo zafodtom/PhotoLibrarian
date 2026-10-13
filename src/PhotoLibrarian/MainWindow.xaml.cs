@@ -515,8 +515,25 @@ public sealed partial class MainWindow : Window
 
     private void OnUserKeyActivity(
         object sender,
-        KeyRoutedEventArgs e) =>
+        KeyRoutedEventArgs e)
+    {
         ViewModel.NotifyUserActivity();
+        if (e.Handled || e.Key != Windows.System.VirtualKey.A ||
+            SettingsOverlay.Visibility == Visibility.Visible ||
+            ViewerOverlay.Visibility == Visibility.Visible ||
+            e.OriginalSource is TextBox or RichEditBox or PasswordBox or
+                NumberBox or ComboBox)
+            return;
+
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+        if ((ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) !=
+            Windows.UI.Core.CoreVirtualKeyStates.Down)
+            return;
+
+        ImageGridPanel.SelectAllDisplayedImages();
+        e.Handled = true;
+    }
 
     private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
