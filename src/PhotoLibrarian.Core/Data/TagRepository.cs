@@ -65,6 +65,16 @@ public sealed class TagRepository : IAutoTagStore
         await cmd.ExecuteNonQueryAsync();
     }
 
+    /// <summary>Remove all tag assignments for one image without changing catalog definitions.</summary>
+    public async Task ClearImageTagsAsync(long imageId)
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM tags WHERE image_id = $id";
+        cmd.Parameters.AddWithValue("$id", imageId);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     /// <summary>
     /// Gets all unique tags with their usage count, optionally scoped to selected album folders.
     /// </summary>
