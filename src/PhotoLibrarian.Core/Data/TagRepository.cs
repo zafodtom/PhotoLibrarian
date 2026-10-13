@@ -18,38 +18,19 @@ public sealed class TagRepository : IAutoTagStore
 
     public async Task AddTagAsync(ImageTag tag)
     {
+        // Hierarchy is a catalog/filter concept, not an implicit assignment.
+        // Store exactly the selected path, never materialize its ancestors.
         using var conn = _db.CreateConnection();
-        
-        // Insert all tag paths (including parents)
-        foreach (var tagPath in GetTagPaths(tag.Tag))
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                INSERT OR REPLACE INTO tags (image_id, tag, source, confidence)
-                VALUES ($id, $tag, $source, $conf)
-                """;
-            cmd.Parameters.AddWithValue("$id", tag.ImageId);
-            cmd.Parameters.AddWithValue("$tag", tagPath);
-            cmd.Parameters.AddWithValue("$source", (int)tag.Source);
-            cmd.Parameters.AddWithValue("$conf", tag.Confidence);
-            await cmd.ExecuteNonQueryAsync();
-        }
-    }
-
-    private static IEnumerable<string> GetTagPaths(string tag)
-    {
-        if (!tag.Contains('/'))
-        {
-            yield return tag;
-            yield break;
-        }
-
-        var currentPath = "";
-        foreach (var part in tag.Split('/', StringSplitOptions.RemoveEmptyEntries))
-        {
-            currentPath = currentPath.Length == 0 ? part : $"{currentPath}/{part}";
-            yield return currentPath;
-        }
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT OR REPLACE INTO tags (image_id, tag, source, confidence)
+            VALUES ($id, $tag, $source, $conf)
+            """;
+        cmd.Parameters.AddWithValue("$id", tag.ImageId);
+        cmd.Parameters.AddWithValue("$tag", tag.Tag.Trim().Trim('/'));
+        cmd.Parameters.AddWithValue("$source", (int)tag.Source);
+        cmd.Parameters.AddWithValue("$conf", tag.Confidence);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task<List<ImageTag>> GetTagsAsync(long imageId)
@@ -183,7 +164,7 @@ public sealed class TagRepository : IAutoTagStore
     {
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT image_id FROM tags WHERE tag = $tag";
+        cmd.CommandText = "SELECT DISTINCT image_id FROM tags WHERE tag = $tag OR substr(tag, 1, length($tag) + 1) = $tag || '/'";
         cmd.Parameters.AddWithValue("$tag", tag);
 
         var ids = new List<long>();
