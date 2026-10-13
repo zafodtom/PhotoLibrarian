@@ -288,8 +288,8 @@ public sealed class TagRepository : IAutoTagStore
                 tag.Tag.Trim().Trim('/'),
                 Math.Clamp(tag.Confidence, 0, 1)))
             .Where(tag => tag.Tag.Length > 0)
-            .SelectMany(tag => GetTagPaths($"{ImageTag.AutomaticRootTag}/{tag.Tag}")
-                .Select(path => new GeneratedImageTag(path, tag.Confidence)))
+            .Select(tag => new GeneratedImageTag(
+                $"{ImageTag.AutomaticRootTag}/{tag.Tag}", tag.Confidence))
             .GroupBy(tag => tag.Tag, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.MaxBy(tag => tag.Confidence)!)
             .ToList();
