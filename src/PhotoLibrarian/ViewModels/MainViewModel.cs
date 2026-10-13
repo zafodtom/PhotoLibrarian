@@ -1226,6 +1226,44 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
+    /// <summary>
+    /// Clear only keywords/tags on selected images. Do not change ratings,
+    /// captions, dates, user folders or the global album tag catalog.
+    /// </summary>
+    public async Task ClearSelectedImageTagsAsync(IEnumerable<ImageEntry> entries)
+    {
+        var selected = entries
+            .DistinctBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        int done = 0;
+        var errors = new List<string>();
+        foreach (var entry in selected)
+        {
+            try
+            {
+                // Persist empty keywords before changing DB. An unsuccessful
+                // metadata write must not pretend that the tag was removed.
+                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath,
+                    Array.Empty<string>());
+                if (entry.Id > 0)
+                    await _tagRepo.ClearImageTagsAsync(entry.Id);
+                done++;
+            }
+            catch (Exception ex)
+            {
+                errors.Add(entry.FileName + ": " + ex.Message);
+            }
+        }
+
+        await MetadataPanel.ReloadTagsAsync();
+        await MetadataPanel.ReloadAvailableTagsAsync();
+        await RefreshTagsTreeAsync();
+        StatusText = errors.Count == 0
+            ? $"Cleared tags on {done} photo(s)."
+            : $"Cleared {done} photo(s); {errors.Count} failed: " +
+              string.Join("; ", errors.Take(3));
+    }
+
     public async Task<IReadOnlyList<string>> DeleteEntriesAsync(
         IEnumerable<ImageEntry> entries)
     {
