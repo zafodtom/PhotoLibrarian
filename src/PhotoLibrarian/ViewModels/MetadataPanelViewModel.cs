@@ -265,6 +265,9 @@ public partial class MetadataPanelViewModel : ObservableObject
     public async void ShowMetadata(IReadOnlyList<ImageEntry> entries)
     {
         var version = ++_metadataSelectionVersion;
+        var job = entries.Count > 1
+            ? _main?.BeginStatusJob($"METADATA // READING TAGS 0/{entries.Count}")
+            : null;
         try
         {
             await ShowMetadataCoreAsync(entries, version);
@@ -273,6 +276,10 @@ public partial class MetadataPanelViewModel : ObservableObject
         {
             System.Diagnostics.Debug.WriteLine($"[METADATA] Selection refresh failed: {ex}");
             if (_main != null) _main.StatusText = "METADATA // refresh failed: " + ex.Message;
+        }
+        finally
+        {
+            if (job.HasValue) _main?.EndStatusJob(job.Value);
         }
     }
 
