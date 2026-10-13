@@ -416,6 +416,7 @@ public partial class MetadataPanelViewModel : ObservableObject
         // Snapshot the selection. Earlier asynchronous loads must not overwrite
         // the panel when Ctrl+A or rapid navigation changes its contents.
         var snapshot = entries.ToList();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         if (_tagRepo != null)
         {
             var assigned = await _tagRepo.GetTagsForImagesAsync(
@@ -428,9 +429,14 @@ public partial class MetadataPanelViewModel : ObservableObject
                 foreach (var tag in items.Distinct(StringComparer.OrdinalIgnoreCase))
                     counts[tag] = counts.GetValueOrDefault(tag) + 1;
             }
+            // Avoid triggering a full layout pass for each individual tag.
+            // Build outside the UI collection, then replace its content.
+            var items = counts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(x => new TagDisplayItem(x.Key, x.Value, snapshot.Count))
+                .ToList();
             Tags.Clear();
-            foreach (var tag in counts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
-                Tags.Add(new TagDisplayItem(tag.Key, tag.Value, snapshot.Count));
+            foreach (var item in items)
+                Tags.Add(item);
         }
         if (version != _metadataSelectionVersion) return;
         // The album vocabulary is not selection-dependent; avoid requerying
@@ -444,6 +450,9 @@ public partial class MetadataPanelViewModel : ObservableObject
             await ReloadPeopleTagsAsync();
         else
             PeopleTags.Clear();
+        stopwatch.Stop();
+        System.Diagnostics.Debug.WriteLine(
+            $"[PERF] Metadata selection {snapshot.Count} photos: {stopwatch.ElapsedMilliseconds} ms");
     }
 
     public async Task ReloadAvailableTagsAsync()
