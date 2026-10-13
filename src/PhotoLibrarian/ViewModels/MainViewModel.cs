@@ -1435,6 +1435,34 @@ public partial class MainViewModel : ObservableObject
             await window.RefreshAllNavigationAsync();
     }
 
+    /// <summary>Clear tag assignments from selected photos, including embedded and sidecar keywords.</summary>
+    public async Task<(int Succeeded, int Failed)> ClearTagsFromImagesAsync(
+        IReadOnlyCollection<ImageEntry> entries)
+    {
+        int succeeded = 0, failed = 0;
+        foreach (var entry in entries.DistinctBy(x => x.FilePath))
+        {
+            try
+            {
+                // Persist the empty keyword set before clearing the DB: if the
+                // image write fails, keep its assignments available for retry.
+                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath, Array.Empty<string>());
+                if (entry.Id > 0)
+                    await _tagRepo.ClearImageTagsAsync(entry.Id);
+                succeeded++;
+            }
+            catch (Exception exception)
+            {
+                failed++;
+                DebugLog.WriteLine($"Clear tags failed: {entry.FilePath}: {exception}");
+            }
+        }
+        await MetadataPanel.ReloadTagsAsync();
+        await RefreshTagsTreeAsync();
+        StatusText = $"CLEAR TAGS // {succeeded} completed, {failed} failed";
+        return (succeeded, failed);
+    }
+
     public async Task CleanupAsync()
     {
         DebugLog.WriteLine("MainViewModel: Cleanup - canceling background tasks");
