@@ -126,6 +126,7 @@ public partial class MetadataPanelViewModel : ObservableObject
 
     // Currently-selected entries (1 or more)
     private List<ImageEntry> _entries = new();
+    private int _metadataSelectionVersion;
     private ImageRepository? _imageRepo;
     private TagRepository? _tagRepo;
     private FaceRepository? _faceRepo;
@@ -263,6 +264,20 @@ public partial class MetadataPanelViewModel : ObservableObject
     /// </summary>
     public async void ShowMetadata(IReadOnlyList<ImageEntry> entries)
     {
+        var version = ++_metadataSelectionVersion;
+        try
+        {
+            await ShowMetadataCoreAsync(entries, version);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[METADATA] Selection refresh failed: {ex}");
+            if (_main != null) _main.StatusText = "METADATA // refresh failed: " + ex.Message;
+        }
+    }
+
+    private async Task ShowMetadataCoreAsync(IReadOnlyList<ImageEntry> entries, int version)
+    {
         if (entries == null || entries.Count == 0)
         {
             Clear();
@@ -382,31 +397,28 @@ public partial class MetadataPanelViewModel : ObservableObject
             }
         }
 
-        // Tags — load from DB and compute union
-        Tags.Clear();
+        // Snapshot the selection. Earlier asynchronous loads must not overwrite
+        // the panel when Ctrl+A or rapid navigation changes its contents.
+        var snapshot = entries.ToList();
         if (_tagRepo != null)
         {
-            var tagCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            int considered = 0;
-            foreach (var e in _entries)
+            var assigned = await _tagRepo.GetTagsForImagesAsync(
+                snapshot.Select(e => e.Id).Where(id => id > 0).ToArray());
+            if (version != _metadataSelectionVersion) return;
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in snapshot)
             {
-                if (e.Id <= 0) continue;
-                considered++;
-                var list = await _tagRepo.GetTagsAsync(e.Id);
-                foreach (var t in list)
-                {
-                    if (string.IsNullOrWhiteSpace(t.Tag)) continue;
-                    tagCounts[t.Tag] = tagCounts.GetValueOrDefault(t.Tag, 0) + 1;
-                }
+                if (!assigned.TryGetValue(entry.Id, out var items)) continue;
+                foreach (var tag in items.Distinct(StringComparer.OrdinalIgnoreCase))
+                    counts[tag] = counts.GetValueOrDefault(tag) + 1;
             }
-            if (considered == 0) considered = _entries.Count;
-            foreach (var kvp in tagCounts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
-            {
-                Tags.Add(new TagDisplayItem(kvp.Key, kvp.Value, considered));
-            }
+            Tags.Clear();
+            foreach (var tag in counts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+                Tags.Add(new TagDisplayItem(tag.Key, tag.Value, snapshot.Count));
         }
-
+        if (version != _metadataSelectionVersion) return;
         await ReloadAvailableTagsAsync();
+        if (version != _metadataSelectionVersion) return;
         await ReloadPeopleTagsAsync();
     }
 
@@ -647,6 +659,7 @@ public partial class MetadataPanelViewModel : ObservableObject
 
     public void Clear()
     {
+        ++_metadataSelectionVersion;
         _entries = new();
         HasImage = false;
         IsMultiSelect = false;
