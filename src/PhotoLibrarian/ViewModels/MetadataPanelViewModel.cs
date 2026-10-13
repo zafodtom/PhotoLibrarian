@@ -449,8 +449,12 @@ public partial class MetadataPanelViewModel : ObservableObject
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         if (_tagRepo != null)
         {
+            var queryWatch = System.Diagnostics.Stopwatch.StartNew();
             var assigned = await _tagRepo.GetTagsForImagesAsync(
                 snapshot.Select(e => e.Id).Where(id => id > 0).ToArray());
+            queryWatch.Stop();
+            System.Diagnostics.Debug.WriteLine(
+                $"[PERF] Selection TAG_SQL: {snapshot.Count} photos in {queryWatch.ElapsedMilliseconds} ms");
             if (version != _metadataSelectionVersion) return;
             var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in snapshot)
