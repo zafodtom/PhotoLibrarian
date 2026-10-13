@@ -10,11 +10,110 @@ namespace PhotoLibrarian.Core.Services;
 /// </summary>
 public static class WindowsThumbnailService
 {
+    // Portable, regenerable album cache. The key includes path, size, file length
+    // and modification timestamp so stale thumbnails are never reused after edits.
+    private static string? _albumCacheDirectory;
+    private const long MaxCacheBytes = 1024L * 1024 * 1024;
+
+    public static void ConfigureAlbumCache(string? albumRoot)
+    {
+        _albumCacheDirectory = string.IsNullOrWhiteSpace(albumRoot)
+            ? null
+            : Path.Combine(albumRoot, ".album", "thumbnails");
+        if (_albumCacheDirectory is not null)
+        {
+            try
+            {
+                Directory.CreateDirectory(_albumCacheDirectory);
+                _ = Task.Run(TrimCache);
+            }
+            catch (IOException) { _albumCacheDirectory = null; }
+            catch (UnauthorizedAccessException) { _albumCacheDirectory = null; }
+        }
+    }
+
+    private static string? GetCachePath(string filePath, int size)
+    {
+        if (_albumCacheDirectory is null) return null;
+        try
+        {
+            var info = new FileInfo(filePath);
+            if (!info.Exists) return null;
+            var key = $"{Path.GetFullPath(filePath).ToUpperInvariant()}|{size}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(key)));
+            return Path.Combine(_albumCacheDirectory, hash[..2], hash + ".bin");
+        }
+        catch { return null; }
+    }
+
+    private static void TrimCache()
+    {
+        var root = _albumCacheDirectory;
+        if (root is null || !Directory.Exists(root)) return;
+        try
+        {
+            var files = Directory.EnumerateFiles(root, "*.bin", SearchOption.AllDirectories)
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .ToList();
+            long bytes = 0;
+            foreach (var file in files)
+            {
+                bytes += file.Length;
+                if (bytes <= MaxCacheBytes) continue;
+                try { file.Delete(); } catch (IOException) { }
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
     /// <summary>
     /// Gets thumbnail as encoded bytes (PNG/BMP from cache). Much faster than pixel decode.
     /// Use this for BitmapImage.SetSourceAsync() which can decode the stream directly.
     /// </summary>
     public static async Task<byte[]?> GetThumbnailStreamAsync(string filePath, int size)
+    {
+        var cachePath = GetCachePath(filePath, size);
+        if (cachePath is not null)
+        {
+            try
+            {
+                if (File.Exists(cachePath))
+                {
+                    var cached = await File.ReadAllBytesAsync(cachePath);
+                    if (cached.Length > 0)
+                        return cached;
+                }
+            }
+            catch (IOException) { /* regenerate */ }
+        }
+
+        byte[]? created = await GenerateThumbnailBytesAsync(filePath, size);
+        if (created is { Length: > 0 } && cachePath is not null)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+                var temporary = cachePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                try
+                {
+                    await File.WriteAllBytesAsync(temporary, created);
+                    File.Move(temporary, cachePath, overwrite: true);
+                }
+                finally
+                {
+                    try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+                }
+            }
+            catch (IOException) { /* disk cache is optional */ }
+            catch (UnauthorizedAccessException) { }
+        }
+        return created;
+    }
+
+    private static async Task<byte[]?> GenerateThumbnailBytesAsync(string filePath, int size)
     {
         if (HeifFallbackDecoder.IsHeifFamily(filePath))
         {
