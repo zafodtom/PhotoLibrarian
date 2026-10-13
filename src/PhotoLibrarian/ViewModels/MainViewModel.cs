@@ -1277,6 +1277,9 @@ public partial class MainViewModel : ObservableObject
             .ToList();
         int done = 0;
         var errors = new List<string>();
+        var job = BeginStatusJob($"TAGS // CLEAR 0/{selected.Count}");
+        try
+        {
         foreach (var entry in selected)
         {
             try
@@ -1293,6 +1296,18 @@ public partial class MainViewModel : ObservableObject
             {
                 errors.Add(entry.FileName + ": " + ex.Message);
             }
+            var processed = done + errors.Count;
+            if (processed % 10 == 0 || processed == selected.Count)
+            {
+                UpdateStatusJob(job,
+                    $"TAGS // CLEAR {processed}/{selected.Count}  // {errors.Count} failed");
+                await Task.Yield();
+            }
+        }
+        }
+        finally
+        {
+            EndStatusJob(job);
         }
 
         await MetadataPanel.ReloadTagsAsync();
