@@ -1371,10 +1371,14 @@ public partial class ImageGridViewModel : ObservableObject
         // A Ctrl+A selection may keep the same primary image. In that case
         // the property-change callback does not fire, but the multi-selection
         // metadata (including the union of tags) still needs to refresh.
-        var primaryChanged = !ReferenceEquals(SelectedImage, primary);
+        // Always use the full explicit selection snapshot. A property-change
+        // callback is not a reliable source of truth for Ctrl+A because the
+        // primary thumbnail often stays unchanged.
         SelectedImage = primary;
-        if (!primaryChanged)
-            RefreshMetadataFromSelection();
+        if (selected.Count > 0)
+            _main.MetadataPanel.ShowMetadata(selected.Select(vm => vm.Entry).ToList());
+        else
+            _main.MetadataPanel.Clear();
     }
 
     private void RestoreSelectionAfterLoad()
