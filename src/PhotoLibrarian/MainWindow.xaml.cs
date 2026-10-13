@@ -477,8 +477,11 @@ public sealed partial class MainWindow : Window
     {
         if (_isClosing) return;
 
-        if (e.PropertyName == nameof(ViewModel.StatusText))
-            StatusBarText.Text = ViewModel.StatusText;
+        if (e.PropertyName == nameof(ViewModel.StatusText) ||
+            e.PropertyName == nameof(ViewModel.ActiveJobsText))
+            UpdateStatusRail();
+        if (e.PropertyName == nameof(ViewModel.HasActiveJobs))
+            UpdateBackgroundProgress();
         if (e.PropertyName == nameof(ViewModel.IsIndexing))
             UpdateBackgroundProgress();
         if (e.PropertyName == nameof(ViewModel.IsFaceDetectionRunning))
@@ -523,12 +526,22 @@ public sealed partial class MainWindow : Window
             UpdateSettingsVisibility();
     }
 
+    private void UpdateStatusRail()
+    {
+        StatusBarText.Text = ViewModel.HasActiveJobs
+            ? ViewModel.ActiveJobsText
+            : ViewModel.StatusText;
+    }
+
     private void UpdateBackgroundProgress()
     {
         IndexingProgress.IsActive =
             ViewModel.IsIndexing ||
             ViewModel.IsFaceDetectionRunning ||
-            ViewModel.IsAutoTaggingRunning;
+            ViewModel.IsAutoTaggingRunning ||
+            ViewModel.IsRecognitionRunning ||
+            ViewModel.HasActiveJobs;
+        UpdateStatusRail();
     }
 
     private void OnUserPointerActivity(
