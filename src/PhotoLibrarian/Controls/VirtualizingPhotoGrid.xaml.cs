@@ -1077,14 +1077,14 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         // The tap may bubble from a realized thumbnail. Only clicks in the
         // canvas background should clear selection.
         var element = e.OriginalSource as DependencyObject;
-        while (element != null && !ReferenceEquals(element, ItemsCanvas))
+        while (element != null && !ReferenceEquals(element, ScrollContainer))
         {
             if (element is FrameworkElement view &&
                 view.DataContext is ImageThumbnailViewModel)
                 return;
             element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element);
         }
-        if (ReferenceEquals(element, ItemsCanvas))
+        if (ReferenceEquals(element, ScrollContainer))
             ClearSelection();
     }
 
