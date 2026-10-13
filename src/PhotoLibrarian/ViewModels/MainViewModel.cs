@@ -52,6 +52,18 @@ public partial class MainViewModel : ObservableObject
     // Update from the UI dispatcher; overlapping jobs retain independent tokens.
     private readonly Dictionary<long, string> _activeJobs = new();
     private long _nextJobId;
+    private int _recentJobVersion;
+
+    [ObservableProperty]
+    public partial string RecentJobText { get; set; } = "";
+
+    private async Task ClearRecentJobAfterDelayAsync(int version)
+    {
+        await Task.Delay(5000);
+        if (_recentJobVersion == version)
+            RecentJobText = "";
+    }
+
 
     [ObservableProperty]
     public partial bool HasActiveJobs { get; set; }
@@ -76,8 +88,15 @@ public partial class MainViewModel : ObservableObject
 
     public void EndStatusJob(long id)
     {
-        if (!_activeJobs.Remove(id)) return;
+        if (!_activeJobs.TryGetValue(id, out var description)) return;
+        _activeJobs.Remove(id);
         UpdateActiveJobs();
+        if (description.StartsWith("TAGS //", StringComparison.OrdinalIgnoreCase) ||
+            description.StartsWith("METADATA //", StringComparison.OrdinalIgnoreCase))
+        {
+            RecentJobText = description;
+            _ = ClearRecentJobAfterDelayAsync(++_recentJobVersion);
+        }
     }
 
     private void UpdateActiveJobs()
