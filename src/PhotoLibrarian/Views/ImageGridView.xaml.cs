@@ -597,6 +597,9 @@ public sealed partial class ImageGridView : UserControl
         SizeSlider.Value = Math.Min(SizeSlider.Value + 40, 400);
     }
 
+    public void SelectAllDisplayedImages() =>
+        PhotoGrid.SelectAllVisibleImages();
+
     private async void OnGridKeyDown(
         object sender,
         Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
