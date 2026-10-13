@@ -81,6 +81,7 @@ public partial class ImageGridViewModel : ObservableObject
     private readonly HashSet<ImageThumbnailViewModel> _loadingItems = new();
     private readonly HashSet<string> _lastVisibleThumbnailPaths = new(StringComparer.OrdinalIgnoreCase);
     private int _thumbnailsLoaded;
+    private readonly System.Diagnostics.Stopwatch _thumbnailWatch = new();
     private long? _thumbnailStatusJob;
     private readonly object _queueLock = new();
     private DateTime _lastScrollReorder = DateTime.MinValue;
@@ -504,8 +505,12 @@ public partial class ImageGridViewModel : ObservableObject
         lock (_queueLock) pending = _loadQueue.Count + _loadingItems.Count;
         if (pending > 0)
         {
-            _thumbnailStatusJob ??= _main.BeginStatusJob(
-                $"THUMBNAILS // 0 loaded / {pending} pending");
+            if (_thumbnailStatusJob is null)
+            {
+                _thumbnailWatch.Restart();
+                _thumbnailStatusJob = _main.BeginStatusJob(
+                    $"THUMBNAILS // 0 loaded / {pending} pending");
+            }
             _main.UpdateStatusJob(_thumbnailStatusJob.Value,
                 $"THUMBNAILS // {_thumbnailsLoaded:N0} loaded / {pending:N0} pending");
         }
@@ -584,8 +589,9 @@ public partial class ImageGridViewModel : ObservableObject
                     var stats = WindowsThumbnailService.CacheStatistics;
                     _main.EndStatusJob(job);
                     _thumbnailStatusJob = null;
+                    _thumbnailWatch.Stop();
                     _main.StatusText =
-                        $"THUMBNAILS // {_thumbnailsLoaded:N0} ready | cache: {stats.Hits:N0} hits, {stats.Misses:N0} misses";
+                        $"THUMBNAILS // {_thumbnailsLoaded:N0} ready in {_thumbnailWatch.Elapsed.TotalSeconds:F1}s | cache: {stats.Hits:N0} hits, {stats.Misses:N0} misses";
                 }
             });
         }, TaskScheduler.Default);
