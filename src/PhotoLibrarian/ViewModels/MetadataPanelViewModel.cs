@@ -127,6 +127,7 @@ public partial class MetadataPanelViewModel : ObservableObject
     // Currently-selected entries (1 or more)
     private List<ImageEntry> _entries = new();
     private int _metadataSelectionVersion;
+    private bool _availableTagsInitialized;
     private ImageRepository? _imageRepo;
     private TagRepository? _tagRepo;
     private FaceRepository? _faceRepo;
@@ -265,7 +266,7 @@ public partial class MetadataPanelViewModel : ObservableObject
     public async void ShowMetadata(IReadOnlyList<ImageEntry> entries)
     {
         var version = ++_metadataSelectionVersion;
-        var job = entries.Count > 1
+        var job = entries is { Count: > 1 }
             ? _main?.BeginStatusJob($"METADATA // READING TAGS 0/{entries.Count}")
             : null;
         try
@@ -428,7 +429,10 @@ public partial class MetadataPanelViewModel : ObservableObject
                 Tags.Add(new TagDisplayItem(tag.Key, tag.Value, snapshot.Count));
         }
         if (version != _metadataSelectionVersion) return;
-        await ReloadAvailableTagsAsync();
+        // The album vocabulary is not selection-dependent; avoid requerying
+        // every tag in the album whenever the user presses Ctrl+A.
+        if (!_availableTagsInitialized)
+            await ReloadAvailableTagsAsync();
         if (version != _metadataSelectionVersion) return;
         // Face-region thumbnails are only relevant for a single image;
         // querying faces for the entire Ctrl+A selection can be very costly.
@@ -460,19 +464,20 @@ public partial class MetadataPanelViewModel : ObservableObject
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        foreach (var tag in all.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
+        // Build hierarchy prefixes once (linear in total path length).
+        // Repeated all.Any(...) was quadratic for large catalogs and slowed
+        // selection even when the folder contained only a few images.
+        var branches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tag in all)
         {
-            var prefix = tag.TrimEnd('/') + "/";
-            var isBranch = all.Any(other =>
-                !string.Equals(other, tag, StringComparison.OrdinalIgnoreCase) &&
-                other.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-
-            AvailableTags.Add(new AvailableTagItem(
-                tag,
-                selected.Contains(tag),
-                used.Contains(tag),
-                isBranch));
+            for (var slash = tag.LastIndexOf('/'); slash > 0;
+                 slash = tag.LastIndexOf('/', slash - 1))
+                branches.Add(tag[..slash]);
         }
+        foreach (var tag in all.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
+            AvailableTags.Add(new AvailableTagItem(
+                tag, selected.Contains(tag), used.Contains(tag), branches.Contains(tag)));
+        _availableTagsInitialized = true;
     }
 
     public string? ValidateCatalogPath(
