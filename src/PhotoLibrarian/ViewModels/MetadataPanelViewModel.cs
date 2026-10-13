@@ -842,7 +842,7 @@ public partial class MetadataPanelViewModel : ObservableObject
                     errors++;
                     System.Diagnostics.Debug.WriteLine($"[TAGS] Add failed: {entry.FilePath}: {ex}");
                 }
-                if ((completed + errors) % 10 == 0 || completed + errors == targets.Count)
+                if (targets.Count <= 10 || (completed + errors) % 10 == 0 || completed + errors == targets.Count)
                 {
                     if (job.HasValue)
                         _main?.UpdateStatusJob(job.Value,
@@ -855,10 +855,17 @@ public partial class MetadataPanelViewModel : ObservableObject
         }
         finally
         {
-            if (job.HasValue) _main?.EndStatusJob(job.Value);
             _tagBatchGate.Release();
         }
-        await RefreshTagUiAfterBatchAsync("ADD", completed, errors);
+        try
+        {
+            if (job.HasValue) _main?.UpdateStatusJob(job.Value, "TAGS // ADD // REFRESHING INDEX");
+            await RefreshTagUiAfterBatchAsync("ADD", completed, errors);
+        }
+        finally
+        {
+            if (job.HasValue) _main?.EndStatusJob(job.Value);
+        }
     }
 
     /// <summary>Remove one explicit tag assignment from selected images.</summary>
@@ -893,7 +900,7 @@ public partial class MetadataPanelViewModel : ObservableObject
                     errors++;
                     System.Diagnostics.Debug.WriteLine($"[TAGS] Remove failed: {entry.FilePath}: {ex}");
                 }
-                if ((completed + errors) % 10 == 0 || completed + errors == targets.Count)
+                if (targets.Count <= 10 || (completed + errors) % 10 == 0 || completed + errors == targets.Count)
                 {
                     if (job.HasValue)
                         _main?.UpdateStatusJob(job.Value,
@@ -904,10 +911,17 @@ public partial class MetadataPanelViewModel : ObservableObject
         }
         finally
         {
-            if (job.HasValue) _main?.EndStatusJob(job.Value);
             _tagBatchGate.Release();
         }
-        await RefreshTagUiAfterBatchAsync("REMOVE", completed, errors);
+        try
+        {
+            if (job.HasValue) _main?.UpdateStatusJob(job.Value, "TAGS // REMOVE // REFRESHING INDEX");
+            await RefreshTagUiAfterBatchAsync("REMOVE", completed, errors);
+        }
+        finally
+        {
+            if (job.HasValue) _main?.EndStatusJob(job.Value);
+        }
     }
 
     private async Task RefreshTagUiAfterBatchAsync(string operation, int completed, int errors)
