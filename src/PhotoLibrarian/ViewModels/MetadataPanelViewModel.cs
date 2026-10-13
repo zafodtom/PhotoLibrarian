@@ -272,6 +272,10 @@ public partial class MetadataPanelViewModel : ObservableObject
         try
         {
             await ShowMetadataCoreAsync(entries, version);
+            if (version == _metadataSelectionVersion && entries is { Count: > 1 } &&
+                _main != null)
+                _main.StatusText =
+                    $"METADATA // {entries.Count:N0} photos selected, {Tags.Count:N0} distinct tags";
         }
         catch (Exception ex)
         {
