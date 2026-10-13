@@ -268,7 +268,6 @@ public partial class MetadataPanelViewModel : ObservableObject
     {
         var version = ++_metadataSelectionVersion;
         _selectionDebounce?.Cancel();
-        _selectionDebounce?.Dispose();
         var delay = new System.Threading.CancellationTokenSource();
         _selectionDebounce = delay;
         var job = entries is { Count: > 1 }
