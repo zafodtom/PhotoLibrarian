@@ -79,6 +79,7 @@ public partial class ImageGridViewModel : ObservableObject
     private readonly Queue<ImageThumbnailViewModel> _loadQueue = new();
     private readonly HashSet<ImageThumbnailViewModel> _queuedItems = new();
     private readonly HashSet<ImageThumbnailViewModel> _loadingItems = new();
+    private readonly HashSet<string> _lastVisibleThumbnailPaths = new(StringComparer.OrdinalIgnoreCase);
     private int _thumbnailsLoaded;
     private long? _thumbnailStatusJob;
     private readonly object _queueLock = new();
@@ -215,22 +216,16 @@ public partial class ImageGridViewModel : ObservableObject
             ? await _faceRepo.GetPersonIdsByImageIdAsync()
             : null;
         
-        // Clear old images and dispose thumbnails to free memory
-        foreach (var img in Images)
-        {
-            if (img.Thumbnail is not null)
-            {
-                // Clear the source to allow GC to collect the bitmap data
-                img.Thumbnail = null;
-            }
-        }
+        // Keep decoded thumbnails for the last visible viewport when the user
+        // changes folders, sorting or tag filters. Avoid retaining the entire
+        // album (a large collection of decoded bitmaps can exhaust RAM).
+        var retainedThumbnails = Images
+            .Where(vm => vm.Thumbnail is not null &&
+                _lastVisibleThumbnailPaths.Contains(vm.Entry.FilePath))
+            .GroupBy(vm => vm.Entry.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(),
+                StringComparer.OrdinalIgnoreCase);
         Images.Clear();
-        
-        // Hint to GC to collect disposed bitmaps
-        if (allImages.Count == 0) // Only if we'll be loading new ones
-        {
-            GC.Collect(0, GCCollectionMode.Optimized);
-        }
 
         // Check if any filters are active
         bool hasFolderFilter = _currentFolderFilters is not null && _currentFolderFilters.Count > 0;
@@ -331,7 +326,15 @@ public partial class ImageGridViewModel : ObservableObject
                 if (matchCount <= 3)
                     DebugLog.WriteLine($"  Including '{img.FilePath}'");
 
-                Images.Add(new ImageThumbnailViewModel(img, ct) { Index = index });
+                var vm = new ImageThumbnailViewModel(img, ct) { Index = index };
+                if (retainedThumbnails.TryGetValue(img.FilePath, out var previous) &&
+                    previous.Entry.FileSize == img.FileSize &&
+                    previous.Entry.DateModified == img.DateModified)
+                {
+                    vm.Thumbnail = previous.Thumbnail;
+                    vm.IsLoading = false;
+                }
+                Images.Add(vm);
                 index++;
             }
             else
@@ -475,6 +478,10 @@ public partial class ImageGridViewModel : ObservableObject
     /// </summary>
     public void OnViewportChangedGrouped(List<ImageThumbnailViewModel> visibleItems)
     {
+        _lastVisibleThumbnailPaths.Clear();
+        foreach (var item in visibleItems)
+            _lastVisibleThumbnailPaths.Add(item.Entry.FilePath);
+
         var now = DateTime.UtcNow;
         if ((now - _lastScrollReorder).TotalMilliseconds < ScrollReorderThrottleMs)
             return;
