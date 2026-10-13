@@ -187,7 +187,8 @@ public static class AlbumService
         };
         var logDir = Path.Combine(albumDir, "logs");
         if (Directory.EnumerateDirectories(albumDir).Any(path =>
-                !Path.GetFileName(path).Equals("logs", StringComparison.OrdinalIgnoreCase)) ||
+                !Path.GetFileName(path).Equals("logs", StringComparison.OrdinalIgnoreCase) &&
+                !Path.GetFileName(path).Equals("thumbnails", StringComparison.OrdinalIgnoreCase)) ||
             (Directory.Exists(logDir) &&
              (Directory.EnumerateDirectories(logDir).Any() ||
               Directory.EnumerateFiles(logDir).Any(path =>
@@ -227,6 +228,18 @@ public static class AlbumService
             foreach (var log in Directory.EnumerateFiles(logDir))
                 File.Delete(log);
             Directory.Delete(logDir, recursive: false);
+        }
+        var thumbnailsDir = Path.Combine(albumDir, "thumbnails");
+        if (Directory.Exists(thumbnailsDir))
+        {
+            // This directory is exclusively owned by the application's
+            // regenerable thumbnail cache. Never follow reparse points.
+            if ((File.GetAttributes(thumbnailsDir) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidOperationException("Thumbnail cache is a link; refusing to delete.");
+            foreach (var directory in Directory.EnumerateDirectories(thumbnailsDir))
+                if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Thumbnail cache contains a link.");
+            Directory.Delete(thumbnailsDir, recursive: true);
         }
         File.Delete(Path.Combine(albumDir, AlbumManifestName));
         Directory.Delete(albumDir, recursive: false);
