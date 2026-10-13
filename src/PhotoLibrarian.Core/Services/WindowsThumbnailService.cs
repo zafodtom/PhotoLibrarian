@@ -14,6 +14,14 @@ public static class WindowsThumbnailService
     // and modification timestamp so stale thumbnails are never reused after edits.
     private static string? _albumCacheDirectory;
     private const long MaxCacheBytes = 1024L * 1024 * 1024;
+    private static long _cacheHits;
+    private static long _cacheMisses;
+    private static long _cacheWrites;
+    public static (long Hits, long Misses, long Writes) CacheStatistics =>
+        (Interlocked.Read(ref _cacheHits),
+         Interlocked.Read(ref _cacheMisses),
+         Interlocked.Read(ref _cacheWrites));
+
 
     public static void ConfigureAlbumCache(string? albumRoot)
     {
@@ -84,12 +92,16 @@ public static class WindowsThumbnailService
                 {
                     var cached = await File.ReadAllBytesAsync(cachePath);
                     if (cached.Length > 0)
+                    {
+                        Interlocked.Increment(ref _cacheHits);
                         return cached;
+                    }
                 }
             }
             catch (IOException) { /* regenerate */ }
         }
 
+        Interlocked.Increment(ref _cacheMisses);
         byte[]? created = await GenerateThumbnailBytesAsync(filePath, size);
         if (created is { Length: > 0 } && cachePath is not null)
         {
@@ -101,6 +113,8 @@ public static class WindowsThumbnailService
                 {
                     await File.WriteAllBytesAsync(temporary, created);
                     File.Move(temporary, cachePath, overwrite: true);
+                    if (Interlocked.Increment(ref _cacheWrites) % 200 == 0)
+                        _ = Task.Run(TrimCache);
                 }
                 finally
                 {
