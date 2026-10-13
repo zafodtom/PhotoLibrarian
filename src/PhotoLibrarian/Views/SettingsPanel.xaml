@@ -341,7 +341,7 @@
                                     Margin="10,0,0,0">
                             <TextBlock Text="CACHE CONTROL"
                                        Style="{StaticResource HiTechSectionHeaderStyle}" />
-                            <TextBlock Text="LOCAL THUMBNAIL STORAGE"
+                            <TextBlock Text="PORTABLE THUMBNAIL CACHE (MAX 1 GB)"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
                         </StackPanel>
                         <TextBlock Grid.Column="2"
@@ -383,7 +383,7 @@
                             <Button Grid.Column="2"
                                     AutomationProperties.AutomationId="RebuildCacheButton"
                                     VerticalAlignment="Center"
-                                    Content="REBUILD CACHE"
+                                    Content="CLEAR THUMBNAILS"
                                     Click="OnRebuildCache"
                                     Style="{StaticResource HiTechPrimaryButtonStyle}" />
                         </Grid>
