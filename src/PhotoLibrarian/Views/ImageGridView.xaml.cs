@@ -601,11 +601,28 @@ public sealed partial class ImageGridView : UserControl
         object sender,
         Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key != Windows.System.VirtualKey.Delete ||
-            ViewModel is null)
+        if (ViewModel is null)
+            return;
+
+        // The containing image index may have focus even when no thumbnail is
+        // selected. Respect text editing controls and their native Ctrl+A.
+        if (e.OriginalSource is TextBox or RichEditBox or PasswordBox or
+            NumberBox or ComboBox)
+            return;
+
+        var ctrlState = Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+        if (e.Key == Windows.System.VirtualKey.A &&
+            (ctrlState & Windows.UI.Core.CoreVirtualKeyStates.Down) ==
+             Windows.UI.Core.CoreVirtualKeyStates.Down)
         {
+            PhotoGrid.SelectAllVisibleImages();
+            e.Handled = true;
             return;
         }
+
+        if (e.Key != Windows.System.VirtualKey.Delete)
+            return;
 
         // Do not hijack Delete while the user is editing a filter/text field.
         if (e.OriginalSource is TextBox or
