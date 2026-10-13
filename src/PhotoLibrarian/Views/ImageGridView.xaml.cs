@@ -600,8 +600,6 @@ public sealed partial class ImageGridView : UserControl
     public void SelectAllDisplayedImages() =>
         PhotoGrid.SelectAllVisibleImages();
 
-    public void SelectAllDisplayedImages() => PhotoGrid.SelectAllVisibleImages();
-
     private async void OnGridKeyDown(
         object sender,
         Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
