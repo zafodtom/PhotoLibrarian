@@ -478,7 +478,8 @@ public sealed partial class MainWindow : Window
         if (_isClosing) return;
 
         if (e.PropertyName == nameof(ViewModel.StatusText) ||
-            e.PropertyName == nameof(ViewModel.ActiveJobsText))
+            e.PropertyName == nameof(ViewModel.ActiveJobsText) ||
+            e.PropertyName == nameof(ViewModel.RecentJobText))
             UpdateStatusRail();
         if (e.PropertyName == nameof(ViewModel.HasActiveJobs))
             UpdateBackgroundProgress();
@@ -530,7 +531,9 @@ public sealed partial class MainWindow : Window
     {
         StatusBarText.Text = ViewModel.HasActiveJobs
             ? ViewModel.ActiveJobsText
-            : ViewModel.StatusText;
+            : !string.IsNullOrEmpty(ViewModel.RecentJobText)
+                ? ViewModel.RecentJobText
+                : ViewModel.StatusText;
     }
 
     private void UpdateBackgroundProgress()
