@@ -122,6 +122,8 @@ public partial class AvailableTagItem : ObservableObject
 
 public partial class MetadataPanelViewModel : ObservableObject
 {
+    private readonly SemaphoreSlim _tagBatchGate = new(1, 1);
+
     // Currently-selected entries (1 or more)
     private List<ImageEntry> _entries = new();
     private ImageRepository? _imageRepo;
@@ -768,96 +770,115 @@ public partial class MetadataPanelViewModel : ObservableObject
     [RelayCommand]
     public async Task AddTagAsync(string tag)
     {
-        if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag)) return;
+        if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag) || _tagRepo == null) return;
         var trimmed = tag.Trim();
+        var targets = _entries.Where(e => e.Id > 0)
+            .DistinctBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase).ToList();
+        if (targets.Count == 0) return;
 
-        // Anything the user actively adds becomes part of the album's curated
-        // vocabulary as well as being assigned to the selected photo(s).
-        AlbumService.AddSelectedTag(trimmed);
-
-        // Update UI tag list
-        var existing = Tags.FirstOrDefault(t => string.Equals(t.Tag, trimmed, StringComparison.OrdinalIgnoreCase));
-        if (existing == null)
+        int completed = 0, errors = 0;
+        // Only one metadata batch can run per panel instance. File I/O itself
+        // runs asynchronously; never perform synchronous image writes on the UI thread.
+        await _tagBatchGate.WaitAsync();
+        try
         {
-            Tags.Add(new TagDisplayItem(trimmed, _entries.Count, _entries.Count));
-        }
-        else
-        {
-            existing.PresentCount = _entries.Count;
-            existing.TotalCount = _entries.Count;
-        }
-
-        // Apply to every entry
-        foreach (var entry in _entries)
-        {
-            if (_tagRepo != null && entry.Id > 0)
+            foreach (var entry in targets)
             {
-                await _tagRepo.AddTagAsync(new ImageTag
+                try
                 {
-                    ImageId = entry.Id,
-                    Tag = trimmed,
-                    Source = TagSource.Manual,
-                    Confidence = 1.0f
-                });
-
-                // Rewrite sidecar with the full set for this image (DB is the source of truth)
-                var allTags = await _tagRepo.GetTagsAsync(entry.Id);
-                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath,
-                    allTags.Select(t => t.Tag).Distinct());
+                    var current = await _tagRepo.GetTagsAsync(entry.Id);
+                    if (!current.Any(t => string.Equals(t.Tag, trimmed, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var updated = current.Select(t => t.Tag)
+                            .Append(trimmed).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                        await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath, updated);
+                        await _tagRepo.AddTagAsync(new ImageTag
+                        {
+                            ImageId = entry.Id,
+                            Tag = trimmed,
+                            Source = TagSource.Manual,
+                            Confidence = 1.0f
+                        });
+                    }
+                    completed++;
+                }
+                catch (Exception ex)
+                {
+                    errors++;
+                    System.Diagnostics.Debug.WriteLine($"[TAGS] Add failed: {entry.FilePath}: {ex}");
+                }
+                if ((completed + errors) % 20 == 0)
+                    await Task.Yield();
             }
+            if (completed > 0)
+                AlbumService.AddSelectedTag(trimmed);
         }
-
-        // Refresh the tag navigation tree and picker so counts and new tags show up immediately
-        await ReloadAvailableTagsAsync();
-        if (_main != null) await _main.RefreshTagsTreeAsync();
+        finally
+        {
+            _tagBatchGate.Release();
+        }
+        await RefreshTagUiAfterBatchAsync("ADD", completed, errors);
     }
 
-    /// <summary>
-    /// Removes a tag from every selected image that has it.
-    /// </summary>
+    /// <summary>Remove one explicit tag assignment from selected images.</summary>
     [RelayCommand]
     public async Task RemoveTagAsync(string tag)
     {
-        if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag)) return;
-
-        int errors = 0;
-        foreach (var entry in _entries.ToList())
+        if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag) || _tagRepo == null) return;
+        var targets = _entries.Where(e => e.Id > 0)
+            .DistinctBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase).ToList();
+        int completed = 0, errors = 0;
+        await _tagBatchGate.WaitAsync();
+        try
         {
-            if (_tagRepo == null || entry.Id <= 0) continue;
-            try
+            foreach (var entry in targets)
             {
-                var current = await _tagRepo.GetTagsAsync(entry.Id);
-                var remaining = current.Where(t =>
-                    !string.Equals(t.Tag, tag, StringComparison.OrdinalIgnoreCase))
-                    .Select(t => t.Tag).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-
-                // Write sidecar first. On a locked file, keep the database tag
-                // so a rescan does not resurrect an apparently removed value.
-                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath, remaining);
-                await _tagRepo.RemoveTagAsync(entry.Id, tag);
-            }
-            catch (IOException ex)
-            {
-                errors++;
-                System.Diagnostics.Debug.WriteLine($"[TAGS] Locked metadata: {entry.FilePath}: {ex}");
-            }
-            catch (Exception ex)
-            {
-                errors++;
-                System.Diagnostics.Debug.WriteLine($"[TAGS] Cannot remove tag: {entry.FilePath}: {ex}");
+                try
+                {
+                    var current = await _tagRepo.GetTagsAsync(entry.Id);
+                    if (current.Any(t => string.Equals(t.Tag, tag, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var remaining = current.Where(t =>
+                            !string.Equals(t.Tag, tag, StringComparison.OrdinalIgnoreCase))
+                            .Select(t => t.Tag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                        await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath, remaining);
+                        await _tagRepo.RemoveTagAsync(entry.Id, tag);
+                    }
+                    completed++;
+                }
+                catch (Exception ex)
+                {
+                    errors++;
+                    System.Diagnostics.Debug.WriteLine($"[TAGS] Remove failed: {entry.FilePath}: {ex}");
+                }
+                if ((completed + errors) % 20 == 0)
+                    await Task.Yield();
             }
         }
-
-        await ReloadTagsAsync();
-        if (_main != null)
+        finally
         {
-            try { await _main.RefreshTagsTreeAsync(); }
-            catch (Exception ex)
+            _tagBatchGate.Release();
+        }
+        await RefreshTagUiAfterBatchAsync("REMOVE", completed, errors);
+    }
+
+    private async Task RefreshTagUiAfterBatchAsync(string operation, int completed, int errors)
+    {
+        try
+        {
+            await ReloadTagsAsync();
+            await ReloadAvailableTagsAsync();
+            if (_main != null)
             {
-                System.Diagnostics.Debug.WriteLine($"[TAGS] Tree refresh failed: {ex}");
+                await _main.RefreshTagsTreeAsync();
+                _main.StatusText = $"TAGS // {operation}: {completed} completed, {errors} failed";
             }
-            if (errors > 0)
-                _main.StatusText = $"TAG REMOVAL // {errors} file(s) could not be updated (locked or inaccessible).";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TAGS] Refresh after batch failed: {ex}");
+            if (_main != null)
+                _main.StatusText = $"TAGS // {operation}: {completed} completed, {errors} failed; refresh failed";
         }
     }
 
