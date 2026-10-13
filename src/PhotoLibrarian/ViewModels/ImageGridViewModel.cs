@@ -80,6 +80,7 @@ public partial class ImageGridViewModel : ObservableObject
     private readonly HashSet<ImageThumbnailViewModel> _queuedItems = new();
     private readonly HashSet<ImageThumbnailViewModel> _loadingItems = new();
     private int _thumbnailsLoaded;
+    private long? _thumbnailStatusJob;
     private readonly object _queueLock = new();
     private DateTime _lastScrollReorder = DateTime.MinValue;
     private const int ScrollReorderThrottleMs = 150; // Don't reorder more than every 150ms
@@ -173,6 +174,11 @@ public partial class ImageGridViewModel : ObservableObject
     public async Task LoadImagesAsync(bool scanDiskForMissingFiles = true)
     {
         // Cancel any pending thumbnail loads from previous folder
+        if (_thumbnailStatusJob is long previousJob)
+        {
+            _main.EndStatusJob(previousJob);
+            _thumbnailStatusJob = null;
+        }
         _loadCts?.Cancel();
         _loadCts = new CancellationTokenSource();
         var ct = _loadCts.Token;
@@ -487,6 +493,15 @@ public partial class ImageGridViewModel : ObservableObject
                 _loadQueue.Enqueue(item);
             }
         }
+        int pending;
+        lock (_queueLock) pending = _loadQueue.Count + _loadingItems.Count;
+        if (pending > 0)
+        {
+            _thumbnailStatusJob ??= _main.BeginStatusJob(
+                $"THUMBNAILS // 0 loaded / {pending} pending");
+            _main.UpdateStatusJob(_thumbnailStatusJob.Value,
+                $"THUMBNAILS // {_thumbnailsLoaded:N0} loaded / {pending:N0} pending");
+        }
         StartBackgroundLoadingIfNeeded();
     }
 
@@ -542,7 +557,31 @@ public partial class ImageGridViewModel : ObservableObject
                 ct))
             .ToArray();
 
-        _backgroundLoadTask = Task.WhenAll(workers);
+        var task = Task.WhenAll(workers);
+        _backgroundLoadTask = task;
+        _ = task.ContinueWith(completed =>
+        {
+            App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+            {
+                if (ct.IsCancellationRequested || !ReferenceEquals(_backgroundLoadTask, task))
+                    return;
+
+                int pending;
+                lock (_queueLock) pending = _loadQueue.Count + _loadingItems.Count;
+                if (pending > 0)
+                {
+                    StartBackgroundLoadingIfNeeded();
+                }
+                else if (_thumbnailStatusJob is long job)
+                {
+                    var stats = WindowsThumbnailService.CacheStatistics;
+                    _main.EndStatusJob(job);
+                    _thumbnailStatusJob = null;
+                    _main.StatusText =
+                        $"THUMBNAILS // {_thumbnailsLoaded:N0} ready | cache: {stats.Hits:N0} hits, {stats.Misses:N0} misses";
+                }
+            });
+        }, TaskScheduler.Default);
     }
 
     private async Task LoadSingleThumbnailAsync(ImageThumbnailViewModel vm, CancellationToken ct)
@@ -583,7 +622,7 @@ public partial class ImageGridViewModel : ObservableObject
                             {
                                 DebugLog.WriteLine($"[LOAD] Creating BitmapImage for {vm.Entry.FileName}");
                                 // Create BitmapImage on UI thread
-                                var bitmapImage = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+                                var bitmapImage = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 256 };
                                 using (var stream = new MemoryStream(streamBytes))
                                 {
                                     await bitmapImage.SetSourceAsync(stream.AsRandomAccessStream());
@@ -594,8 +633,9 @@ public partial class ImageGridViewModel : ObservableObject
                                 vm.Thumbnail = bitmapImage;
                                 vm.IsLoading = false;
                                 _thumbnailsLoaded++;
-                                if (_thumbnailsLoaded % 20 == 0)
-                                    _main.StatusText = $"THUMBNAILS // {_thumbnailsLoaded:N0} loaded (viewport cache)";
+                                if (_thumbnailStatusJob is long job && _thumbnailsLoaded % 10 == 0)
+                                    _main.UpdateStatusJob(job,
+                                        $"THUMBNAILS // {_thumbnailsLoaded:N0} loaded");
                             }
                             tcs.SetResult(true);
                         }
