@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Data.Sqlite;
 using PhotoLibrarian.Core.Data;
+using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.ML.Services;
 using System.Collections.ObjectModel;
 
@@ -171,35 +172,38 @@ public partial class SettingsViewModel : ObservableObject
 
     private void LoadSettings()
     {
-        try
-        {
-            var dbPath = GetDatabasePath();
-            CacheLocation = dbPath;
-            if (File.Exists(dbPath))
-            {
-                var info = new FileInfo(dbPath);
-                ThumbnailCacheSizeMB =
-                    (int)(info.Length / (1024 * 1024));
-            }
-        }
-        catch
-        {
-        }
+        // Directory enumeration is deliberately off the UI thread.
+        var cacheRoot = WindowsThumbnailService.CacheDirectory;
+        CacheLocation = string.IsNullOrWhiteSpace(cacheRoot)
+            ? "No active album thumbnail cache"
+            : cacheRoot;
+        _ = RefreshThumbnailCacheSizeAsync();
+    }
+
+    private async Task RefreshThumbnailCacheSizeAsync()
+    {
+        var bytes = await WindowsThumbnailService.GetCacheSizeAsync();
+        if (App.MainWindow?.DispatcherQueue is { } dispatcher)
+            dispatcher.TryEnqueue(() =>
+                ThumbnailCacheSizeMB = (int)Math.Ceiling(bytes / (1024d * 1024)));
     }
 
     [RelayCommand]
     private async Task RebuildCacheAsync()
     {
-        using var conn = _db.CreateConnection();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM thumbnails";
-        await cmd.ExecuteNonQueryAsync();
-
-        using var vacuum = conn.CreateCommand();
-        vacuum.CommandText = "VACUUM";
-        await vacuum.ExecuteNonQueryAsync();
-
-        LoadSettings();
+        // Clear the regenerable portable thumbnail cache. The SQLite photo
+        // and metadata index must remain untouched.
+        var job = App.ViewModel.BeginStatusJob("THUMBNAILS // CLEAR CACHE");
+        try
+        {
+            await WindowsThumbnailService.ClearCacheAsync();
+            await RefreshThumbnailCacheSizeAsync();
+            App.ViewModel.StatusText = "THUMBNAILS // cache cleared; previews regenerate on demand";
+        }
+        finally
+        {
+            App.ViewModel.EndStatusJob(job);
+        }
     }
 
     public void SelectProfile(string profileId)
