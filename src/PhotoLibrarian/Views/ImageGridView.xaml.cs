@@ -806,54 +806,6 @@ public sealed partial class ImageGridView : UserControl
             menu.Items.Add(newFolder);
         }
 
-        // Clear metadata tags without deleting image files.
-        var clearTags = new MenuFlyoutItem
-        {
-            Text = isMulti ? $"CLEAR ALL TAGS ({selected.Count})" : "CLEAR ALL TAGS"
-        };
-        clearTags.Click += async (_, _) =>
-        {
-            var warningColor = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Windows.UI.Color.FromArgb(255, 255, 75, 91));
-            var warningPanel = new StackPanel { Spacing = 12, MinWidth = 380 };
-            warningPanel.Children.Add(new TextBlock
-            {
-                Text = "WARNING // CLEAR IMAGE TAGS",
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-                FontSize = 17,
-                Foreground = warningColor
-            });
-            warningPanel.Children.Add(new Border { Height = 2, Background = warningColor });
-            warningPanel.Children.Add(new TextBlock
-            {
-                Text = $"Remove all tag assignments from {selected.Count} selected photo(s)? " +
-                       "This rewrites image/sidecar keyword metadata; original image files stay in place.",
-                TextWrapping = TextWrapping.Wrap
-            });
-            var confirm = new ContentDialog
-            {
-                Title = null,
-                Content = new Border
-                {
-                    Child = warningPanel,
-                    Padding = new Thickness(18),
-                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                        Windows.UI.Color.FromArgb(255, 15, 19, 27)),
-                    BorderBrush = warningColor,
-                    BorderThickness = new Thickness(2)
-                },
-                PrimaryButtonText = "CLEAR TAGS",
-                CloseButtonText = "ABORT",
-                DefaultButton = ContentDialogButton.Close,
-                RequestedTheme = ElementTheme.Dark,
-                XamlRoot = XamlRoot
-            };
-            if (await confirm.ShowAsync() == ContentDialogResult.Primary)
-                await App.ViewModel.ClearTagsFromImagesAsync(
-                    selected.Select(vm => vm.Entry).ToList());
-        };
-        menu.Items.Add(clearTags);
-
         // Delete
         var delete = new MenuFlyoutItem { Text = isMulti ? $"Delete ({selected.Count})" : "Delete" };
         delete.Click += async (_, _) =>
