@@ -529,7 +529,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         var list = new ListView
         {
-            SelectionMode = ListViewSelectionMode.Single,
+            SelectionMode = ListViewSelectionMode.Multiple,
             MinWidth = 0,
             MinHeight = 118,
             MaxHeight = 360,
@@ -876,9 +876,8 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         list.SelectionChanged += (_, _) =>
         {
-            var hasSelection = list.SelectedItem is CatalogManagerRow;
-            editButton.IsEnabled = hasSelection;
-            removeButton.IsEnabled = hasSelection;
+            editButton.IsEnabled = list.SelectedItems.Count == 1;
+            removeButton.IsEnabled = list.SelectedItems.Count > 0;
         };
 
         addTagButton.Click += async (_, _) =>
@@ -1085,33 +1084,74 @@ public sealed partial class FolderNavigationPanel : UserControl
 
         removeButton.Click += async (_, _) =>
         {
-            if (list.SelectedItem is not CatalogManagerRow row)
+            var selected = list.SelectedItems.OfType<CatalogManagerRow>()
+                .Select(row => row.Item).ToList();
+            if (selected.Count == 0)
                 return;
 
-            var item = row.Item;
-            var confirm = new ContentDialog
+            // Keep the catalog modal visible: a confirmation rail is shown
+            // inside it rather than opening a competing native ContentDialog.
+            var warning = new Border
             {
-                Title = "TAG REMOVAL CONFIRMATION",
-                Content = item.IsUsedInAlbum
-                    ? "This tag is used on photos. Removing it from the catalog will keep those assignments."
-                    : "The tag will be removed from the album catalog.",
-                PrimaryButtonText = "REMOVE TAG",
-                CloseButtonText = "CANCEL",
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = XamlRoot,
-                RequestedTheme = ElementTheme.Dark
+                Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 40, 10, 17)),
+                BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 74, 92)),
+                BorderThickness = new Thickness(2),
+                Padding = new Thickness(12)
             };
-
-            dialog.Hide();
-            var removeResult = await confirm.ShowAsync();
-            _ = dialog.ShowAsync();
-            if (removeResult != ContentDialogResult.Primary)
-                return;
-
-            await metadata.RemoveCatalogItemAsync(item);
-            await metadata.ReloadAvailableTagsAsync();
-            await RefreshTagsTreeAsync();
-            ReloadRows();
+            var warningBody = new StackPanel { Spacing = 8 };
+            warningBody.Children.Add(new TextBlock
+            {
+                Text = "WARNING // TAG CATALOG REMOVAL",
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 14,
+                Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 92, 105))
+            });
+            warningBody.Children.Add(new TextBlock
+            {
+                Text = $"Remove {selected.Count} catalog tag(s)? Existing photo assignments are kept.",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = secondaryTextBrush
+            });
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            var proceed = new Button { Content = "CONFIRM REMOVE", Style = iconButtonStyle };
+            var abort = new Button { Content = "ABORT", Style = iconButtonStyle };
+            actions.Children.Add(proceed);
+            actions.Children.Add(abort);
+            warningBody.Children.Add(actions);
+            warning.Child = warningBody;
+            var index = content.Children.IndexOf(footerRail);
+            content.Children.Insert(index, warning);
+            removeButton.IsEnabled = false;
+            editButton.IsEnabled = false;
+            abort.Click += (_, _) =>
+            {
+                content.Children.Remove(warning);
+                removeButton.IsEnabled = list.SelectedItems.Count > 0;
+                editButton.IsEnabled = list.SelectedItems.Count == 1;
+            };
+            proceed.Click += async (_, _) =>
+            {
+                proceed.IsEnabled = false;
+                abort.IsEnabled = false;
+                try
+                {
+                    foreach (var item in selected)
+                        await metadata.RemoveCatalogItemAsync(item);
+                    await metadata.ReloadAvailableTagsAsync();
+                    await RefreshTagsTreeAsync();
+                    ReloadRows();
+                }
+                catch (Exception ex)
+                {
+                    ShowManagerStatus($"Tag removal failed: {ex.Message}");
+                }
+                finally
+                {
+                    content.Children.Remove(warning);
+                    removeButton.IsEnabled = list.SelectedItems.Count > 0;
+                    editButton.IsEnabled = list.SelectedItems.Count == 1;
+                }
+            };
         };
 
         var configuredContainers = new HashSet<ListViewItem>();
