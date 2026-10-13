@@ -5,6 +5,7 @@ using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.ML.Services;
 using PhotoLibrarian.ViewModels;
 using System;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace PhotoLibrarian;
@@ -99,6 +100,22 @@ public partial class App : Application
 
         AlbumPathStorage.Configure(CurrentAlbumPath);
         WindowsThumbnailService.ConfigureAlbumCache(CurrentAlbumPath);
+        try
+        {
+            var logDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "PhotoLibrarian", "logs");
+            Directory.CreateDirectory(logDir);
+            File.WriteAllText(Path.Combine(logDir, "thumbnail-cache-status.log"),
+                $"Time: {DateTime.Now:O}{Environment.NewLine}" +
+                $"Album: {CurrentAlbumPath ?? "(none)"}{Environment.NewLine}" +
+                $"Cache: {WindowsThumbnailService.CacheDirectory}{Environment.NewLine}" +
+                $"Exists: {Directory.Exists(WindowsThumbnailService.CacheDirectory)}{Environment.NewLine}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("[THUMBNAILS] Cache diagnostics failed: " + ex);
+        }
 
         CrashLog.WriteCheckpoint("OPENING DATABASE", CurrentAlbumPath);
         bootWindow.SetPhase(
