@@ -1385,8 +1385,7 @@ public partial class ImageGridViewModel : ObservableObject
         else
             _main.MetadataPanel.Clear();
         watch.Stop();
-        System.Diagnostics.Debug.WriteLine(
-            $"[PERF] Grid selection dispatch: {selected.Count} photos, {watch.ElapsedMilliseconds} ms");
+        SelectionPerformanceLog.Write("GRID_DISPATCH", selected.Count, watch.ElapsedMilliseconds);
     }
 
     private void RestoreSelectionAfterLoad()
