@@ -1043,36 +1043,54 @@ public partial class MainViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(tag) || filePaths == null || filePaths.Count == 0) return;
         var trimmed = tag.Trim();
 
-        StatusText = $"Applying tag '{trimmed}' to {filePaths.Count:N0} item(s)…";
-
+        var job = BeginStatusJob($"TAGS // APPLY 0/{filePaths.Count}");
         int applied = 0;
         int skipped = 0;
-        foreach (var path in filePaths)
+        try
         {
-            try
+            foreach (var path in filePaths)
             {
-                var entry = await _imageRepo.GetByPathAsync(path);
-                if (entry == null || entry.Id <= 0) { skipped++; continue; }
-
-                await _tagRepo.AddTagAsync(new ImageTag
+                try
                 {
-                    ImageId = entry.Id,
-                    Tag = trimmed,
-                    Source = TagSource.Manual,
-                    Confidence = 1.0f
-                });
+                    var entry = await _imageRepo.GetByPathAsync(path);
+                    if (entry == null || entry.Id <= 0)
+                    {
+                        skipped++;
+                        continue;
+                    }
 
-                var allTags = await _tagRepo.GetTagsAsync(entry.Id);
-                await TagWriterService.WriteTagsToSidecarAsync(path,
-                    allTags.Select(t => t.Tag).Distinct());
-
-                applied++;
+                    var allTags = await _tagRepo.GetTagsAsync(entry.Id);
+                    var keywords = allTags.Select(t => t.Tag)
+                        .Append(trimmed).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                    // Persist to the source first. Never report success in the
+                    // database when the image/sidecar could not be written.
+                    await TagWriterService.WriteTagsToSidecarAsync(path, keywords);
+                    await _tagRepo.AddTagAsync(new ImageTag
+                    {
+                        ImageId = entry.Id,
+                        Tag = trimmed,
+                        Source = TagSource.Manual,
+                        Confidence = 1.0f
+                    });
+                    applied++;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[TAGDROP] Failed to apply '{trimmed}' to {path}: {ex}");
+                    skipped++;
+                }
+                finally
+                {
+                    UpdateStatusJob(job,
+                        $"TAGS // APPLY {applied + skipped}/{filePaths.Count} // {skipped} failed");
+                    await Task.Yield();
+                }
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[TAGDROP] Failed to apply '{trimmed}' to {path}: {ex.Message}");
-                skipped++;
-            }
+        }
+        finally
+        {
+            EndStatusJob(job);
         }
 
         StatusText = skipped == 0
