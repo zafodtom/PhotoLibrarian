@@ -48,6 +48,46 @@ public partial class MainViewModel : ObservableObject
     public Services.PhotoOperationsService PhotoOps { get; }
     public OriginalBackupService BackupService => _backupService;
 
+    // Tracked non-indexing foreground/background jobs use a single status rail.
+    // Update from the UI dispatcher; overlapping jobs retain independent tokens.
+    private readonly Dictionary<long, string> _activeJobs = new();
+    private long _nextJobId;
+
+    [ObservableProperty]
+    public partial bool HasActiveJobs { get; set; }
+
+    [ObservableProperty]
+    public partial string ActiveJobsText { get; set; } = "";
+
+    public long BeginStatusJob(string description)
+    {
+        var id = ++_nextJobId;
+        _activeJobs[id] = description;
+        UpdateActiveJobs();
+        return id;
+    }
+
+    public void UpdateStatusJob(long id, string description)
+    {
+        if (!_activeJobs.ContainsKey(id)) return;
+        _activeJobs[id] = description;
+        UpdateActiveJobs();
+    }
+
+    public void EndStatusJob(long id)
+    {
+        if (!_activeJobs.Remove(id)) return;
+        UpdateActiveJobs();
+    }
+
+    private void UpdateActiveJobs()
+    {
+        HasActiveJobs = _activeJobs.Count > 0;
+        ActiveJobsText = _activeJobs.Count == 0 ? "" :
+            _activeJobs.Count == 1 ? _activeJobs.Values.First() :
+            $"{_activeJobs.Values.Last()}  // {_activeJobs.Count} jobs running";
+    }
+
     [ObservableProperty]
     public partial string StatusText { get; set; }
 
