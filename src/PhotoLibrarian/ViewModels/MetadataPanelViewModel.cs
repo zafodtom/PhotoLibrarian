@@ -857,7 +857,7 @@ public partial class MetadataPanelViewModel : ObservableObject
                 System.Diagnostics.Debug.WriteLine($"[TAGS] Tree refresh failed: {ex}");
             }
             if (errors > 0)
-                _main.StatusText = $"TAG REMOVAL // {errors} file(s) could not be updated; see diagnostic log.";
+                _main.StatusText = $"TAG REMOVAL // {errors} file(s) could not be updated (locked or inaccessible).";
         }
     }
 
