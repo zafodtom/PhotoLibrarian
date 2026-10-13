@@ -349,7 +349,7 @@ public partial class MetadataPanelViewModel : ObservableObject
             IsRatingMixed = false;
             IsFlagged = single.IsFlagged;
             IsFlagMixed = false;
-            Caption = MetadataWriterService.ReadCaptionFromSidecar(single.FilePath) ?? "";
+            Caption = "";
             IsCaptionMixed = false;
         }
         else
@@ -432,6 +432,15 @@ public partial class MetadataPanelViewModel : ObservableObject
                 Caption = "";
                 IsCaptionMixed = true;
             }
+        }
+
+        // Disk sidecar reads must not run synchronously on the UI dispatcher.
+        if (entries.Count == 1)
+        {
+            var caption = await Task.Run(() =>
+                MetadataWriterService.ReadCaptionFromSidecar(entries[0].FilePath) ?? "");
+            if (version != _metadataSelectionVersion) return;
+            Caption = caption;
         }
 
         // Snapshot the selection. Earlier asynchronous loads must not overwrite
