@@ -32,7 +32,9 @@ public partial class App : Application
 
     public App()
     {
+        CrashLog.WriteCheckpoint("APP CONSTRUCTOR // INITIALIZING");
         this.InitializeComponent();
+        CrashLog.WriteCheckpoint("APP CONSTRUCTOR // INITIALIZED");
 
         // Enable debug logging by default (set to false to disable)
         EnableDebugLogging = true;
@@ -70,6 +72,7 @@ public partial class App : Application
         try
         {
             CurrentAlbumPath = AlbumService.GetAlbumPathFromCommandLine();
+            CrashLog.WriteCheckpoint("ALBUM PATH RESOLVED", CurrentAlbumPath);
 
             bootWindow = new BootWindow();
             bootWindow.Activate();
@@ -97,6 +100,7 @@ public partial class App : Application
         AlbumPathStorage.Configure(CurrentAlbumPath);
         WindowsThumbnailService.ConfigureAlbumCache(CurrentAlbumPath);
 
+        CrashLog.WriteCheckpoint("OPENING DATABASE", CurrentAlbumPath);
         bootWindow.SetPhase(
             2,
             18,
@@ -107,6 +111,7 @@ public partial class App : Application
         var db = new CacheDatabase(dbPath);
         await db.InitializeAsync();
 
+        CrashLog.WriteCheckpoint("VALIDATING DATABASE", CurrentAlbumPath);
         bootWindow.SetPhase(
             3,
             34,
@@ -115,6 +120,7 @@ public partial class App : Application
         if (CurrentAlbumPath is not null)
             await db.MigrateAlbumPathsToRelativeAsync(CurrentAlbumPath);
 
+        CrashLog.WriteCheckpoint("LINKING SERVICES", CurrentAlbumPath);
         bootWindow.SetPhase(
             4,
             48,
@@ -223,6 +229,7 @@ public partial class App : Application
             ViewModel.StatusText = "Open or create an album";
         }
 
+        CrashLog.WriteCheckpoint("ACTIVATING WINDOW", CurrentAlbumPath);
         bootWindow.SetPhase(
             8,
             100,
@@ -237,10 +244,12 @@ public partial class App : Application
         if (remainingBootMs > 0)
             await Task.Delay(remainingBootMs);
 
+        CrashLog.WriteCheckpoint("ACTIVATING MAIN WINDOW", CurrentAlbumPath);
         _window.Activate();
         await Task.Delay(180);
         bootWindow.Close();
         bootWindow = null;
+        CrashLog.WriteCheckpoint("RUNNING // STARTUP COMPLETE", CurrentAlbumPath);
         }
         catch (Exception ex)
         {
