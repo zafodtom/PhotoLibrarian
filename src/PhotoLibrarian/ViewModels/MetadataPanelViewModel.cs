@@ -820,23 +820,45 @@ public partial class MetadataPanelViewModel : ObservableObject
     {
         if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag)) return;
 
-        // Update UI
-        var existing = Tags.FirstOrDefault(t => string.Equals(t.Tag, tag, StringComparison.OrdinalIgnoreCase));
-        if (existing != null) Tags.Remove(existing);
-
-        foreach (var entry in _entries)
+        int errors = 0;
+        foreach (var entry in _entries.ToList())
         {
-            if (_tagRepo != null && entry.Id > 0)
+            if (_tagRepo == null || entry.Id <= 0) continue;
+            try
             {
+                var current = await _tagRepo.GetTagsAsync(entry.Id);
+                var remaining = current.Where(t =>
+                    !string.Equals(t.Tag, tag, StringComparison.OrdinalIgnoreCase))
+                    .Select(t => t.Tag).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+                // Write sidecar first. On a locked file, keep the database tag
+                // so a rescan does not resurrect an apparently removed value.
+                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath, remaining);
                 await _tagRepo.RemoveTagAsync(entry.Id, tag);
-                var allTags = await _tagRepo.GetTagsAsync(entry.Id);
-                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath,
-                    allTags.Select(t => t.Tag).Distinct());
+            }
+            catch (IOException ex)
+            {
+                errors++;
+                System.Diagnostics.Debug.WriteLine($"[TAGS] Locked metadata: {entry.FilePath}: {ex}");
+            }
+            catch (Exception ex)
+            {
+                errors++;
+                System.Diagnostics.Debug.WriteLine($"[TAGS] Cannot remove tag: {entry.FilePath}: {ex}");
             }
         }
 
-        // Refresh the tag navigation tree so counts update immediately
-        if (_main != null) await _main.RefreshTagsTreeAsync();
+        await ReloadTagsAsync();
+        if (_main != null)
+        {
+            try { await _main.RefreshTagsTreeAsync(); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[TAGS] Tree refresh failed: {ex}");
+            }
+            if (errors > 0)
+                _main.StatusText = $"TAG REMOVAL // {errors} file(s) could not be updated; see diagnostic log.";
+        }
     }
 
     /// <summary>
