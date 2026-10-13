@@ -381,10 +381,14 @@ public partial class MetadataPanelViewModel : ObservableObject
             IsFlagMixed = flags.Count > 1;
 
             // Caption — common or empty+mixed flag
-            var captions = _entries
+            // Sidecar reading may involve slow external/virtual disks.
+            // Never block the UI thread on file I/O during Ctrl+A.
+            var captions = await Task.Run(() => entries
                 .Select(e => MetadataWriterService.ReadCaptionFromSidecar(e.FilePath) ?? "")
                 .Distinct()
-                .ToList();
+                .Take(2)
+                .ToList());
+            if (version != _metadataSelectionVersion) return;
             if (captions.Count == 1)
             {
                 Caption = captions[0];
@@ -419,7 +423,12 @@ public partial class MetadataPanelViewModel : ObservableObject
         if (version != _metadataSelectionVersion) return;
         await ReloadAvailableTagsAsync();
         if (version != _metadataSelectionVersion) return;
-        await ReloadPeopleTagsAsync();
+        // Face-region thumbnails are only relevant for a single image;
+        // querying faces for the entire Ctrl+A selection can be very costly.
+        if (snapshot.Count == 1)
+            await ReloadPeopleTagsAsync();
+        else
+            PeopleTags.Clear();
     }
 
     public async Task ReloadAvailableTagsAsync()
