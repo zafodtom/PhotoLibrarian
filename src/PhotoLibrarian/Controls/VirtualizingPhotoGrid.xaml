@@ -19,7 +19,9 @@
                         HorizontalAlignment="Left" />
                 
                 <!-- Canvas for absolute positioning of visible elements -->
-                <Canvas x:Name="ItemsCanvas" 
+                <Canvas x:Name="ItemsCanvas"
+                        Background="Transparent"
+                        Tapped="OnEmptyCanvasTapped"
                         HorizontalAlignment="Stretch"
                         VerticalAlignment="Top" />
             </Grid>
