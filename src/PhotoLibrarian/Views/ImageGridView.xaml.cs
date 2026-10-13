@@ -812,6 +812,56 @@ public sealed partial class ImageGridView : UserControl
         };
         menu.Items.Add(delete);
 
+        // Remove photo keyword assignments only; never delete the image itself.
+        var clearTags = new MenuFlyoutItem
+        {
+            Text = isMulti
+                ? $"Clear all tags ({selected.Count} photos)…"
+                : "Clear all tags…"
+        };
+        clearTags.Click += async (_, _) =>
+        {
+            var hudRed = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 255, 82, 96));
+            var message = new StackPanel { Spacing = 12, MinWidth = 410 };
+            message.Children.Add(new TextBlock
+            {
+                Text = "WARNING // CLEAR PHOTO TAGS",
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                FontSize = 17, Foreground = hudRed
+            });
+            message.Children.Add(new Border { Height = 3, Background = hudRed });
+            message.Children.Add(new TextBlock
+            {
+                Text = $"Remove every tag from {selected.Count} selected photo(s)? " +
+                       "Photo files, folders, dates, ratings and captions will remain. " +
+                       "Tag keywords already present before import will also be cleared.",
+                TextWrapping = TextWrapping.Wrap
+            });
+            var warning = new ContentDialog
+            {
+                Title = null,
+                Content = new Border
+                {
+                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                        Windows.UI.Color.FromArgb(255, 10, 18, 27)),
+                    BorderBrush = hudRed,
+                    BorderThickness = new Thickness(2),
+                    Padding = new Thickness(18),
+                    Child = message
+                },
+                PrimaryButtonText = "CLEAR ALL TAGS",
+                CloseButtonText = "ABORT",
+                DefaultButton = ContentDialogButton.Close,
+                RequestedTheme = ElementTheme.Dark,
+                XamlRoot = XamlRoot
+            };
+            if (await warning.ShowAsync() == ContentDialogResult.Primary)
+                await App.ViewModel.ClearSelectedImageTagsAsync(
+                    selected.Select(vm => vm.Entry));
+        };
+        menu.Items.Add(clearTags);
+
         // Rename — single only
         var rename = new MenuFlyoutItem { Text = "Rename…" };
         rename.Click += async (_, _) => await ShowRenameDialogAsync(primary.Entry);
