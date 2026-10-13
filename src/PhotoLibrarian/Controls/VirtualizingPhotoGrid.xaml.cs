@@ -1072,6 +1072,22 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
 
     private static Border GetFaceHighlightBorder(Grid grid) =>
         (Border)grid.Children.First(child => child is Border border && Equals(border.Tag, FaceHighlightTag));
+    private void OnEmptyCanvasTapped(object sender, TappedRoutedEventArgs e)
+    {
+        // The tap may bubble from a realized thumbnail. Only clicks in the
+        // canvas background should clear selection.
+        var element = e.OriginalSource as DependencyObject;
+        while (element != null && !ReferenceEquals(element, ItemsCanvas))
+        {
+            if (element is FrameworkElement view &&
+                view.DataContext is ImageThumbnailViewModel)
+                return;
+            element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element);
+        }
+        if (ReferenceEquals(element, ItemsCanvas))
+            ClearSelection();
+    }
+
     private void OnPhotoTapped(object sender, TappedRoutedEventArgs e)
     {
         if (sender is FrameworkElement element && element.DataContext is ImageThumbnailViewModel vm)
