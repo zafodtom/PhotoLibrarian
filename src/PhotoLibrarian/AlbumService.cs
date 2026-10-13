@@ -192,7 +192,8 @@ public static class AlbumService
             (Directory.Exists(logDir) &&
              (Directory.EnumerateDirectories(logDir).Any() ||
               Directory.EnumerateFiles(logDir).Any(path =>
-                  !Path.GetFileName(path).StartsWith("crash-", StringComparison.OrdinalIgnoreCase) ||
+                  (!Path.GetFileName(path).StartsWith("crash-", StringComparison.OrdinalIgnoreCase) &&
+                   !Path.GetFileName(path).Equals("startup-last.log", StringComparison.OrdinalIgnoreCase)) ||
                   !Path.GetExtension(path).Equals(".log", StringComparison.OrdinalIgnoreCase)))) ||
             Directory.EnumerateFiles(albumDir).Any(path =>
                 !allowed.Contains(Path.GetFileName(path))))
