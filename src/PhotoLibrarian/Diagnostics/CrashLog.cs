@@ -17,34 +17,49 @@ public static class CrashLog
     public static string Write(string source, Exception exception, string? albumPath = null)
     {
         var timestamp = DateTime.Now;
-        var path = Path.Combine(
-            LogDirectory,
-            $"crash-{timestamp:yyyyMMdd-HHmmss-fff}.log");
+        var report = new StringBuilder();
+        report.AppendLine("PhotoLibrarian // FATAL DIAGNOSTIC");
+        report.AppendLine($"Time: {timestamp:O}");
+        report.AppendLine($"Source: {source}");
+        report.AppendLine($"Album: {albumPath ?? "(none)"}");
+        report.AppendLine($"Process: {Environment.ProcessId}");
+        report.AppendLine($"OS: {Environment.OSVersion}");
+        report.AppendLine($".NET: {Environment.Version}");
+        report.AppendLine($"Application: {typeof(CrashLog).Assembly.GetName().Version}");
+        report.AppendLine();
+        report.AppendLine(exception.ToString());
 
-        try
+        // Prefer portable album diagnostics; fallback must work even if album
+        // storage was disconnected, deleted or is on an unwritable volume.
+        var destinations = new[]
         {
-            Directory.CreateDirectory(LogDirectory);
-
-            var builder = new StringBuilder();
-            builder.AppendLine("PhotoLibrarian crash report");
-            builder.AppendLine($"Time: {timestamp:O}");
-            builder.AppendLine($"Source: {source}");
-            builder.AppendLine($"Album: {albumPath ?? "(none)"}");
-            builder.AppendLine($"Process: {Environment.ProcessId}");
-            builder.AppendLine($"OS: {Environment.OSVersion}");
-            builder.AppendLine($".NET: {Environment.Version}");
-            builder.AppendLine();
-            builder.AppendLine(exception.ToString());
-
-            lock (Sync)
-                File.WriteAllText(path, builder.ToString());
-
-            return path;
-        }
-        catch
+            !string.IsNullOrWhiteSpace(albumPath)
+                ? Path.Combine(albumPath, ".album", "logs")
+                : null,
+            LogDirectory
+        };
+        foreach (var destination in destinations)
         {
-            return path;
+            if (string.IsNullOrWhiteSpace(destination)) continue;
+            try
+            {
+                lock (Sync)
+                {
+                    Directory.CreateDirectory(destination);
+                    var path = Path.Combine(destination,
+                        $"crash-{timestamp:yyyyMMdd-HHmmss-fff}-{Environment.ProcessId}.log");
+                    File.WriteAllText(path, report.ToString());
+                    foreach (var old in Directory.EnumerateFiles(destination, "crash-*.log")
+                                 .OrderByDescending(File.GetLastWriteTimeUtc).Skip(20))
+                    {
+                        try { File.Delete(old); } catch { }
+                    }
+                    return path;
+                }
+            }
+            catch { /* Try fallback directory. Never crash the crash handler. */ }
         }
+        return string.Empty;
     }
 
     public static string Write(string source, object? exceptionObject, string? albumPath = null)
