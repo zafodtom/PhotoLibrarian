@@ -780,6 +780,7 @@ public partial class MetadataPanelViewModel : ObservableObject
         // Only one metadata batch can run per panel instance. File I/O itself
         // runs asynchronously; never perform synchronous image writes on the UI thread.
         await _tagBatchGate.WaitAsync();
+        var job = _main?.BeginStatusJob("TAGS // ADD 0/" + targets.Count);
         try
         {
             foreach (var entry in targets)
@@ -807,14 +808,20 @@ public partial class MetadataPanelViewModel : ObservableObject
                     errors++;
                     System.Diagnostics.Debug.WriteLine($"[TAGS] Add failed: {entry.FilePath}: {ex}");
                 }
-                if ((completed + errors) % 20 == 0)
+                if ((completed + errors) % 10 == 0 || completed + errors == targets.Count)
+                {
+                    if (job.HasValue)
+                        _main?.UpdateStatusJob(job.Value,
+                            $"TAGS // ADD {completed + errors}/{targets.Count}  // {errors} failed");
                     await Task.Yield();
+                }
             }
             if (completed > 0)
                 AlbumService.AddSelectedTag(trimmed);
         }
         finally
         {
+            if (job.HasValue) _main?.EndStatusJob(job.Value);
             _tagBatchGate.Release();
         }
         await RefreshTagUiAfterBatchAsync("ADD", completed, errors);
@@ -829,6 +836,7 @@ public partial class MetadataPanelViewModel : ObservableObject
             .DistinctBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase).ToList();
         int completed = 0, errors = 0;
         await _tagBatchGate.WaitAsync();
+        var job = _main?.BeginStatusJob("TAGS // REMOVE 0/" + targets.Count);
         try
         {
             foreach (var entry in targets)
@@ -851,12 +859,18 @@ public partial class MetadataPanelViewModel : ObservableObject
                     errors++;
                     System.Diagnostics.Debug.WriteLine($"[TAGS] Remove failed: {entry.FilePath}: {ex}");
                 }
-                if ((completed + errors) % 20 == 0)
+                if ((completed + errors) % 10 == 0 || completed + errors == targets.Count)
+                {
+                    if (job.HasValue)
+                        _main?.UpdateStatusJob(job.Value,
+                            $"TAGS // REMOVE {completed + errors}/{targets.Count}  // {errors} failed");
                     await Task.Yield();
+                }
             }
         }
         finally
         {
+            if (job.HasValue) _main?.EndStatusJob(job.Value);
             _tagBatchGate.Release();
         }
         await RefreshTagUiAfterBatchAsync("REMOVE", completed, errors);
