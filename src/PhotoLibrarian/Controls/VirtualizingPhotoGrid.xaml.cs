@@ -1247,6 +1247,20 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         }
     }
 
+    /// <summary>Select every image currently included in the filtered/grouped visual index.</summary>
+    public void SelectAllVisibleImages()
+    {
+        var flat = GetFlatItems();
+        if (flat.Count == 0) return;
+        _selectedItems.Clear();
+        foreach (var image in flat)
+            _selectedItems.Add(image);
+        _primaryItem ??= flat[0];
+        _anchorItem ??= flat[0];
+        RefreshAllSelectionVisuals();
+        SelectionChanged?.Invoke(this, _selectedItems.ToList());
+    }
+
     /// <summary>
     /// Clears the current selection (e.g. when filter changes). Fires SelectionChanged.
     /// </summary>
