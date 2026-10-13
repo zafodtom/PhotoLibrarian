@@ -14,6 +14,40 @@ public static class CrashLog
             "PhotoLibrarian",
             "logs");
 
+    /// <summary>
+    /// Durable startup breadcrumb for process termination that bypasses .NET
+    /// exception handlers (native crashes, forced termination or power loss).
+    /// This is NOT a crash report; it records the last reached startup phase.
+    /// </summary>
+    public static void WriteCheckpoint(string phase, string? albumPath = null)
+    {
+        var locations = new[]
+        {
+            LogDirectory,
+            !string.IsNullOrWhiteSpace(albumPath)
+                ? Path.Combine(albumPath, ".album", "logs")
+                : null
+        };
+        foreach (var directory in locations)
+        {
+            if (string.IsNullOrWhiteSpace(directory)) continue;
+            try
+            {
+                lock (Sync)
+                {
+                    Directory.CreateDirectory(directory);
+                    File.WriteAllText(Path.Combine(directory, "startup-last.log"),
+                        $"PhotoLibrarian startup checkpoint{Environment.NewLine}" +
+                        $"Time: {DateTime.Now:O}{Environment.NewLine}" +
+                        $"Process: {Environment.ProcessId}{Environment.NewLine}" +
+                        $"Album: {albumPath ?? "(not resolved)"}{Environment.NewLine}" +
+                        $"Phase: {phase}{Environment.NewLine}");
+                }
+            }
+            catch { /* diagnostics must not break application startup */ }
+        }
+    }
+
     public static string Write(string source, Exception exception, string? albumPath = null)
     {
         var timestamp = DateTime.Now;
