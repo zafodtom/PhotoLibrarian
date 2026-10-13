@@ -73,6 +73,7 @@ public partial class ImageGridViewModel : ObservableObject
     private string? _currentSortBy = "date_taken";
     private CancellationTokenSource? _loadCts;
     private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private bool _updatingGridSelection;
     private string? _primarySelectedPath;
     
     // Queue management for viewport-aware loading
@@ -1334,6 +1335,7 @@ public partial class ImageGridViewModel : ObservableObject
 
     partial void OnSelectedImageChanged(ImageThumbnailViewModel? value)
     {
+        if (_updatingGridSelection) return;
         // Push selection (single or multi) to the metadata panel.
         if (SelectedImages.Count > 0)
         {
@@ -1374,7 +1376,9 @@ public partial class ImageGridViewModel : ObservableObject
         // Always use the full explicit selection snapshot. A property-change
         // callback is not a reliable source of truth for Ctrl+A because the
         // primary thumbnail often stays unchanged.
-        SelectedImage = primary;
+        _updatingGridSelection = true;
+        try { SelectedImage = primary; }
+        finally { _updatingGridSelection = false; }
         if (selected.Count > 0)
             _main.MetadataPanel.ShowMetadata(selected.Select(vm => vm.Entry).ToList());
         else
