@@ -35,8 +35,16 @@ public static class WindowsThumbnailService
                 Directory.CreateDirectory(_albumCacheDirectory);
                 _ = Task.Run(TrimCache);
             }
-            catch (IOException) { _albumCacheDirectory = null; }
-            catch (UnauthorizedAccessException) { _albumCacheDirectory = null; }
+            catch (IOException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[THUMBNAILS] Cache initialization failed: {ex}");
+                _albumCacheDirectory = null;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[THUMBNAILS] Cache access denied: {ex}");
+                _albumCacheDirectory = null;
+            }
         }
     }
 
