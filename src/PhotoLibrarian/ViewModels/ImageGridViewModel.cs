@@ -1363,6 +1363,7 @@ public partial class ImageGridViewModel : ObservableObject
     /// </summary>
     public void UpdateSelection(IReadOnlyList<ImageThumbnailViewModel> selected, ImageThumbnailViewModel? primary)
     {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         _selectedPaths.Clear();
         foreach (var item in selected)
             _selectedPaths.Add(item.Entry.FilePath);
@@ -1383,6 +1384,9 @@ public partial class ImageGridViewModel : ObservableObject
             _main.MetadataPanel.ShowMetadata(selected.Select(vm => vm.Entry).ToList());
         else
             _main.MetadataPanel.Clear();
+        watch.Stop();
+        System.Diagnostics.Debug.WriteLine(
+            $"[PERF] Grid selection dispatch: {selected.Count} photos, {watch.ElapsedMilliseconds} ms");
     }
 
     private void RestoreSelectionAfterLoad()
