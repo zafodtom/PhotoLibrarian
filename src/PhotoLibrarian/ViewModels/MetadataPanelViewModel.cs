@@ -127,6 +127,7 @@ public partial class MetadataPanelViewModel : ObservableObject
     // Currently-selected entries (1 or more)
     private List<ImageEntry> _entries = new();
     private int _metadataSelectionVersion;
+    private System.Threading.CancellationTokenSource? _selectionDebounce;
     private bool _availableTagsInitialized;
     private ImageRepository? _imageRepo;
     private TagRepository? _tagRepo;
@@ -266,16 +267,36 @@ public partial class MetadataPanelViewModel : ObservableObject
     public async void ShowMetadata(IReadOnlyList<ImageEntry> entries)
     {
         var version = ++_metadataSelectionVersion;
+        _selectionDebounce?.Cancel();
+        _selectionDebounce?.Dispose();
+        var delay = new System.Threading.CancellationTokenSource();
+        _selectionDebounce = delay;
         var job = entries is { Count: > 1 }
             ? _main?.BeginStatusJob($"METADATA // READING TAGS 0/{entries.Count}")
             : null;
         try
         {
+            // Let rapid Ctrl/Shift selection settle before expensive SQLite and
+            // metadata reads. Keep the selection count responsive immediately.
+            if (entries is { Count: > 0 })
+            {
+                SelectionCount = entries.Count;
+                IsMultiSelect = entries.Count > 1;
+                SelectionSummary = entries.Count > 1
+                    ? $"{entries.Count} items selected"
+                    : entries[0].FileName;
+            }
+            await Task.Delay(70, delay.Token);
+            if (version != _metadataSelectionVersion) return;
             await ShowMetadataCoreAsync(entries, version);
             if (version == _metadataSelectionVersion && entries is { Count: > 1 } &&
                 _main != null)
                 _main.StatusText =
                     $"METADATA // {entries.Count:N0} photos selected, {Tags.Count:N0} distinct tags";
+        }
+        catch (OperationCanceledException) when (delay.IsCancellationRequested)
+        {
+            // Superseded selection, expected during quick navigation.
         }
         catch (Exception ex)
         {
