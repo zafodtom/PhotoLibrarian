@@ -55,6 +55,37 @@ public sealed class TagRepository : IAutoTagStore
         return tags;
     }
 
+    /// <summary>Read all assigned tags for a selection in one SQLite query.</summary>
+    public async Task<Dictionary<long, List<string>>> GetTagsForImagesAsync(
+        IReadOnlyCollection<long> imageIds)
+    {
+        var result = new Dictionary<long, List<string>>();
+        foreach (var batch in imageIds.Where(id => id > 0).Distinct().Chunk(400))
+        {
+            using var connection = _db.CreateConnection();
+            using var command = connection.CreateCommand();
+            var parameters = new List<string>();
+            for (int index = 0; index < batch.Length; index++)
+            {
+                var name = "$id" + index;
+                parameters.Add(name);
+                command.Parameters.AddWithValue(name, batch[index]);
+            }
+            command.CommandText =
+                "SELECT image_id, tag FROM tags WHERE image_id IN (" +
+                string.Join(",", parameters) + ")";
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                long imageId = reader.GetInt64(0);
+                if (!result.TryGetValue(imageId, out var tags))
+                    result[imageId] = tags = new List<string>();
+                tags.Add(reader.GetString(1));
+            }
+        }
+        return result;
+    }
+
     public async Task RemoveTagAsync(long imageId, string tag)
     {
         using var conn = _db.CreateConnection();
