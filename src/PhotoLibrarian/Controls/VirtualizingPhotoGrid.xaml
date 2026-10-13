@@ -10,7 +10,8 @@
         <ScrollViewer x:Name="ScrollContainer"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Visible"
-                      ViewChanged="OnScrollViewChanged">
+                      ViewChanged="OnScrollViewChanged"
+                      Tapped="OnEmptyCanvasTapped">
             <Grid>
                 <!-- Transparent placeholder for total content height (enables scrollbar) -->
                 <Border x:Name="ContentPlaceholder" 
@@ -21,7 +22,6 @@
                 <!-- Canvas for absolute positioning of visible elements -->
                 <Canvas x:Name="ItemsCanvas"
                         Background="Transparent"
-                        Tapped="OnEmptyCanvasTapped"
                         HorizontalAlignment="Stretch"
                         VerticalAlignment="Top" />
             </Grid>
