@@ -453,8 +453,8 @@ public partial class MetadataPanelViewModel : ObservableObject
             var assigned = await _tagRepo.GetTagsForImagesAsync(
                 snapshot.Select(e => e.Id).Where(id => id > 0).ToArray());
             queryWatch.Stop();
-            System.Diagnostics.Debug.WriteLine(
-                $"[PERF] Selection TAG_SQL: {snapshot.Count} photos in {queryWatch.ElapsedMilliseconds} ms");
+            PhotoLibrarian.Diagnostics.SelectionPerformanceLog.Write(
+                "TAG_SQL", snapshot.Count, queryWatch.ElapsedMilliseconds);
             if (version != _metadataSelectionVersion) return;
             var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in snapshot)
@@ -485,8 +485,8 @@ public partial class MetadataPanelViewModel : ObservableObject
         else
             PeopleTags.Clear();
         stopwatch.Stop();
-        System.Diagnostics.Debug.WriteLine(
-            $"[PERF] Metadata selection {snapshot.Count} photos: {stopwatch.ElapsedMilliseconds} ms");
+        PhotoLibrarian.Diagnostics.SelectionPerformanceLog.Write(
+            "METADATA_TOTAL", snapshot.Count, stopwatch.ElapsedMilliseconds);
     }
 
     public async Task ReloadAvailableTagsAsync()
