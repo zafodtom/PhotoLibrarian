@@ -203,6 +203,10 @@ public sealed partial class MainWindow : Window
             UIElement.KeyDownEvent,
             new KeyEventHandler(OnUserKeyActivity),
             true);
+        AppRoot.AddHandler(
+            UIElement.KeyDownEvent,
+            new KeyEventHandler(OnSelectAllImagesShortcut),
+            true);
 
         var appWindow = this.AppWindow;
         appWindow.Resize(new Windows.Graphics.SizeInt32(1600, 900));
@@ -265,6 +269,25 @@ public sealed partial class MainWindow : Window
 
         // Cleanup on window close
         this.Closed += OnWindowClosed;
+    }
+
+    private void OnSelectAllImagesShortcut(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Handled || e.Key != Windows.System.VirtualKey.A ||
+            SettingsOverlay.Visibility == Visibility.Visible ||
+            ViewerOverlay.Visibility == Visibility.Visible ||
+            e.OriginalSource is TextBox or PasswordBox or RichEditBox or
+                NumberBox or ComboBox)
+            return;
+
+        var modifiers = Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+        if ((modifiers & Windows.UI.Core.CoreVirtualKeyStates.Down) !=
+            Windows.UI.Core.CoreVirtualKeyStates.Down)
+            return;
+
+        ImageGridPanel.SelectAllDisplayedImages();
+        e.Handled = true;
     }
 
     public Task ConfirmDeleteAlbumAsync() =>
