@@ -1366,8 +1366,13 @@ public partial class ImageGridViewModel : ObservableObject
 
         SelectedImages.Clear();
         SelectedImages.AddRange(selected);
-        // Setting SelectedImage drives the metadata panel via OnSelectedImageChanged
+        // A Ctrl+A selection may keep the same primary image. In that case
+        // the property-change callback does not fire, but the multi-selection
+        // metadata (including the union of tags) still needs to refresh.
+        var primaryChanged = !ReferenceEquals(SelectedImage, primary);
         SelectedImage = primary;
+        if (!primaryChanged)
+            RefreshMetadataFromSelection();
     }
 
     private void RestoreSelectionAfterLoad()
