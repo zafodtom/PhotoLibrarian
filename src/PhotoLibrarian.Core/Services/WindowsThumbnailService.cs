@@ -55,6 +55,40 @@ public static class WindowsThumbnailService
         catch { return null; }
     }
 
+    public static string CacheDirectory => _albumCacheDirectory ?? "";
+
+    public static Task<long> GetCacheSizeAsync() => Task.Run(() =>
+    {
+        var root = _albumCacheDirectory;
+        if (root is null || !Directory.Exists(root)) return 0L;
+        long size = 0;
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(root, "*.bin",
+                         SearchOption.AllDirectories))
+            {
+                try { size += new FileInfo(path).Length; }
+                catch (IOException) { }
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        return size;
+    });
+
+    public static Task ClearCacheAsync() => Task.Run(() =>
+    {
+        var root = _albumCacheDirectory;
+        if (root is null || !Directory.Exists(root)) return;
+        foreach (var path in Directory.EnumerateFiles(root, "*.bin",
+                     SearchOption.AllDirectories))
+        {
+            try { File.Delete(path); }
+            catch (IOException) { /* active thumbnail load */ }
+            catch (UnauthorizedAccessException) { }
+        }
+    });
+
     private static void TrimCache()
     {
         var root = _albumCacheDirectory;
