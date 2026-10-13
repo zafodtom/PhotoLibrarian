@@ -185,7 +185,14 @@ public static class AlbumService
             AlbumCacheName + "-wal", AlbumCacheName + "-shm",
             AlbumCacheName + "-journal"
         };
-        if (Directory.EnumerateDirectories(albumDir).Any() ||
+        var logDir = Path.Combine(albumDir, "logs");
+        if (Directory.EnumerateDirectories(albumDir).Any(path =>
+                !Path.GetFileName(path).Equals("logs", StringComparison.OrdinalIgnoreCase)) ||
+            (Directory.Exists(logDir) &&
+             (Directory.EnumerateDirectories(logDir).Any() ||
+              Directory.EnumerateFiles(logDir).Any(path =>
+                  !Path.GetFileName(path).StartsWith("crash-", StringComparison.OrdinalIgnoreCase) ||
+                  !Path.GetExtension(path).Equals(".log", StringComparison.OrdinalIgnoreCase)))) ||
             Directory.EnumerateFiles(albumDir).Any(path =>
                 !allowed.Contains(Path.GetFileName(path))))
             throw new InvalidOperationException(
@@ -215,6 +222,12 @@ public static class AlbumService
         foreach (var launcher in launchers)
             File.Delete(launcher);
 
+        if (Directory.Exists(logDir))
+        {
+            foreach (var log in Directory.EnumerateFiles(logDir))
+                File.Delete(log);
+            Directory.Delete(logDir, recursive: false);
+        }
         File.Delete(Path.Combine(albumDir, AlbumManifestName));
         Directory.Delete(albumDir, recursive: false);
     }
