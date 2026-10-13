@@ -1495,7 +1495,11 @@ public partial class MainViewModel : ObservableObject
         IReadOnlyCollection<ImageEntry> entries)
     {
         int succeeded = 0, failed = 0;
-        foreach (var entry in entries.DistinctBy(x => x.FilePath))
+        var targets = entries.DistinctBy(x => x.FilePath, StringComparer.OrdinalIgnoreCase).ToList();
+        var job = BeginStatusJob($"TAGS // CLEAR 0/{targets.Count}");
+        try
+        {
+        foreach (var entry in targets)
         {
             try
             {
@@ -1511,6 +1515,17 @@ public partial class MainViewModel : ObservableObject
                 failed++;
                 DebugLog.WriteLine($"Clear tags failed: {entry.FilePath}: {exception}");
             }
+            var progress = succeeded + failed;
+            if (progress % 10 == 0 || progress == targets.Count)
+            {
+                UpdateStatusJob(job, $"TAGS // CLEAR {progress}/{targets.Count}  // {failed} failed");
+                await Task.Yield();
+            }
+        }
+        }
+        finally
+        {
+            EndStatusJob(job);
         }
         await MetadataPanel.ReloadTagsAsync();
         await RefreshTagsTreeAsync();
