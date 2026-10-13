@@ -781,25 +781,22 @@ public partial class MetadataPanelViewModel : ObservableObject
     public async Task ReloadTagsAsync()
     {
         if (_tagRepo == null || _entries.Count == 0) return;
+        var snapshot = _entries.ToList();
+        var version = _metadataSelectionVersion;
+        var assignments = await _tagRepo.GetTagsForImagesAsync(
+            snapshot.Select(e => e.Id).Where(id => id > 0).ToArray());
+        if (version != _metadataSelectionVersion) return;
+
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in snapshot)
+        {
+            if (!assignments.TryGetValue(entry.Id, out var items)) continue;
+            foreach (var tag in items.Distinct(StringComparer.OrdinalIgnoreCase))
+                counts[tag] = counts.GetValueOrDefault(tag) + 1;
+        }
         Tags.Clear();
-        var tagCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        int considered = 0;
-        foreach (var e in _entries)
-        {
-            if (e.Id <= 0) continue;
-            considered++;
-            var list = await _tagRepo.GetTagsAsync(e.Id);
-            foreach (var t in list)
-            {
-                if (string.IsNullOrWhiteSpace(t.Tag)) continue;
-                tagCounts[t.Tag] = tagCounts.GetValueOrDefault(t.Tag, 0) + 1;
-            }
-        }
-        if (considered == 0) considered = _entries.Count;
-        foreach (var kvp in tagCounts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
-        {
-            Tags.Add(new TagDisplayItem(kvp.Key, kvp.Value, considered));
-        }
+        foreach (var tag in counts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+            Tags.Add(new TagDisplayItem(tag.Key, tag.Value, snapshot.Count));
     }
 
     /// <summary>
