@@ -95,6 +95,7 @@ public partial class App : Application
         }
 
         AlbumPathStorage.Configure(CurrentAlbumPath);
+        WindowsThumbnailService.ConfigureAlbumCache(CurrentAlbumPath);
 
         bootWindow.SetPhase(
             2,
