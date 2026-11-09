@@ -135,10 +135,12 @@ public static class GitHubUpdateService
     {
         if (!File.Exists(verifiedInstallerPath))
             throw new FileNotFoundException("Verified installer is missing.", verifiedInstallerPath);
-        Process.Start(new ProcessStartInfo(verifiedInstallerPath)
+        var process = Process.Start(new ProcessStartInfo(verifiedInstallerPath)
         {
             UseShellExecute = true,
             Arguments = "/CLOSEAPPLICATIONS /NORESTART"
-        }) ?? throw new InvalidOperationException("Windows did not start the installer.");
+        });
+        if (process is null)
+            throw new InvalidOperationException("Windows did not start the installer.");
     }
 }
