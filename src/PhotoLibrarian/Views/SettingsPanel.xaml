@@ -426,7 +426,8 @@
                                            FontSize="16"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource HiTechTextPrimaryBrush}" />
-                                <TextBlock Text="A local-first portable photo library."
+                                <TextBlock Text="A local-first portable photo library by Trimenor."
+                                           
                                            FontFamily="Consolas"
                                            FontSize="11"
                                            Foreground="{StaticResource HiTechTextSecondaryBrush}" />
@@ -436,13 +437,34 @@
                                 <TextBlock Text="BUILD"
                                            HorizontalAlignment="Right"
                                            Style="{StaticResource HiTechTinyLabelStyle}" />
-                                <TextBlock Text="1.0.0"
+                                <TextBlock x:Name="InstalledVersionText"
+                                           Text="1.1.0"
                                            HorizontalAlignment="Right"
                                            FontFamily="Consolas"
                                            FontSize="14"
                                            Foreground="{StaticResource HiTechAccentBrush}" />
                             </StackPanel>
                         </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="SOFTWARE UPDATES // TRIMENOR"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}"/>
+                            <TextBlock Text="Updates are checked only when requested. Stable GitHub releases only."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}"/>
+                            <TextBlock x:Name="UpdateStatusText" Text="No update check performed."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechAccentBrush}"/>
+                            <ProgressBar x:Name="UpdateDownloadProgress" Minimum="0" Maximum="100"
+                                         Visibility="Collapsed" Height="5"/>
+                            <Button x:Name="CheckUpdatesButton" Content="CHECK FOR UPDATES"
+                                    Click="OnCheckForUpdatesClick"
+                                    HorizontalAlignment="Left"
+                                    AutomationProperties.AutomationId="CheckUpdatesButton"
+                                    Style="{StaticResource HiTechPrimaryButtonStyle}"/>
+                        </StackPanel>
                     </Border>
                 </StackPanel>
             </ScrollViewer>
