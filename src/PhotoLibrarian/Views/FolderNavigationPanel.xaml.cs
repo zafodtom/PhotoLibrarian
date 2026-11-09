@@ -1695,6 +1695,7 @@ public sealed partial class FolderNavigationPanel : UserControl
                     "__untagged__",
                     StringComparison.OrdinalIgnoreCase))
             .ToList();
+        var excludedTags = _excludedTagPaths.ToList();
 
         var selectedPeople = new List<long>();
         bool peopleRootSelected = false;
@@ -1718,7 +1719,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             !tagRootSelected && !untaggedSelected && !flaggedSelected &&
             selectedFolders.Count == 0 && selectedYears.Count == 0 && 
             selectedMonths.Count == 0 && selectedPeople.Count == 0 &&
-            selectedTags.Count == 0)
+            selectedTags.Count == 0 && excludedTags.Count == 0)
         {
             DebugLog.WriteLine("  No selections - clearing filter");
             App.ViewModel.ImageGrid.ClearFilterCommand.Execute(null);
@@ -1743,7 +1744,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             tagRootSelected,
             selectedTags.Count > 0 ? selectedTags : null,
             untaggedSelected,
-            flaggedSelected);
+            flaggedSelected,
+            excludedTags.Count > 0 ? excludedTags : null);
     }
 
     // ============================================================================
