@@ -175,15 +175,19 @@
                               Drop="OnTagsTreeDrop">
                         <TreeView.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <CheckBox IsChecked="{Binding Content.IsSelected, Mode=TwoWay}"
-                                              Tag="{Binding Content}"
-                                              Click="OnTagFilterCheckBoxClick"
-                                              VerticalAlignment="Center"
-                                              Width="20"
-                                              MinWidth="0"
-                                              Padding="0"
-                                              Margin="0" />
+                                <StackPanel Orientation="Horizontal" Spacing="4"
+                                            Tag="{Binding Content}"
+                                            Tapped="OnTagRowTapped"
+                                            RightTapped="OnTagRowRightTapped"
+                                            ToolTipService.ToolTip="Left-click: include (+); right-click: exclude (-). Click again to clear."
+                                            Background="Transparent">
+                                    <TextBlock Text="{Binding Content.FilterMarker}"
+                                               Width="20"
+                                               TextAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontFamily="Consolas"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource HiTechAccentBrush}" />
                                     <TextBlock Text="{Binding Content}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
