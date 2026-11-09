@@ -464,11 +464,11 @@ public partial class MetadataPanelViewModel : ObservableObject
             }
             // Avoid triggering a full layout pass for each individual tag.
             // Build outside the UI collection, then replace its content.
-            var items = counts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            var tagDisplays = counts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
                 .Select(x => new TagDisplayItem(x.Key, x.Value, snapshot.Count))
                 .ToList();
             Tags.Clear();
-            foreach (var item in items)
+            foreach (var item in tagDisplays)
                 Tags.Add(item);
         }
         if (version != _metadataSelectionVersion) return;
