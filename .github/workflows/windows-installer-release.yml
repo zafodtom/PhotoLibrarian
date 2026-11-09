@@ -2,7 +2,7 @@ name: PhotoLibrarian Windows Build and Release
 
 on:
   push:
-    branches: [feature/trimenor-updates-ci, master]
+    branches: [feature/trimenor-updates-ci, master, release/v1.1.1]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -73,12 +73,19 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Publish stable GitHub Release (manual opt-in only)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish_release) || (github.event_name == 'push' && github.ref == 'refs/heads/release/v1.1.1') }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $repo = $env:GITHUB_REPOSITORY
+          # One-off, explicit publish branch. This does not make normal pushes
+          # to master or pull requests public releases.
+          if ($env:GITHUB_EVENT_NAME -eq 'push' -and
+              ($env:GITHUB_REF -ne 'refs/heads/release/v1.1.1' -or
+               $env:VERSION -ne '1.1.1')) {
+            throw 'Automatic publication is restricted to release/v1.1.1.'
+          }
           $isPrivate = gh api "repos/$repo" --jq '.private'
           if ($LASTEXITCODE -ne 0 -or $isPrivate -ne 'false') { throw 'Public GitHub Release required for updates.' }
           $tag = "v$env:VERSION"
