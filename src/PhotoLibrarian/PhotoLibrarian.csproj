@@ -3,11 +3,14 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>PhotoLibrarian</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Company>Trimenor</Company>
+    <Product>PhotoLibrarian</Product>
+    <Description>Local-first photo library management by Trimenor</Description>
     <ApplicationIcon>Assets\PhotoLibrarian.ico</ApplicationIcon>
     <UseWinUI>true</UseWinUI>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
     <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
