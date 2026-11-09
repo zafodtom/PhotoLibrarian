@@ -11,7 +11,7 @@
 #endif
 
 #define MyAppName "PhotoLibrarian"
-#define MyAppPublisher "PhotoLibrarian"
+#define MyAppPublisher "Trimenor"
 #define MyAppExeName "PhotoLibrarian.exe"
 #define MyAppAssocName "PhotoLibrarian Album"
 #define MyAppAssocExt ".pla"
@@ -23,6 +23,9 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL=https://github.com/zafodtom/PhotoLibrarian
+AppSupportURL=https://github.com/zafodtom/PhotoLibrarian/issues
+AppUpdatesURL=https://github.com/zafodtom/PhotoLibrarian/releases/latest
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
