@@ -21,6 +21,8 @@ public sealed partial class FolderNavigationPanel : UserControl
     private bool _isRefreshingPeopleTree;
     private readonly HashSet<string> _selectedTagPaths =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _excludedTagPaths =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _selectedFolderPaths =
         new(StringComparer.OrdinalIgnoreCase);
     private const string LibraryRootSelectionKey = "__photo_library_root__";
@@ -363,6 +365,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             foreach (var root in App.ViewModel.TagNav.RootTags)
                 CollectTagPaths(root, validTagPaths);
             _selectedTagPaths.RemoveWhere(path => !validTagPaths.Contains(path));
+            _excludedTagPaths.RemoveWhere(path => !validTagPaths.Contains(path));
 
             var completion =
                 new TaskCompletionSource(
@@ -383,7 +386,8 @@ public sealed partial class FolderNavigationPanel : UserControl
                     {
                         TagsTree.RootNodes.Add(BuildTagNode(
                             tagNode,
-                            _selectedTagPaths));
+                            _selectedTagPaths,
+                            _excludedTagPaths));
                     }
 
                     RestoreTagTreeState(
@@ -458,44 +462,56 @@ public sealed partial class FolderNavigationPanel : UserControl
 
     private static TreeViewNode BuildTagNode(
         TagNode tagNode,
-        ISet<string> selectedPaths)
+        ISet<string> selectedPaths,
+        ISet<string> excludedPaths)
     {
         var treeNode = new TreeViewNode
         {
             Content = new TagNodeWrapper(
                 tagNode,
-                selectedPaths.Contains(tagNode.FullPath)),
+                selectedPaths.Contains(tagNode.FullPath) ? 1 :
+                    excludedPaths.Contains(tagNode.FullPath) ? -1 : 0),
             HasUnrealizedChildren = false,
             IsExpanded = tagNode.IsRoot
         };
 
         foreach (var child in tagNode.Children)
-            treeNode.Children.Add(BuildTagNode(child, selectedPaths));
+            treeNode.Children.Add(BuildTagNode(child, selectedPaths, excludedPaths));
 
         return treeNode;
     }
 
-    private void OnTagFilterCheckBoxClick(
-        object sender,
-        RoutedEventArgs e)
+    private void OnTagRowTapped(object sender, TappedRoutedEventArgs e)
     {
-        if (_isRefreshingTagTree ||
-            sender is not CheckBox
-            {
-                Tag: TagNodeWrapper wrapper
-            } checkBox)
-        {
+        if (sender is not FrameworkElement { Tag: TagNodeWrapper wrapper })
             return;
-        }
+        ApplyTagNavigationSelection(wrapper, include: true);
+        e.Handled = true;
+    }
+
+    private void OnTagRowRightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: TagNodeWrapper wrapper })
+            return;
+        ApplyTagNavigationSelection(wrapper, include: false);
+        e.Handled = true;
+    }
+
+    private void ApplyTagNavigationSelection(TagNodeWrapper wrapper, bool include)
+    {
+        if (_isRefreshingTagTree) return;
 
         var path = wrapper.TagNode.FullPath;
-        var isChecked = checkBox.IsChecked == true;
-        wrapper.IsSelected = isChecked;
-
-        if (isChecked)
+        var desired = include ? 1 : -1;
+        // Clicking an already-selected mode toggles it off.
+        var next = wrapper.FilterState == desired ? 0 : desired;
+        _selectedTagPaths.Remove(path);
+        _excludedTagPaths.Remove(path);
+        if (next == 1)
             _selectedTagPaths.Add(path);
-        else
-            _selectedTagPaths.Remove(path);
+        else if (next == -1)
+            _excludedTagPaths.Add(path);
+        wrapper.FilterState = next;
 
         UpdateGridFromSelection();
     }
@@ -1679,6 +1695,7 @@ public sealed partial class FolderNavigationPanel : UserControl
                     "__untagged__",
                     StringComparison.OrdinalIgnoreCase))
             .ToList();
+        var excludedTags = _excludedTagPaths.ToList();
 
         var selectedPeople = new List<long>();
         bool peopleRootSelected = false;
@@ -1702,7 +1719,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             !tagRootSelected && !untaggedSelected && !flaggedSelected &&
             selectedFolders.Count == 0 && selectedYears.Count == 0 && 
             selectedMonths.Count == 0 && selectedPeople.Count == 0 &&
-            selectedTags.Count == 0)
+            selectedTags.Count == 0 && excludedTags.Count == 0)
         {
             DebugLog.WriteLine("  No selections - clearing filter");
             App.ViewModel.ImageGrid.ClearFilterCommand.Execute(null);
@@ -1727,7 +1744,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             tagRootSelected,
             selectedTags.Count > 0 ? selectedTags : null,
             untaggedSelected,
-            flaggedSelected);
+            flaggedSelected,
+            excludedTags.Count > 0 ? excludedTags : null);
     }
 
     // ============================================================================
@@ -1903,25 +1921,37 @@ public sealed partial class FolderNavigationPanel : UserControl
     }
 
     // Helper class to wrap TagNode for TreeView
-    private class TagNodeWrapper
+    private class TagNodeWrapper : System.ComponentModel.INotifyPropertyChanged
     {
         public TagNode TagNode { get; }
-        public bool IsSelected { get; set; }
+        private int _filterState;
+        public int FilterState
+        {
+            get => _filterState;
+            set
+            {
+                if (_filterState == value) return;
+                _filterState = value;
+                PropertyChanged?.Invoke(this,
+                    new System.ComponentModel.PropertyChangedEventArgs(nameof(FilterMarker)));
+            }
+        }
 
-        public TagNodeWrapper(
-            TagNode tagNode,
-            bool isSelected = false)
+        public string FilterMarker => _filterState switch
+        {
+            1 => "+",
+            -1 => "−",
+            _ => " "
+        };
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+        public TagNodeWrapper(TagNode tagNode, int filterState = 0)
         {
             TagNode = tagNode;
-            IsSelected = isSelected;
+            _filterState = filterState;
         }
 
-        public override string ToString()
-        {
-            if (TagNode.IsRoot)
-                return $"{TagNode.Name} ({TagNode.Count})";
-
-            return $"{TagNode.Name} ({TagNode.Count})";
-        }
+        public override string ToString() => $"{TagNode.Name} ({TagNode.Count})";
     }
 }

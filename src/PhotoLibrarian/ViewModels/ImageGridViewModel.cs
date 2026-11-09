@@ -69,6 +69,7 @@ public partial class ImageGridViewModel : ObservableObject
     private bool _currentTagRootSelected;
     private bool _currentUntaggedSelected; // Root "Tags" node selected (show all tagged images)
     private List<string>? _currentTagFilters;
+    private List<string>? _currentExcludedTagFilters;
     private bool _currentFlaggedSelected; // "Flagged" node selected (show flagged working set)
     private string? _currentSortBy = "date_taken";
     private CancellationTokenSource? _loadCts;
@@ -208,7 +209,8 @@ public partial class ImageGridViewModel : ObservableObject
 
         // Get all images from DB (we'll filter to union of all criteria)
         var allImages = await _imageRepo.GetAllAsync(_currentSortBy, SortDescending);
-        var tagsByImageId = Refinement.RequiresTags
+        bool hasExcludedTags = _currentExcludedTagFilters is { Count: > 0 };
+        var tagsByImageId = Refinement.RequiresTags || hasExcludedTags
             ? await _tagRepo.GetTagsByImageIdAsync()
             : null;
         bool hasPeopleFilter = _currentPeopleRootSelected ||
@@ -241,7 +243,7 @@ public partial class ImageGridViewModel : ObservableObject
 
         // If no filters active, show nothing
         if (!hasFolderFilter && !hasDateFilter && !hasPeopleFilter &&
-            !hasTagFilter && !hasFlagFilter)
+            !hasTagFilter && !hasFlagFilter && !hasExcludedTags)
         {
             DebugLog.WriteLine($"LoadImagesAsync: No filters active, showing empty grid");
             return;
@@ -285,7 +287,8 @@ public partial class ImageGridViewModel : ObservableObject
             // not the previous Folder A OR Tag X across the whole album.
             bool matchesAnyFilter =
                 (hasFolderFilter && !hasTagFilter && matchesFolder) ||
-                (hasTagFilter && matchesTag && matchesFolder);
+                (hasTagFilter && matchesTag && matchesFolder) ||
+                (hasExcludedTags && !hasTagFilter && matchesFolder);
 
             // Legacy navigation filters remain OR-composed. They are currently hidden
             // in the album-focused UI, but keeping their behavior makes the change reversible.
@@ -321,7 +324,21 @@ public partial class ImageGridViewModel : ObservableObject
             tagsByImageId?.TryGetValue(img.Id, out imageTags);
             personIdsByImageId?.TryGetValue(img.Id, out imagePersonIds);
 
-            if (matchesAnyFilter &&
+            // Exclusion is always AND NOT, including when other navigation
+            // filters are OR-composed. Selecting only a minus starts from all
+            // photos (or the selected folder scope) and removes matching tags.
+            bool isExcluded = hasExcludedTags &&
+                _currentExcludedTagFilters!.Any(path =>
+                    path switch
+                    {
+                        "" => imageTags is { Count: > 0 },
+                        "__untagged__" => imageTags is null || imageTags.Count == 0,
+                        _ => imageTags is not null && imageTags.Any(tag =>
+                            string.Equals(tag, path, StringComparison.OrdinalIgnoreCase) ||
+                            tag.StartsWith(path + "/", StringComparison.OrdinalIgnoreCase))
+                    });
+
+            if (matchesAnyFilter && !isExcluded &&
                 Refinement.Matches(img, imageTags, imagePersonIds))
             {
                 matchCount++;
@@ -910,7 +927,8 @@ public partial class ImageGridViewModel : ObservableObject
         bool tagRootSelected,
         List<string>? tags,
         bool untaggedSelected,
-        bool flaggedSelected = false)
+        bool flaggedSelected = false,
+        List<string>? excludedTags = null)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         DebugLog.WriteLine($"FilterByMultipleCriteriaAsync: folders={folderPaths?.Count ?? 0}, years={years?.Count ?? 0}, months={months?.Count ?? 0}, people={personIds?.Count ?? 0}, tags={tags?.Count ?? 0}, untagged={untaggedSelected}, flagged={flaggedSelected}");
@@ -926,6 +944,7 @@ public partial class ImageGridViewModel : ObservableObject
         _currentPersonFilters = personIds;
         _currentTagRootSelected = tagRootSelected;
         _currentTagFilters = tags;
+        _currentExcludedTagFilters = excludedTags;
         _currentUntaggedSelected = untaggedSelected;
         _currentFlaggedSelected = flaggedSelected;
         
@@ -1309,6 +1328,7 @@ public partial class ImageGridViewModel : ObservableObject
         _currentPersonFilters = null;
         _currentTagRootSelected = false;
         _currentTagFilters = null;
+        _currentExcludedTagFilters = null;
         _currentFlaggedSelected = false;
         Refinement = ImageRefinementFilter.Empty;
         OnPropertyChanged(nameof(Refinement));
