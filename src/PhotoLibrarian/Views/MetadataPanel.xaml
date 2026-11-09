@@ -172,25 +172,27 @@
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate>
-                                <Grid ColumnSpacing="4">
+                                <Grid ColumnSpacing="6">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Tag}" FontSize="13"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding CountDisplay}"
+                                    <Button Grid.Column="0" Padding="4,2"
+                                            Background="Transparent" BorderThickness="0"
+                                            VerticalAlignment="Center"
+                                            Click="OnRemoveTagClick"
+                                            Tag="{Binding Tag}"
+                                            ToolTipService.ToolTip="Remove tag from all selected"
+                                            AutomationProperties.Name="Remove selected tag">
+                                        <FontIcon Glyph="&#xE10A;" FontSize="10" />
+                                    </Button>
+                                    <TextBlock Grid.Column="1" Text="{Binding Tag}" FontSize="13"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="2" Text="{Binding CountDisplay}"
                                                FontSize="11"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                VerticalAlignment="Center" Margin="4,0,0,0" />
-                                    <Button Grid.Column="2" Padding="4,2"
-                                            Background="Transparent" BorderThickness="0"
-                                            Click="OnRemoveTagClick"
-                                            Tag="{Binding Tag}"
-                                            ToolTipService.ToolTip="Remove tag from all selected">
-                                        <FontIcon Glyph="&#xE10A;" FontSize="10" />
-                                    </Button>
                                 </Grid>
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
