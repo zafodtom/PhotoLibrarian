@@ -40,10 +40,11 @@ public sealed class AutoTagRepositoryTests
             Assert.Contains(
                 storedTags,
                 tag => tag.Tag == "family" && tag.Source == TagSource.Manual);
-            Assert.Contains(
+            // Hierarchy is a navigation/filter concept, not an implicit
+            // photo assignment. Only the generated leaf is persisted.
+            Assert.DoesNotContain(
                 storedTags,
-                tag => tag.Tag == ImageTag.AutomaticRootTag &&
-                    tag.Source == TagSource.AutoML);
+                tag => tag.Tag == ImageTag.AutomaticRootTag);
             Assert.Contains(
                 storedTags,
                 tag => tag.Tag == "Auto/golden retriever" &&
@@ -84,15 +85,19 @@ public sealed class AutoTagRepositoryTests
                  new("animal/bird/duck", 0.7f)], "hierarchical-v2", TestContext.Current.CancellationToken));
 
             var stored = await tags.GetTagsAsync(image.Id);
-            Assert.Equal(5, stored.Count);
+            Assert.Equal(3, stored.Count);
             Assert.All(stored, tag => Assert.Equal(TagSource.AutoML, tag.Source));
+            // Ancestors still match through hierarchical queries without being
+            // materialized as independent tag assignments.
             foreach (var path in new[] { "Auto", "Auto/animal", "Auto/animal/bird" })
             {
-                Assert.Equal(0.95f, Assert.Single(stored, tag => tag.Tag == path).Confidence);
                 Assert.Equal([image.Id], await tags.GetImageIdsWithTagAsync(path));
                 Assert.Equal(image.Id,
                     Assert.Single(await images.GetFilteredAsync(false, [path])).Id);
             }
+            Assert.DoesNotContain(stored, tag => tag.Tag is "Auto" or "Auto/animal");
+            Assert.Equal(0.95f, Assert.Single(stored,
+                tag => tag.Tag == "Auto/animal/bird").Confidence);
             Assert.Equal(0.8f, Assert.Single(stored,
                 tag => tag.Tag == "Auto/animal/bird/eagle").Confidence);
             Assert.Empty(await tags.GetImageIdsWithTagAsync("animal"));
@@ -140,17 +145,16 @@ public sealed class AutoTagRepositoryTests
             Assert.DoesNotContain(stored, tag => tag.Tag == "Auto/eagle");
             Assert.Equal(TagSource.AutoML,
                 Assert.Single(stored, tag => tag.Tag == "Auto/animal/bird/eagle").Source);
-            foreach (var path in new[] { "Auto", "Auto/animal", "Auto/animal/bird" })
-            {
-                var tag = Assert.Single(stored, tag => tag.Tag == path);
-                Assert.Equal(source, tag.Source);
-                Assert.Equal(0.4f, tag.Confidence);
-            }
+            var userTag = Assert.Single(stored, tag => tag.Tag == "Auto/animal/bird");
+            Assert.Equal(source, userTag.Source);
+            Assert.Equal(0.4f, userTag.Confidence);
+            Assert.DoesNotContain(stored, tag => tag.Tag is "Auto" or "Auto/animal");
+            Assert.Equal([image.Id], await tags.GetImageIdsWithTagAsync("Auto/animal"));
             Assert.Empty(await tags.GetImagesNeedingAutoTagsAsync("hierarchical-v2",
                 TestContext.Current.CancellationToken));
             await tags.TryReplaceAutoTagsAsync(image, [], "empty-v3", TestContext.Current.CancellationToken);
             stored = await tags.GetTagsAsync(image.Id);
-            Assert.Equal(4, stored.Count);
+            Assert.Equal(2, stored.Count);
             Assert.All(stored, tag => Assert.Equal(source, tag.Source));
         }
         finally
@@ -239,7 +243,7 @@ public sealed class AutoTagRepositoryTests
             var result = await tags.RemoveAllAutoTagsAsync(
                 TestContext.Current.CancellationToken);
 
-            Assert.Equal(6, result.TagCount);
+            Assert.Equal(2, result.TagCount);
             Assert.Equal(2, result.PhotoCount);
             var firstTags = await tags.GetTagsAsync(first.Id);
             Assert.Equal(
