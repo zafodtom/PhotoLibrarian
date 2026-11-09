@@ -36,6 +36,9 @@ public static class GitHubUpdateService
     public static async Task<Release?> CheckAsync(CancellationToken cancellationToken = default)
     {
         using var response = await Client.GetAsync(ApiUrl, cancellationToken);
+        // A new project can have Actions artifacts but no published stable release yet.
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
