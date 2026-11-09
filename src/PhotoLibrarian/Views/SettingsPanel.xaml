@@ -421,6 +421,12 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Spacing="3">
+                                <Image Width="220" Height="72" HorizontalAlignment="Left"
+                                       Stretch="Uniform" Margin="0,0,0,6">
+                                    <Image.Source>
+                                        <SvgImageSource UriSource="ms-appx:///Assets/trimenor-horizontal-dark.svg"/>
+                                    </Image.Source>
+                                </Image>
                                 <TextBlock Text="PHOTOLIBRARIAN"
                                            FontFamily="Consolas"
                                            FontSize="16"
