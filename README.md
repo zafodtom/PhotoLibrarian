@@ -1,13 +1,23 @@
 # <img src="src/PhotoLibrarian/Assets/icons/icon-64.png" width="40" align="left" /> PhotoLibrarian
 
-A fast, strictly local (no cloud service) photo library manager for Windows — built with WinUI 3 and Win2D.
+A fast, local-first photo library manager for Windows — built with WinUI 3 and Win2D. Developed by **Trimenor**.
 
-PhotoLibrarian is designed to handle real photo libraries (tens of thousands of images, including RAW + video) without lock-up, with a single-purpose UI inspired by the late, well-loved **Windows Live Photo Gallery**. Unlike other solutions out there with hidden databases or local web servers, this is purely a local app. Nothing hidden or ties to a cloud service. Your photos and data stay on your computer.
+PhotoLibrarian is designed to handle real photo libraries (tens of thousands of images, including RAW + video) without lock-up, with a single-purpose UI inspired by the late, well-loved **Windows Live Photo Gallery**. Unlike other solutions out there with hidden databases or local web servers, this is purely a local app. Nothing hidden or ties to a cloud service. Your photos and data stay on your computer. A separate, user-initiated update checker contacts GitHub only when you request an update.
 
 ![PhotoLibrarian browsing a 16 000-image Vienna trip library](docs/screenshot.jpg)
 
 > **Premise:** your edits stay with your images.
 > Ratings, captions, tags, and capture dates are written **directly into the image file** using Windows Imaging Component, so moving a photo to another drive, computer, or app keeps every edit intact. No proprietary catalog, no parasitic sidecars (for the formats that can hold their own metadata).
+
+---
+
+## Windows installer and updates
+
+Windows x64 installer builds are produced by [GitHub Actions](.github/workflows/windows-installer-release.yml) from the `feature/trimenor-updates-ci` development branch. Each successful build produces a downloadable test artifact. Stable releases are **not automatically published**: run the same workflow manually with `publish_release=true` only after verification. The workflow publishes a new immutable `vX.Y.Z` GitHub Release containing the installer, checksum list and update manifest.
+
+The app checks for updates exclusively through **Settings → CHECK FOR UPDATES**. It compares installed and stable versions, downloads the official GitHub Release installer, validates its SHA-256 digest/size and requests confirmation before starting the Inno Setup installer. This operation requires the internet; normal photo library operation is entirely local. See [update and release procedure](docs/UPDATES.md).
+
+**Trimenor** is an independent software development brand, not an Authenticode signature or registered publisher claim. PhotoLibrarian retains its own name, icon and album layout.
 
 ---
 

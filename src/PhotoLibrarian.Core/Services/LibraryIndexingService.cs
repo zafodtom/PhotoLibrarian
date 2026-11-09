@@ -305,7 +305,22 @@ public sealed class LibraryIndexingService
         var entry = _metadataReader.ReadMetadata(filePath);
         entry.FileHash =
             currentHash ?? await ComputeSha256Async(filePath, ct);
-        var faceMetadata = _faceMetadataStore.Read(filePath);
+        // A malformed sidecar must not prevent the photo itself from being
+        // indexed. Leave its face-import flag false so a repaired sidecar
+        // is retried on the next scan.
+        PhotoFaceMetadata? faceMetadata = null;
+        try
+        {
+            faceMetadata = _faceMetadataStore.Read(filePath);
+        }
+        catch (Exception exception) when (
+            exception is XmpCore.XmpException or
+            System.Xml.XmlException or
+            FormatException)
+        {
+            DebugLog.WriteLine(
+                $"IndexFileAsync: invalid face metadata for '{filePath}': {exception.Message}");
+        }
         var tags = _metadataReader.ReadTags(filePath);
 
         await _databaseWriteGate.WaitAsync(ct);
@@ -316,17 +331,20 @@ public sealed class LibraryIndexingService
                 imageId,
                 false,
                 cancellationToken: ct);
-            await _faceRepo.ImportFaceMetadataAsync(
-                imageId,
-                faceMetadata,
-                ct);
-            await _faceRepo.SetFaceMetadataImportedAsync(
-                imageId,
-                true,
-                sidecar?.FullName,
-                sidecar?.Length,
-                sidecar?.LastWriteTimeUtc,
-                ct);
+            if (faceMetadata is not null)
+            {
+                await _faceRepo.ImportFaceMetadataAsync(
+                    imageId,
+                    faceMetadata,
+                    ct);
+                await _faceRepo.SetFaceMetadataImportedAsync(
+                    imageId,
+                    true,
+                    sidecar?.FullName,
+                    sidecar?.Length,
+                    sidecar?.LastWriteTimeUtc,
+                    ct);
+            }
             await _faceRepo.SetFaceMetadataExportRequiredAsync(
                 imageId,
                 false,

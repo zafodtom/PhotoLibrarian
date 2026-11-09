@@ -105,17 +105,23 @@ public sealed record ImageRefinementFilter
         if (DateTo is DateTime to && captureDate!.Value.Date > to.Date)
             return false;
 
-        if (IncludedTags.Any(required =>
-                !tags.Contains(required, StringComparer.OrdinalIgnoreCase)))
+        // Tags are stored as explicit assignments only. A parent path is a
+        // filter for its descendants, not a separate implicit assignment.
+        // The slash boundary prevents "person" from matching "personnel".
+        static bool MatchesTagPath(IReadOnlyCollection<string> assigned, string requested)
         {
-            return false;
+            var path = requested.Trim().Trim('/');
+            if (path.Length == 0) return false;
+            return assigned.Any(tag =>
+                string.Equals(tag, path, StringComparison.OrdinalIgnoreCase) ||
+                tag.StartsWith(path + "/", StringComparison.OrdinalIgnoreCase));
         }
 
-        if (ExcludedTags.Any(excluded =>
-                tags.Contains(excluded, StringComparer.OrdinalIgnoreCase)))
-        {
+        if (IncludedTags.Any(required => !MatchesTagPath(tags, required)))
             return false;
-        }
+
+        if (ExcludedTags.Any(excluded => MatchesTagPath(tags, excluded)))
+            return false;
 
         if (PersonId is long personId && !personIds.Contains(personId))
             return false;

@@ -341,7 +341,7 @@
                                     Margin="10,0,0,0">
                             <TextBlock Text="CACHE CONTROL"
                                        Style="{StaticResource HiTechSectionHeaderStyle}" />
-                            <TextBlock Text="LOCAL THUMBNAIL STORAGE"
+                            <TextBlock Text="PORTABLE THUMBNAIL CACHE (MAX 1 GB)"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
                         </StackPanel>
                         <TextBlock Grid.Column="2"
@@ -383,7 +383,7 @@
                             <Button Grid.Column="2"
                                     AutomationProperties.AutomationId="RebuildCacheButton"
                                     VerticalAlignment="Center"
-                                    Content="REBUILD CACHE"
+                                    Content="CLEAR THUMBNAILS"
                                     Click="OnRebuildCache"
                                     Style="{StaticResource HiTechPrimaryButtonStyle}" />
                         </Grid>
@@ -421,12 +421,19 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Spacing="3">
+                                <Image Width="220" Height="72" HorizontalAlignment="Left"
+                                       Stretch="Uniform" Margin="0,0,0,6">
+                                    <Image.Source>
+                                        <SvgImageSource UriSource="ms-appx:///Assets/trimenor-horizontal-dark.svg"/>
+                                    </Image.Source>
+                                </Image>
                                 <TextBlock Text="PHOTOLIBRARIAN"
                                            FontFamily="Consolas"
                                            FontSize="16"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource HiTechTextPrimaryBrush}" />
-                                <TextBlock Text="A local-first portable photo library."
+                                <TextBlock Text="A local-first portable photo library by Trimenor."
+                                           
                                            FontFamily="Consolas"
                                            FontSize="11"
                                            Foreground="{StaticResource HiTechTextSecondaryBrush}" />
@@ -436,7 +443,8 @@
                                 <TextBlock Text="BUILD"
                                            HorizontalAlignment="Right"
                                            Style="{StaticResource HiTechTinyLabelStyle}" />
-                                <TextBlock Text="1.0.0"
+                                <TextBlock x:Name="InstalledVersionText"
+                                           Text="1.1.0"
                                            HorizontalAlignment="Right"
                                            FontFamily="Consolas"
                                            FontSize="14"
@@ -444,8 +452,44 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="SOFTWARE UPDATES // TRIMENOR"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}"/>
+                            <TextBlock Text="Updates are checked only when requested. Stable GitHub releases only."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}"/>
+                            <TextBlock x:Name="UpdateStatusText" Text="No update check performed."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechAccentBrush}"/>
+                            <ProgressBar x:Name="UpdateDownloadProgress" Minimum="0" Maximum="100"
+                                         Visibility="Collapsed" Height="5"/>
+                            <Button x:Name="CheckUpdatesButton" Content="CHECK FOR UPDATES"
+                                    Click="OnCheckForUpdatesClick"
+                                    HorizontalAlignment="Left"
+                                    AutomationProperties.AutomationId="CheckUpdatesButton"
+                                    Style="{StaticResource HiTechPrimaryButtonStyle}"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
+        </Grid>
+
+        <!-- Destructive album control: deliberately separate from cache actions -->
+        <Grid Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+              Margin="0,0,32,26">
+            <Button x:Name="DeleteAlbumButton"
+                    Content="DELETE ALBUM"
+                    Click="OnDeleteAlbum"
+                    Padding="18,10"
+                    FontFamily="Consolas"
+                    FontWeight="SemiBold"
+                    BorderBrush="#FF4657"
+                    BorderThickness="2"
+                    Background="#321016"
+                    Foreground="#FF7180"
+                    ToolTipService.ToolTip="Remove PhotoLibrarian catalog files; keep your photographs" />
         </Grid>
 
         <!-- Footer command rail -->

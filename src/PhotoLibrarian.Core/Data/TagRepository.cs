@@ -18,38 +18,19 @@ public sealed class TagRepository : IAutoTagStore
 
     public async Task AddTagAsync(ImageTag tag)
     {
+        // Hierarchy is a catalog/filter concept, not an implicit assignment.
+        // Store exactly the selected path, never materialize its ancestors.
         using var conn = _db.CreateConnection();
-        
-        // Insert all tag paths (including parents)
-        foreach (var tagPath in GetTagPaths(tag.Tag))
-        {
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = """
-                INSERT OR REPLACE INTO tags (image_id, tag, source, confidence)
-                VALUES ($id, $tag, $source, $conf)
-                """;
-            cmd.Parameters.AddWithValue("$id", tag.ImageId);
-            cmd.Parameters.AddWithValue("$tag", tagPath);
-            cmd.Parameters.AddWithValue("$source", (int)tag.Source);
-            cmd.Parameters.AddWithValue("$conf", tag.Confidence);
-            await cmd.ExecuteNonQueryAsync();
-        }
-    }
-
-    private static IEnumerable<string> GetTagPaths(string tag)
-    {
-        if (!tag.Contains('/'))
-        {
-            yield return tag;
-            yield break;
-        }
-
-        var currentPath = "";
-        foreach (var part in tag.Split('/', StringSplitOptions.RemoveEmptyEntries))
-        {
-            currentPath = currentPath.Length == 0 ? part : $"{currentPath}/{part}";
-            yield return currentPath;
-        }
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT OR REPLACE INTO tags (image_id, tag, source, confidence)
+            VALUES ($id, $tag, $source, $conf)
+            """;
+        cmd.Parameters.AddWithValue("$id", tag.ImageId);
+        cmd.Parameters.AddWithValue("$tag", tag.Tag.Trim().Trim('/'));
+        cmd.Parameters.AddWithValue("$source", (int)tag.Source);
+        cmd.Parameters.AddWithValue("$conf", tag.Confidence);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     public async Task<List<ImageTag>> GetTagsAsync(long imageId)
@@ -74,6 +55,37 @@ public sealed class TagRepository : IAutoTagStore
         return tags;
     }
 
+    /// <summary>Read all assigned tags for a selection in one SQLite query.</summary>
+    public async Task<Dictionary<long, List<string>>> GetTagsForImagesAsync(
+        IReadOnlyCollection<long> imageIds)
+    {
+        var result = new Dictionary<long, List<string>>();
+        foreach (var batch in imageIds.Where(id => id > 0).Distinct().Chunk(400))
+        {
+            using var connection = _db.CreateConnection();
+            using var command = connection.CreateCommand();
+            var parameters = new List<string>();
+            for (int index = 0; index < batch.Length; index++)
+            {
+                var name = "$id" + index;
+                parameters.Add(name);
+                command.Parameters.AddWithValue(name, batch[index]);
+            }
+            command.CommandText =
+                "SELECT image_id, tag FROM tags WHERE image_id IN (" +
+                string.Join(",", parameters) + ")";
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                long imageId = reader.GetInt64(0);
+                if (!result.TryGetValue(imageId, out var tags))
+                    result[imageId] = tags = new List<string>();
+                tags.Add(reader.GetString(1));
+            }
+        }
+        return result;
+    }
+
     public async Task RemoveTagAsync(long imageId, string tag)
     {
         using var conn = _db.CreateConnection();
@@ -81,6 +93,16 @@ public sealed class TagRepository : IAutoTagStore
         cmd.CommandText = "DELETE FROM tags WHERE image_id = $id AND tag = $tag";
         cmd.Parameters.AddWithValue("$id", imageId);
         cmd.Parameters.AddWithValue("$tag", tag);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>Remove all tag assignments for one image without changing catalog definitions.</summary>
+    public async Task ClearImageTagsAsync(long imageId)
+    {
+        using var conn = _db.CreateConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM tags WHERE image_id = $id";
+        cmd.Parameters.AddWithValue("$id", imageId);
         await cmd.ExecuteNonQueryAsync();
     }
 
@@ -183,7 +205,7 @@ public sealed class TagRepository : IAutoTagStore
     {
         using var conn = _db.CreateConnection();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT image_id FROM tags WHERE tag = $tag";
+        cmd.CommandText = "SELECT DISTINCT image_id FROM tags WHERE tag = $tag OR substr(tag, 1, length($tag) + 1) = $tag || '/'";
         cmd.Parameters.AddWithValue("$tag", tag);
 
         var ids = new List<long>();
@@ -297,8 +319,8 @@ public sealed class TagRepository : IAutoTagStore
                 tag.Tag.Trim().Trim('/'),
                 Math.Clamp(tag.Confidence, 0, 1)))
             .Where(tag => tag.Tag.Length > 0)
-            .SelectMany(tag => GetTagPaths($"{ImageTag.AutomaticRootTag}/{tag.Tag}")
-                .Select(path => new GeneratedImageTag(path, tag.Confidence)))
+            .Select(tag => new GeneratedImageTag(
+                $"{ImageTag.AutomaticRootTag}/{tag.Tag}", tag.Confidence))
             .GroupBy(tag => tag.Tag, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.MaxBy(tag => tag.Confidence)!)
             .ToList();

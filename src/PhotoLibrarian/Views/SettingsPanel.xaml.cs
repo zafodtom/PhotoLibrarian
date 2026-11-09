@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using PhotoLibrarian.Services;
 using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.ViewModels;
 
@@ -25,6 +26,7 @@ public sealed partial class SettingsPanel : UserControl
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         UpdateCacheDisplay();
+        InstalledVersionText.Text = GitHubUpdateService.InstalledVersion.ToString(3);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -291,6 +293,81 @@ public sealed partial class SettingsPanel : UserControl
             ArgumentException or
             InvalidOperationException;
 
+    private bool _checkingUpdates;
+
+    private async void OnCheckForUpdatesClick(object sender, RoutedEventArgs e)
+    {
+        if (_checkingUpdates) return;
+        _checkingUpdates = true;
+        CheckUpdatesButton.IsEnabled = false;
+        UpdateDownloadProgress.Visibility = Visibility.Collapsed;
+        var job = App.ViewModel?.BeginStatusJob("UPDATES // checking stable GitHub release");
+        try
+        {
+            UpdateStatusText.Text = "Checking public PhotoLibrarian releases…";
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            var release = await GitHubUpdateService.CheckAsync(cancellation.Token);
+            if (release is null)
+            {
+                UpdateStatusText.Text = "You already have the latest stable version (or no stable release is published).";
+                return;
+            }
+
+            UpdateStatusText.Text = $"Version {release.Version.ToString(3)} available.";
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = $"Update PhotoLibrarian to {release.Version.ToString(3)}?",
+                Content = "Download the official installer from GitHub, verify its SHA-256 and then launch the installer? Your albums and photographs are not part of the installation.",
+                PrimaryButtonText = "Download update",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            UpdateDownloadProgress.Value = 0;
+            UpdateDownloadProgress.Visibility = Visibility.Visible;
+            var progress = new Progress<int>(percent =>
+            {
+                UpdateDownloadProgress.Value = percent;
+                UpdateStatusText.Text = $"Downloading verified update: {percent}%";
+                if (job.HasValue)
+                    App.ViewModel?.UpdateStatusJob(job.Value, $"UPDATES // download {percent}%");
+            });
+            using var downloadCancellation = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+            var installerPath = await GitHubUpdateService.DownloadVerifiedAsync(
+                release, progress, downloadCancellation.Token);
+            UpdateStatusText.Text = "Installer verified (SHA-256). Ready to install.";
+
+            var install = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Start installation",
+                Content = "PhotoLibrarian will close and Windows will start the verified installer. Save any current edits before continuing.",
+                PrimaryButtonText = "Install and close",
+                CloseButtonText = "Later",
+                DefaultButton = ContentDialogButton.Close
+            };
+            if (await install.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            GitHubUpdateService.LaunchInstaller(installerPath);
+            App.Current.Exit();
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = "Update failed: " + ex.Message;
+            System.Diagnostics.Debug.WriteLine("[UPDATES] " + ex);
+        }
+        finally
+        {
+            if (job.HasValue) App.ViewModel?.EndStatusJob(job.Value);
+            _checkingUpdates = false;
+            CheckUpdatesButton.IsEnabled = true;
+        }
+    }
+
     private async void OnRebuildCache(
         object sender,
         RoutedEventArgs e)
@@ -299,6 +376,143 @@ public sealed partial class SettingsPanel : UserControl
         {
             await ViewModel.RebuildCacheCommand.ExecuteAsync(null);
             UpdateCacheDisplay();
+        }
+    }
+
+    private async void OnDeleteAlbum(object sender, RoutedEventArgs e)
+    {
+        await ConfirmDeleteAlbumAsync();
+    }
+
+    public async Task ConfirmDeleteAlbumAsync()
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            return;
+
+        var root = App.CurrentAlbumPath;
+        var xmpCount = AlbumService.FindAlbumXmpSidecars(root).Count;
+        var red = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 255, 80, 94));
+        var text = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 229, 240, 244));
+        var panel = new StackPanel { Spacing = 14, MinWidth = 500 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "WARNING // ARCHIVE TERMINATION",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 19, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = red
+        });
+        panel.Children.Add(new Border
+        {
+            Height = 3, Background = red
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "CRITICAL OPERATION  //  IRREVERSIBLE",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 13, Foreground = red
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "TARGET: " + root,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            TextWrapping = TextWrapping.Wrap, Foreground = text
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "PhotoLibrarian catalog, cache and matching album launchers will be deleted. " +
+                   $"All {xmpCount} XMP sidecar file(s) within this album will also be deleted, " +
+                   "including XMP originally created by other software. " +
+                   "Original image/video files and folders remain. Embedded metadata in images " +
+                   "is NOT reverted. Other standalone albums are excluded. The app will close.",
+            TextWrapping = TextWrapping.Wrap, Foreground = text
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "CONFIRMATION REQUIRED  //  ORIGINAL PHOTOS ARE PRESERVED",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 11,
+            Foreground = red
+        });
+        var dialog = new ContentDialog
+        {
+            Title = null,
+            Content = new Border
+            {
+                Padding = new Thickness(22),
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    Windows.UI.Color.FromArgb(255, 12, 17, 26)),
+                BorderBrush = red,
+                BorderThickness = new Thickness(2),
+                Child = panel
+            },
+            PrimaryButtonText = "DELETE ALBUM",
+            CloseButtonText = "ABORT",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 9, 16, 24)),
+            BorderBrush = red,
+            BorderThickness = new Thickness(1),
+            XamlRoot = XamlRoot
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        DeleteAlbumButton.IsEnabled = false;
+        try
+        {
+            if (App.MainWindow is MainWindow window)
+                await window.DeleteCurrentAlbumAsync();
+        }
+        catch (Exception ex)
+        {
+            DeleteAlbumButton.IsEnabled = true;
+            var errorPanel = new StackPanel { Spacing = 12, MinWidth = 450 };
+            errorPanel.Children.Add(new TextBlock
+            {
+                Text = "FATAL ERROR // ALBUM TERMINATION FAILED",
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                FontSize = 17,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = red
+            });
+            errorPanel.Children.Add(new Border { Height = 3, Background = red });
+            errorPanel.Children.Add(new TextBlock
+            {
+                Text = ex.Message,
+                Foreground = text,
+                TextWrapping = TextWrapping.Wrap
+            });
+            errorPanel.Children.Add(new TextBlock
+            {
+                Text = "ALBUM DATA MAY BE PARTIALLY REMOVED. RESTART BEFORE RETRYING.",
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                Foreground = red,
+                TextWrapping = TextWrapping.Wrap
+            });
+            var error = new ContentDialog
+            {
+                Title = null,
+                Content = new Border
+                {
+                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                        Windows.UI.Color.FromArgb(255, 12, 17, 26)),
+                    BorderBrush = red,
+                    BorderThickness = new Thickness(2),
+                    Padding = new Thickness(20),
+                    Child = errorPanel
+                },
+                CloseButtonText = "ACKNOWLEDGE",
+                RequestedTheme = ElementTheme.Dark,
+                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    Windows.UI.Color.FromArgb(255, 9, 16, 24)),
+                BorderBrush = red,
+                BorderThickness = new Thickness(1),
+                XamlRoot = XamlRoot
+            };
+            await error.ShowAsync();
         }
     }
 

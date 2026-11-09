@@ -73,11 +73,17 @@ public partial class ImageGridViewModel : ObservableObject
     private string? _currentSortBy = "date_taken";
     private CancellationTokenSource? _loadCts;
     private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private bool _updatingGridSelection;
     private string? _primarySelectedPath;
     
     // Queue management for viewport-aware loading
     private readonly Queue<ImageThumbnailViewModel> _loadQueue = new();
     private readonly HashSet<ImageThumbnailViewModel> _queuedItems = new();
+    private readonly HashSet<ImageThumbnailViewModel> _loadingItems = new();
+    private readonly HashSet<string> _lastVisibleThumbnailPaths = new(StringComparer.OrdinalIgnoreCase);
+    private int _thumbnailsLoaded;
+    private readonly System.Diagnostics.Stopwatch _thumbnailWatch = new();
+    private long? _thumbnailStatusJob;
     private readonly object _queueLock = new();
     private DateTime _lastScrollReorder = DateTime.MinValue;
     private const int ScrollReorderThrottleMs = 150; // Don't reorder more than every 150ms
@@ -87,7 +93,7 @@ public partial class ImageGridViewModel : ObservableObject
     // marshals to the UI thread. Scale with the machine without flooding storage
     // or creating dozens of pending UI bitmap operations on high-core-count PCs.
     private static readonly int ThumbnailWorkerCount =
-        Math.Clamp(Environment.ProcessorCount / 2, 4, 12);
+        Math.Clamp(Environment.ProcessorCount / 4, 2, 4);
     internal static readonly SemaphoreSlim s_thumbnailLoadSemaphore =
         new(ThumbnailWorkerCount, ThumbnailWorkerCount);
 
@@ -171,6 +177,11 @@ public partial class ImageGridViewModel : ObservableObject
     public async Task LoadImagesAsync(bool scanDiskForMissingFiles = true)
     {
         // Cancel any pending thumbnail loads from previous folder
+        if (_thumbnailStatusJob is long previousJob)
+        {
+            _main.EndStatusJob(previousJob);
+            _thumbnailStatusJob = null;
+        }
         _loadCts?.Cancel();
         _loadCts = new CancellationTokenSource();
         var ct = _loadCts.Token;
@@ -207,22 +218,16 @@ public partial class ImageGridViewModel : ObservableObject
             ? await _faceRepo.GetPersonIdsByImageIdAsync()
             : null;
         
-        // Clear old images and dispose thumbnails to free memory
-        foreach (var img in Images)
-        {
-            if (img.Thumbnail is not null)
-            {
-                // Clear the source to allow GC to collect the bitmap data
-                img.Thumbnail = null;
-            }
-        }
+        // Keep decoded thumbnails for the last visible viewport when the user
+        // changes folders, sorting or tag filters. Avoid retaining the entire
+        // album (a large collection of decoded bitmaps can exhaust RAM).
+        var retainedThumbnails = Images
+            .Where(vm => vm.Thumbnail is not null &&
+                _lastVisibleThumbnailPaths.Contains(vm.Entry.FilePath))
+            .GroupBy(vm => vm.Entry.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(),
+                StringComparer.OrdinalIgnoreCase);
         Images.Clear();
-        
-        // Hint to GC to collect disposed bitmaps
-        if (allImages.Count == 0) // Only if we'll be loading new ones
-        {
-            GC.Collect(0, GCCollectionMode.Optimized);
-        }
 
         // Check if any filters are active
         bool hasFolderFilter = _currentFolderFilters is not null && _currentFolderFilters.Count > 0;
@@ -323,7 +328,15 @@ public partial class ImageGridViewModel : ObservableObject
                 if (matchCount <= 3)
                     DebugLog.WriteLine($"  Including '{img.FilePath}'");
 
-                Images.Add(new ImageThumbnailViewModel(img, ct) { Index = index });
+                var vm = new ImageThumbnailViewModel(img, ct) { Index = index };
+                if (retainedThumbnails.TryGetValue(img.FilePath, out var previous) &&
+                    previous.Entry.FileSize == img.FileSize &&
+                    previous.Entry.DateModified == img.DateModified)
+                {
+                    vm.Thumbnail = previous.Thumbnail;
+                    vm.IsLoading = false;
+                }
+                Images.Add(vm);
                 index++;
             }
             else
@@ -446,21 +459,15 @@ public partial class ImageGridViewModel : ObservableObject
         // Load thumbnails in batches (sequential, but fast with Windows cache)
         DebugLog.WriteLine($"LoadImagesAsync: Starting thumbnail loading for {Images.Count} items");
         
-        // Build initial queue with all items
+        // Do not generate off-screen images. The virtualized viewport requests
+        // thumbnails when its visible range (plus buffer) is measured.
         lock (_queueLock)
         {
             _loadQueue.Clear();
             _queuedItems.Clear();
-            foreach (var vm in Images)
-            {
-                _loadQueue.Enqueue(vm);
-                _queuedItems.Add(vm);
-            }
         }
-        
-        // Start background processing
-        StartBackgroundLoadingIfNeeded();
-        
+        _thumbnailsLoaded = 0;
+
         await ApplyGroupingAsync();
         RestoreSelectionAfterLoad();
         ResultsChanged?.Invoke(this, EventArgs.Empty);
@@ -473,95 +480,53 @@ public partial class ImageGridViewModel : ObservableObject
     /// </summary>
     public void OnViewportChangedGrouped(List<ImageThumbnailViewModel> visibleItems)
     {
-        // Throttle to avoid excessive reordering
+        _lastVisibleThumbnailPaths.Clear();
+        foreach (var item in visibleItems)
+            _lastVisibleThumbnailPaths.Add(item.Entry.FilePath);
+
         var now = DateTime.UtcNow;
         if ((now - _lastScrollReorder).TotalMilliseconds < ScrollReorderThrottleMs)
             return;
-            
         _lastScrollReorder = now;
-        
+
         lock (_queueLock)
         {
-            // Clear and rebuild queue: visible items first, then the rest
-            var oldQueue = new List<ImageThumbnailViewModel>(_loadQueue);
+            // Drop queued off-screen work; in-flight work is allowed to finish.
             _loadQueue.Clear();
             _queuedItems.Clear();
-            
-            // Add visible items first
-            int visibleCount = 0;
             foreach (var item in visibleItems)
             {
-                if (item.Thumbnail == null || item.IsLoading)
-                {
-                    _loadQueue.Enqueue(item);
-                    _queuedItems.Add(item);
-                    visibleCount++;
-                }
+                if (item.Thumbnail is not null || _loadingItems.Contains(item) ||
+                    !_queuedItems.Add(item))
+                    continue;
+                _loadQueue.Enqueue(item);
             }
-            
-            // Add non-visible items
-            int nonVisibleCount = 0;
-            foreach (var group in GroupedImages)
-            {
-                foreach (var item in group.Items)
-                {
-                    if (!_queuedItems.Contains(item) && (item.Thumbnail == null || item.IsLoading))
-                    {
-                        _loadQueue.Enqueue(item);
-                        _queuedItems.Add(item);
-                        nonVisibleCount++;
-                    }
-                }
-            }
-            
-            DebugLog.WriteLine($"[VIEWPORT] Reordered queue: {visibleCount} visible, {nonVisibleCount} non-visible");
         }
+        int pending;
+        lock (_queueLock) pending = _loadQueue.Count + _loadingItems.Count;
+        if (pending > 0)
+        {
+            if (_thumbnailStatusJob is null)
+            {
+                _thumbnailWatch.Restart();
+                _thumbnailStatusJob = _main.BeginStatusJob(
+                    $"THUMBNAILS // 0 loaded / {pending} pending");
+            }
+            _main.UpdateStatusJob(_thumbnailStatusJob.Value,
+                $"THUMBNAILS // {_thumbnailsLoaded:N0} loaded / {pending:N0} pending");
+        }
+        StartBackgroundLoadingIfNeeded();
     }
-    
+
     /// <summary>
     /// Called from view when scroll position changes. Reorders queue to prioritize visible items.
     /// Now uses polling instead of events to avoid layout cycles.
     /// </summary>
     public void OnViewportChanged(int firstVisibleIndex, int lastVisibleIndex)
     {
-        // Throttle queue reordering to avoid excessive work
-        var timeSinceLastReorder = (DateTime.UtcNow - _lastScrollReorder).TotalMilliseconds;
-        if (timeSinceLastReorder < ScrollReorderThrottleMs)
-        {
-            return;
-        }
-        
-        _lastScrollReorder = DateTime.UtcNow;
-        
-        lock (_queueLock)
-        {
-            if (_queuedItems.Count == 0) return;
-            
-            // Reorder queue: visible items first, rest stay in order
-            // Use vm.Index to avoid accessing ObservableCollection
-            var visibleItems = new List<ImageThumbnailViewModel>();
-            var nonVisibleItems = new List<ImageThumbnailViewModel>();
-            
-            foreach (var item in _loadQueue)
-            {
-                if (item.Index >= firstVisibleIndex && item.Index <= lastVisibleIndex)
-                {
-                    visibleItems.Add(item);
-                }
-                else
-                {
-                    nonVisibleItems.Add(item);
-                }
-            }
-            
-            _loadQueue.Clear();
-            foreach (var item in visibleItems) _loadQueue.Enqueue(item);
-            foreach (var item in nonVisibleItems) _loadQueue.Enqueue(item);
-            
-            DebugLog.WriteLine($"[VIEWPORT] Reordered queue: {visibleItems.Count} visible, {nonVisibleItems.Count} non-visible");
-        }
+        // Grouped viewport callback owns prioritization; do not enqueue the album.
     }
-    
+
     private void StartBackgroundLoadingIfNeeded()
     {
         if (_backgroundLoadTask?.IsCompleted == false)
@@ -583,6 +548,8 @@ public partial class ImageGridViewModel : ObservableObject
 
                             vm = _loadQueue.Dequeue();
                             _queuedItems.Remove(vm);
+                            if (!_loadingItems.Add(vm))
+                                vm = null;
                         }
 
                         if (vm is null || vm.Thumbnail is not null)
@@ -590,13 +557,45 @@ public partial class ImageGridViewModel : ObservableObject
 
                         DebugLog.WriteLine(
                             $"[QUEUE] Worker {workerId}: {vm.Entry.FileName}");
-                        await LoadSingleThumbnailAsync(vm, ct);
+                        try
+                        {
+                            await LoadSingleThumbnailAsync(vm, ct);
+                        }
+                        finally
+                        {
+                            lock (_queueLock) _loadingItems.Remove(vm);
+                        }
                     }
                 },
                 ct))
             .ToArray();
 
-        _backgroundLoadTask = Task.WhenAll(workers);
+        var task = Task.WhenAll(workers);
+        _backgroundLoadTask = task;
+        _ = task.ContinueWith(completed =>
+        {
+            App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+            {
+                if (ct.IsCancellationRequested || !ReferenceEquals(_backgroundLoadTask, task))
+                    return;
+
+                int pending;
+                lock (_queueLock) pending = _loadQueue.Count + _loadingItems.Count;
+                if (pending > 0)
+                {
+                    StartBackgroundLoadingIfNeeded();
+                }
+                else if (_thumbnailStatusJob is long job)
+                {
+                    var stats = WindowsThumbnailService.CacheStatistics;
+                    _main.EndStatusJob(job);
+                    _thumbnailStatusJob = null;
+                    _thumbnailWatch.Stop();
+                    _main.StatusText =
+                        $"THUMBNAILS // {_thumbnailsLoaded:N0} ready in {_thumbnailWatch.Elapsed.TotalSeconds:F1}s | cache: {stats.Hits:N0} hits, {stats.Misses:N0} misses";
+                }
+            });
+        }, TaskScheduler.Default);
     }
 
     private async Task LoadSingleThumbnailAsync(ImageThumbnailViewModel vm, CancellationToken ct)
@@ -615,7 +614,7 @@ public partial class ImageGridViewModel : ObservableObject
                 }
                 
                 // Load thumbnail stream on background thread
-                var streamBytes = await WindowsThumbnailService.GetThumbnailStreamAsync(vm.Entry.FilePath, 180);
+                var streamBytes = await WindowsThumbnailService.GetThumbnailStreamAsync(vm.Entry.FilePath, 256);
                 DebugLog.WriteLine($"[LOAD] Got {streamBytes?.Length ?? 0} bytes for {vm.Entry.FileName}");
                 
                 if (streamBytes != null && !ct.IsCancellationRequested)
@@ -637,7 +636,7 @@ public partial class ImageGridViewModel : ObservableObject
                             {
                                 DebugLog.WriteLine($"[LOAD] Creating BitmapImage for {vm.Entry.FileName}");
                                 // Create BitmapImage on UI thread
-                                var bitmapImage = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage();
+                                var bitmapImage = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage { DecodePixelWidth = 256 };
                                 using (var stream = new MemoryStream(streamBytes))
                                 {
                                     await bitmapImage.SetSourceAsync(stream.AsRandomAccessStream());
@@ -647,6 +646,10 @@ public partial class ImageGridViewModel : ObservableObject
                                 // Apply directly - no buffer/flush needed with custom virtualization
                                 vm.Thumbnail = bitmapImage;
                                 vm.IsLoading = false;
+                                _thumbnailsLoaded++;
+                                if (_thumbnailStatusJob is long job && _thumbnailsLoaded % 10 == 0)
+                                    _main.UpdateStatusJob(job,
+                                        $"THUMBNAILS // {_thumbnailsLoaded:N0} loaded");
                             }
                             tcs.SetResult(true);
                         }
@@ -1332,6 +1335,7 @@ public partial class ImageGridViewModel : ObservableObject
 
     partial void OnSelectedImageChanged(ImageThumbnailViewModel? value)
     {
+        if (_updatingGridSelection) return;
         // Push selection (single or multi) to the metadata panel.
         if (SelectedImages.Count > 0)
         {
@@ -1359,6 +1363,7 @@ public partial class ImageGridViewModel : ObservableObject
     /// </summary>
     public void UpdateSelection(IReadOnlyList<ImageThumbnailViewModel> selected, ImageThumbnailViewModel? primary)
     {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         _selectedPaths.Clear();
         foreach (var item in selected)
             _selectedPaths.Add(item.Entry.FilePath);
@@ -1366,8 +1371,21 @@ public partial class ImageGridViewModel : ObservableObject
 
         SelectedImages.Clear();
         SelectedImages.AddRange(selected);
-        // Setting SelectedImage drives the metadata panel via OnSelectedImageChanged
-        SelectedImage = primary;
+        // A Ctrl+A selection may keep the same primary image. In that case
+        // the property-change callback does not fire, but the multi-selection
+        // metadata (including the union of tags) still needs to refresh.
+        // Always use the full explicit selection snapshot. A property-change
+        // callback is not a reliable source of truth for Ctrl+A because the
+        // primary thumbnail often stays unchanged.
+        _updatingGridSelection = true;
+        try { SelectedImage = primary; }
+        finally { _updatingGridSelection = false; }
+        if (selected.Count > 0)
+            _main.MetadataPanel.ShowMetadata(selected.Select(vm => vm.Entry).ToList());
+        else
+            _main.MetadataPanel.Clear();
+        watch.Stop();
+        SelectionPerformanceLog.Write("GRID_DISPATCH", selected.Count, watch.ElapsedMilliseconds);
     }
 
     private void RestoreSelectionAfterLoad()

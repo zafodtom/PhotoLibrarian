@@ -1,0 +1,93 @@
+name: PhotoLibrarian Windows Build and Release
+
+on:
+  push:
+    branches: [feature/trimenor-updates-ci, master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish current project version as stable GitHub Release
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: photolibrarian-windows-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 50
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+      - name: Read version from project metadata
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content src/PhotoLibrarian/PhotoLibrarian.csproj
+          $version = [string]$project.Project.PropertyGroup.Version
+          if ($version -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$') { throw "Invalid SemVer: $version" }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Compile application and tests
+        shell: pwsh
+        run: |
+          dotnet build src/PhotoLibrarian.Tests/PhotoLibrarian.Tests.csproj -c Release -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Execute automated tests
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/test-results | Out-Null
+          dotnet run --project src/PhotoLibrarian.Tests/PhotoLibrarian.Tests.csproj -c Release -p:Platform=x64 --no-build -- -result-xml artifacts/test-results/tests.xml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build Inno Setup installer
+        shell: pwsh
+        run: ./tools/Build-Installer.ps1 -Version $env:VERSION
+      - name: Generate checksums and manifest
+        shell: pwsh
+        run: |
+          $file = "artifacts/installer/PhotoLibrarian-$env:VERSION-Setup-x64.exe"
+          $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  PhotoLibrarian-$env:VERSION-Setup-x64.exe" | Set-Content artifacts/installer/SHA256SUMS.txt -Encoding utf8
+          $manifest = @{ schema = 1; version = $env:VERSION; installer = @{ name = "PhotoLibrarian-$env:VERSION-Setup-x64.exe"; size = (Get-Item $file).Length; sha256 = $hash } } | ConvertTo-Json -Depth 5
+          Set-Content artifacts/installer/photolibrarian-update.json $manifest -Encoding utf8
+      - name: Upload installer for testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotoLibrarian-windows-x64
+          path: |
+            artifacts/installer/PhotoLibrarian-*-Setup-x64.exe
+            artifacts/installer/SHA256SUMS.txt
+            artifacts/installer/photolibrarian-update.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish stable GitHub Release (manual opt-in only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          $isPrivate = gh api "repos/$repo" --jq '.private'
+          if ($LASTEXITCODE -ne 0 -or $isPrivate -ne 'false') { throw 'Public GitHub Release required for updates.' }
+          $tag = "v$env:VERSION"
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Release $tag exists; never replace published update assets." }
+          $installer = "artifacts/installer/PhotoLibrarian-$env:VERSION-Setup-x64.exe"
+          $notes = "docs/releases/$env:VERSION.md"
+          if (-not (Test-Path $notes)) { throw "Release notes missing: $notes" }
+          gh release create $tag $installer artifacts/installer/SHA256SUMS.txt artifacts/installer/photolibrarian-update.json --repo $repo --target $env:GITHUB_SHA --title "PhotoLibrarian $env:VERSION by Trimenor" --notes-file $notes --draft
+          if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed.' }
+          gh release edit $tag --repo $repo --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing failed; inspect the draft.' }

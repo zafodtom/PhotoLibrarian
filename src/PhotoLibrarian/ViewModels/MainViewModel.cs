@@ -48,6 +48,65 @@ public partial class MainViewModel : ObservableObject
     public Services.PhotoOperationsService PhotoOps { get; }
     public OriginalBackupService BackupService => _backupService;
 
+    // Tracked non-indexing foreground/background jobs use a single status rail.
+    // Update from the UI dispatcher; overlapping jobs retain independent tokens.
+    private readonly Dictionary<long, string> _activeJobs = new();
+    private long _nextJobId;
+    private int _recentJobVersion;
+
+    [ObservableProperty]
+    public partial string RecentJobText { get; set; } = "";
+
+    private async Task ClearRecentJobAfterDelayAsync(int version)
+    {
+        await Task.Delay(5000);
+        if (_recentJobVersion == version)
+            RecentJobText = "";
+    }
+
+
+    [ObservableProperty]
+    public partial bool HasActiveJobs { get; set; }
+
+    [ObservableProperty]
+    public partial string ActiveJobsText { get; set; } = "";
+
+    public long BeginStatusJob(string description)
+    {
+        var id = ++_nextJobId;
+        _activeJobs[id] = description;
+        UpdateActiveJobs();
+        return id;
+    }
+
+    public void UpdateStatusJob(long id, string description)
+    {
+        if (!_activeJobs.ContainsKey(id)) return;
+        _activeJobs[id] = description;
+        UpdateActiveJobs();
+    }
+
+    public void EndStatusJob(long id)
+    {
+        if (!_activeJobs.TryGetValue(id, out var description)) return;
+        _activeJobs.Remove(id);
+        UpdateActiveJobs();
+        if (description.StartsWith("TAGS //", StringComparison.OrdinalIgnoreCase) ||
+            description.StartsWith("METADATA //", StringComparison.OrdinalIgnoreCase))
+        {
+            RecentJobText = description;
+            _ = ClearRecentJobAfterDelayAsync(++_recentJobVersion);
+        }
+    }
+
+    private void UpdateActiveJobs()
+    {
+        HasActiveJobs = _activeJobs.Count > 0;
+        ActiveJobsText = _activeJobs.Count == 0 ? "" :
+            _activeJobs.Count == 1 ? _activeJobs.Values.First() :
+            $"{_activeJobs.Values.Last()}  // {_activeJobs.Count} jobs running";
+    }
+
     [ObservableProperty]
     public partial string StatusText { get; set; }
 
@@ -1003,36 +1062,54 @@ public partial class MainViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(tag) || filePaths == null || filePaths.Count == 0) return;
         var trimmed = tag.Trim();
 
-        StatusText = $"Applying tag '{trimmed}' to {filePaths.Count:N0} item(s)…";
-
+        var job = BeginStatusJob($"TAGS // APPLY 0/{filePaths.Count}");
         int applied = 0;
         int skipped = 0;
-        foreach (var path in filePaths)
+        try
         {
-            try
+            foreach (var path in filePaths)
             {
-                var entry = await _imageRepo.GetByPathAsync(path);
-                if (entry == null || entry.Id <= 0) { skipped++; continue; }
-
-                await _tagRepo.AddTagAsync(new ImageTag
+                try
                 {
-                    ImageId = entry.Id,
-                    Tag = trimmed,
-                    Source = TagSource.Manual,
-                    Confidence = 1.0f
-                });
+                    var entry = await _imageRepo.GetByPathAsync(path);
+                    if (entry == null || entry.Id <= 0)
+                    {
+                        skipped++;
+                        continue;
+                    }
 
-                var allTags = await _tagRepo.GetTagsAsync(entry.Id);
-                await TagWriterService.WriteTagsToSidecarAsync(path,
-                    allTags.Select(t => t.Tag).Distinct());
-
-                applied++;
+                    var allTags = await _tagRepo.GetTagsAsync(entry.Id);
+                    var keywords = allTags.Select(t => t.Tag)
+                        .Append(trimmed).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                    // Persist to the source first. Never report success in the
+                    // database when the image/sidecar could not be written.
+                    await TagWriterService.WriteTagsToSidecarAsync(path, keywords);
+                    await _tagRepo.AddTagAsync(new ImageTag
+                    {
+                        ImageId = entry.Id,
+                        Tag = trimmed,
+                        Source = TagSource.Manual,
+                        Confidence = 1.0f
+                    });
+                    applied++;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[TAGDROP] Failed to apply '{trimmed}' to {path}: {ex}");
+                    skipped++;
+                }
+                finally
+                {
+                    UpdateStatusJob(job,
+                        $"TAGS // APPLY {applied + skipped}/{filePaths.Count} // {skipped} failed");
+                    await Task.Yield();
+                }
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[TAGDROP] Failed to apply '{trimmed}' to {path}: {ex.Message}");
-                skipped++;
-            }
+        }
+        finally
+        {
+            EndStatusJob(job);
         }
 
         StatusText = skipped == 0
@@ -1226,6 +1303,59 @@ public partial class MainViewModel : ObservableObject
         });
     }
 
+    /// <summary>
+    /// Clear only keywords/tags on selected images. Do not change ratings,
+    /// captions, dates, user folders or the global album tag catalog.
+    /// </summary>
+    public async Task ClearSelectedImageTagsAsync(IEnumerable<ImageEntry> entries)
+    {
+        var selected = entries
+            .DistinctBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        int done = 0;
+        var errors = new List<string>();
+        var job = BeginStatusJob($"TAGS // CLEAR 0/{selected.Count}");
+        try
+        {
+        foreach (var entry in selected)
+        {
+            try
+            {
+                // Persist empty keywords before changing DB. An unsuccessful
+                // metadata write must not pretend that the tag was removed.
+                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath,
+                    Array.Empty<string>());
+                if (entry.Id > 0)
+                    await _tagRepo.ClearImageTagsAsync(entry.Id);
+                done++;
+            }
+            catch (Exception ex)
+            {
+                errors.Add(entry.FileName + ": " + ex.Message);
+            }
+            var processed = done + errors.Count;
+            if (processed % 10 == 0 || processed == selected.Count)
+            {
+                UpdateStatusJob(job,
+                    $"TAGS // CLEAR {processed}/{selected.Count}  // {errors.Count} failed");
+                await Task.Yield();
+            }
+        }
+        }
+        finally
+        {
+            EndStatusJob(job);
+        }
+
+        await MetadataPanel.ReloadTagsAsync();
+        await MetadataPanel.ReloadAvailableTagsAsync();
+        await RefreshTagsTreeAsync();
+        StatusText = errors.Count == 0
+            ? $"Cleared tags on {done} photo(s)."
+            : $"Cleared {done} photo(s); {errors.Count} failed: " +
+              string.Join("; ", errors.Take(3));
+    }
+
     public async Task<IReadOnlyList<string>> DeleteEntriesAsync(
         IEnumerable<ImageEntry> entries)
     {
@@ -1397,6 +1527,49 @@ public partial class MainViewModel : ObservableObject
             await window.RefreshAllNavigationAsync();
     }
 
+    /// <summary>Clear tag assignments from selected photos, including embedded and sidecar keywords.</summary>
+    public async Task<(int Succeeded, int Failed)> ClearTagsFromImagesAsync(
+        IReadOnlyCollection<ImageEntry> entries)
+    {
+        int succeeded = 0, failed = 0;
+        var targets = entries.DistinctBy(x => x.FilePath, StringComparer.OrdinalIgnoreCase).ToList();
+        var job = BeginStatusJob($"TAGS // CLEAR 0/{targets.Count}");
+        try
+        {
+        foreach (var entry in targets)
+        {
+            try
+            {
+                // Persist the empty keyword set before clearing the DB: if the
+                // image write fails, keep its assignments available for retry.
+                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath, Array.Empty<string>());
+                if (entry.Id > 0)
+                    await _tagRepo.ClearImageTagsAsync(entry.Id);
+                succeeded++;
+            }
+            catch (Exception exception)
+            {
+                failed++;
+                DebugLog.WriteLine($"Clear tags failed: {entry.FilePath}: {exception}");
+            }
+            var progress = succeeded + failed;
+            if (progress % 10 == 0 || progress == targets.Count)
+            {
+                UpdateStatusJob(job, $"TAGS // CLEAR {progress}/{targets.Count}  // {failed} failed");
+                await Task.Yield();
+            }
+        }
+        }
+        finally
+        {
+            EndStatusJob(job);
+        }
+        await MetadataPanel.ReloadTagsAsync();
+        await RefreshTagsTreeAsync();
+        StatusText = $"CLEAR TAGS // {succeeded} completed, {failed} failed";
+        return (succeeded, failed);
+    }
+
     public async Task CleanupAsync()
     {
         DebugLog.WriteLine("MainViewModel: Cleanup - canceling background tasks");
@@ -1418,5 +1591,7 @@ public partial class MainViewModel : ObservableObject
         Settings.AutoTaggingSettingsChanged -= OnAutoTaggingSettingsChanged;
         _faceResources.Dispose();
         _scanner.Dispose();
+        _db.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
     }
 }

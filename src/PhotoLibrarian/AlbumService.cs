@@ -131,6 +131,121 @@ public static class AlbumService
             Path.AltDirectorySeparatorChar);
     }
 
+    // Enumerate only physical directories belonging to this album; never
+    // follow junctions/symlinks or descend into independently managed albums.
+    public static IReadOnlyList<string> FindAlbumXmpSidecars(string albumRoot)
+    {
+        var root = NormalizeAlbumRoot(albumRoot);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException(root);
+
+        var found = new List<string>();
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            var directory = pending.Pop();
+            foreach (var file in Directory.EnumerateFiles(directory))
+            {
+                if (Path.GetExtension(file).Equals(".xmp", StringComparison.OrdinalIgnoreCase) &&
+                    !File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint))
+                    found.Add(file);
+            }
+
+            foreach (var child in Directory.EnumerateDirectories(directory))
+            {
+                var name = Path.GetFileName(child);
+                if (name.Equals(AlbumFolderName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (File.GetAttributes(child).HasFlag(FileAttributes.ReparsePoint))
+                    continue;
+                // Other PhotoLibrarian album roots own their metadata.
+                if (File.Exists(Path.Combine(child, AlbumFolderName, AlbumManifestName)))
+                    continue;
+                pending.Push(child);
+            }
+        }
+        return found;
+    }
+
+    // Removes PhotoLibrarian's own album bookkeeping only. Never traverse the
+    // photo tree; preserve user folders, originals and embedded/XMP metadata.
+    // Call only after the active album database has been fully closed.
+    public static void DeleteAlbumBookkeeping(string albumRoot)
+    {
+        var root = NormalizeAlbumRoot(albumRoot);
+        var albumDir = Path.Combine(root, AlbumFolderName);
+        if (!Directory.Exists(root) || !Directory.Exists(albumDir) ||
+            !File.Exists(Path.Combine(albumDir, AlbumManifestName)))
+            throw new InvalidOperationException("This folder is not a PhotoLibrarian album.");
+
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            AlbumManifestName, AlbumTagsName, AlbumCacheName,
+            AlbumCacheName + "-wal", AlbumCacheName + "-shm",
+            AlbumCacheName + "-journal"
+        };
+        var logDir = Path.Combine(albumDir, "logs");
+        if (Directory.EnumerateDirectories(albumDir).Any(path =>
+                !Path.GetFileName(path).Equals("logs", StringComparison.OrdinalIgnoreCase) &&
+                !Path.GetFileName(path).Equals("thumbnails", StringComparison.OrdinalIgnoreCase)) ||
+            (Directory.Exists(logDir) &&
+             (Directory.EnumerateDirectories(logDir).Any() ||
+              Directory.EnumerateFiles(logDir).Any(path =>
+                  (!Path.GetFileName(path).StartsWith("crash-", StringComparison.OrdinalIgnoreCase) &&
+                   !Path.GetFileName(path).Equals("startup-last.log", StringComparison.OrdinalIgnoreCase)) ||
+                  !Path.GetExtension(path).Equals(".log", StringComparison.OrdinalIgnoreCase)))) ||
+            Directory.EnumerateFiles(albumDir).Any(path =>
+                !allowed.Contains(Path.GetFileName(path))))
+            throw new InvalidOperationException(
+                "The .album folder contains unrecognized files. No files were removed.");
+
+        // Only remove a PLA launcher if its JSON resolves to this exact album.
+        var launchers = Directory.EnumerateFiles(root, "*" + AlbumLauncherExtension,
+                SearchOption.TopDirectoryOnly)
+            .Where(path => string.Equals(TryResolveAlbumLauncher(path), root,
+                StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // Sidecar removal is explicitly authorized by the red warning dialog.
+        // Re-enumerate after closing the database to avoid relying on stale UI.
+        var sidecars = FindAlbumXmpSidecars(root);
+        foreach (var xmp in sidecars)
+            File.Delete(xmp);
+
+        // Delete the manifest last so interrupted deletion remains identifiable.
+        foreach (var name in allowed.Where(n => !n.Equals(AlbumManifestName,
+                     StringComparison.OrdinalIgnoreCase)))
+        {
+            var path = Path.Combine(albumDir, name);
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        foreach (var launcher in launchers)
+            File.Delete(launcher);
+
+        if (Directory.Exists(logDir))
+        {
+            foreach (var log in Directory.EnumerateFiles(logDir))
+                File.Delete(log);
+            Directory.Delete(logDir, recursive: false);
+        }
+        var thumbnailsDir = Path.Combine(albumDir, "thumbnails");
+        if (Directory.Exists(thumbnailsDir))
+        {
+            // This directory is exclusively owned by the application's
+            // regenerable thumbnail cache. Never follow reparse points.
+            if ((File.GetAttributes(thumbnailsDir) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidOperationException("Thumbnail cache is a link; refusing to delete.");
+            foreach (var directory in Directory.EnumerateDirectories(thumbnailsDir))
+                if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Thumbnail cache contains a link.");
+            Directory.Delete(thumbnailsDir, recursive: true);
+        }
+        File.Delete(Path.Combine(albumDir, AlbumManifestName));
+        Directory.Delete(albumDir, recursive: false);
+    }
+
     public static string EnsureAlbum(string rootPath)
     {
         var root = NormalizeAlbumRoot(rootPath);

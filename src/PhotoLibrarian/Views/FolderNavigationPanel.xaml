@@ -80,7 +80,7 @@
                               RightTapped="OnLibraryTreeRightTapped">
                         <TreeView.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="2">
                                     <CheckBox IsChecked="{Binding Content.IsSelected, Mode=TwoWay}"
                                               Tag="{Binding Content}"
                                               Click="OnFolderFilterCheckBoxClick"
@@ -90,7 +90,7 @@
                                               Padding="0"
                                               Margin="0" />
                                     <Viewbox Width="14" Height="14"><Path Data="M2,7 L2,20 L22,20 L22,8 L11,8 L8,5 L2,5 Z" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
-                                    <Viewbox Width="14" Height="14"><Grid Width="24" Height="24"><Path Data="M3,3 L13,3 L21,12 L12,21 L3,12 Z" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/><Ellipse Width="3" Height="3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,6,0,0" Fill="{StaticResource HiTechAccentBrush}"/></Grid></Viewbox>
+                                    
                                     <TextBlock Text="{Binding Content}"
                                                VerticalAlignment="Center" />
                                 </StackPanel>

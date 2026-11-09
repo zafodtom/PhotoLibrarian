@@ -122,8 +122,13 @@ public partial class AvailableTagItem : ObservableObject
 
 public partial class MetadataPanelViewModel : ObservableObject
 {
+    private readonly SemaphoreSlim _tagBatchGate = new(1, 1);
+
     // Currently-selected entries (1 or more)
     private List<ImageEntry> _entries = new();
+    private int _metadataSelectionVersion;
+    private System.Threading.CancellationTokenSource? _selectionDebounce;
+    private bool _availableTagsInitialized;
     private ImageRepository? _imageRepo;
     private TagRepository? _tagRepo;
     private FaceRepository? _faceRepo;
@@ -261,6 +266,50 @@ public partial class MetadataPanelViewModel : ObservableObject
     /// </summary>
     public async void ShowMetadata(IReadOnlyList<ImageEntry> entries)
     {
+        var version = ++_metadataSelectionVersion;
+        _selectionDebounce?.Cancel();
+        var delay = new System.Threading.CancellationTokenSource();
+        _selectionDebounce = delay;
+        var job = entries is { Count: > 1 }
+            ? _main?.BeginStatusJob($"METADATA // READING TAGS 0/{entries.Count}")
+            : null;
+        try
+        {
+            // Let rapid Ctrl/Shift selection settle before expensive SQLite and
+            // metadata reads. Keep the selection count responsive immediately.
+            if (entries is { Count: > 0 })
+            {
+                SelectionCount = entries.Count;
+                IsMultiSelect = entries.Count > 1;
+                SelectionSummary = entries.Count > 1
+                    ? $"{entries.Count} items selected"
+                    : entries[0].FileName;
+            }
+            await Task.Delay(70, delay.Token);
+            if (version != _metadataSelectionVersion) return;
+            await ShowMetadataCoreAsync(entries, version);
+            if (version == _metadataSelectionVersion && entries is { Count: > 1 } &&
+                _main != null)
+                _main.StatusText =
+                    $"METADATA // {entries.Count:N0} photos selected, {Tags.Count:N0} distinct tags";
+        }
+        catch (OperationCanceledException) when (delay.IsCancellationRequested)
+        {
+            // Superseded selection, expected during quick navigation.
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[METADATA] Selection refresh failed: {ex}");
+            if (_main != null) _main.StatusText = "METADATA // refresh failed: " + ex.Message;
+        }
+        finally
+        {
+            if (job.HasValue) _main?.EndStatusJob(job.Value);
+        }
+    }
+
+    private async Task ShowMetadataCoreAsync(IReadOnlyList<ImageEntry> entries, int version)
+    {
         if (entries == null || entries.Count == 0)
         {
             Clear();
@@ -299,7 +348,7 @@ public partial class MetadataPanelViewModel : ObservableObject
             IsRatingMixed = false;
             IsFlagged = single.IsFlagged;
             IsFlagMixed = false;
-            Caption = MetadataWriterService.ReadCaptionFromSidecar(single.FilePath) ?? "";
+            Caption = "";
             IsCaptionMixed = false;
         }
         else
@@ -364,10 +413,14 @@ public partial class MetadataPanelViewModel : ObservableObject
             IsFlagMixed = flags.Count > 1;
 
             // Caption — common or empty+mixed flag
-            var captions = _entries
+            // Sidecar reading may involve slow external/virtual disks.
+            // Never block the UI thread on file I/O during Ctrl+A.
+            var captions = await Task.Run(() => entries
                 .Select(e => MetadataWriterService.ReadCaptionFromSidecar(e.FilePath) ?? "")
                 .Distinct()
-                .ToList();
+                .Take(2)
+                .ToList());
+            if (version != _metadataSelectionVersion) return;
             if (captions.Count == 1)
             {
                 Caption = captions[0];
@@ -380,32 +433,59 @@ public partial class MetadataPanelViewModel : ObservableObject
             }
         }
 
-        // Tags — load from DB and compute union
-        Tags.Clear();
-        if (_tagRepo != null)
+        // Disk sidecar reads must not run synchronously on the UI dispatcher.
+        if (entries.Count == 1)
         {
-            var tagCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            int considered = 0;
-            foreach (var e in _entries)
-            {
-                if (e.Id <= 0) continue;
-                considered++;
-                var list = await _tagRepo.GetTagsAsync(e.Id);
-                foreach (var t in list)
-                {
-                    if (string.IsNullOrWhiteSpace(t.Tag)) continue;
-                    tagCounts[t.Tag] = tagCounts.GetValueOrDefault(t.Tag, 0) + 1;
-                }
-            }
-            if (considered == 0) considered = _entries.Count;
-            foreach (var kvp in tagCounts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
-            {
-                Tags.Add(new TagDisplayItem(kvp.Key, kvp.Value, considered));
-            }
+            var caption = await Task.Run(() =>
+                MetadataWriterService.ReadCaptionFromSidecar(entries[0].FilePath) ?? "");
+            if (version != _metadataSelectionVersion) return;
+            Caption = caption;
         }
 
-        await ReloadAvailableTagsAsync();
-        await ReloadPeopleTagsAsync();
+        // Snapshot the selection. Earlier asynchronous loads must not overwrite
+        // the panel when Ctrl+A or rapid navigation changes its contents.
+        var snapshot = entries.ToList();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        if (_tagRepo != null)
+        {
+            var queryWatch = System.Diagnostics.Stopwatch.StartNew();
+            var assigned = await _tagRepo.GetTagsForImagesAsync(
+                snapshot.Select(e => e.Id).Where(id => id > 0).ToArray());
+            queryWatch.Stop();
+            PhotoLibrarian.Diagnostics.SelectionPerformanceLog.Write(
+                "TAG_SQL", snapshot.Count, queryWatch.ElapsedMilliseconds);
+            if (version != _metadataSelectionVersion) return;
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in snapshot)
+            {
+                if (!assigned.TryGetValue(entry.Id, out var items)) continue;
+                foreach (var tag in items.Distinct(StringComparer.OrdinalIgnoreCase))
+                    counts[tag] = counts.GetValueOrDefault(tag) + 1;
+            }
+            // Avoid triggering a full layout pass for each individual tag.
+            // Build outside the UI collection, then replace its content.
+            var tagDisplays = counts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(x => new TagDisplayItem(x.Key, x.Value, snapshot.Count))
+                .ToList();
+            Tags.Clear();
+            foreach (var item in tagDisplays)
+                Tags.Add(item);
+        }
+        if (version != _metadataSelectionVersion) return;
+        // The album vocabulary is not selection-dependent; avoid requerying
+        // every tag in the album whenever the user presses Ctrl+A.
+        if (!_availableTagsInitialized)
+            await ReloadAvailableTagsAsync();
+        if (version != _metadataSelectionVersion) return;
+        // Face-region thumbnails are only relevant for a single image;
+        // querying faces for the entire Ctrl+A selection can be very costly.
+        if (snapshot.Count == 1)
+            await ReloadPeopleTagsAsync();
+        else
+            PeopleTags.Clear();
+        stopwatch.Stop();
+        PhotoLibrarian.Diagnostics.SelectionPerformanceLog.Write(
+            "METADATA_TOTAL", snapshot.Count, stopwatch.ElapsedMilliseconds);
     }
 
     public async Task ReloadAvailableTagsAsync()
@@ -430,19 +510,20 @@ public partial class MetadataPanelViewModel : ObservableObject
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        foreach (var tag in all.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
+        // Build hierarchy prefixes once (linear in total path length).
+        // Repeated all.Any(...) was quadratic for large catalogs and slowed
+        // selection even when the folder contained only a few images.
+        var branches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tag in all)
         {
-            var prefix = tag.TrimEnd('/') + "/";
-            var isBranch = all.Any(other =>
-                !string.Equals(other, tag, StringComparison.OrdinalIgnoreCase) &&
-                other.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-
-            AvailableTags.Add(new AvailableTagItem(
-                tag,
-                selected.Contains(tag),
-                used.Contains(tag),
-                isBranch));
+            for (var slash = tag.LastIndexOf('/'); slash > 0;
+                 slash = tag.LastIndexOf('/', slash - 1))
+                branches.Add(tag[..slash]);
         }
+        foreach (var tag in all.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase))
+            AvailableTags.Add(new AvailableTagItem(
+                tag, selected.Contains(tag), used.Contains(tag), branches.Contains(tag)));
+        _availableTagsInitialized = true;
     }
 
     public string? ValidateCatalogPath(
@@ -645,6 +726,7 @@ public partial class MetadataPanelViewModel : ObservableObject
 
     public void Clear()
     {
+        ++_metadataSelectionVersion;
         _entries = new();
         HasImage = false;
         IsMultiSelect = false;
@@ -741,25 +823,22 @@ public partial class MetadataPanelViewModel : ObservableObject
     public async Task ReloadTagsAsync()
     {
         if (_tagRepo == null || _entries.Count == 0) return;
+        var snapshot = _entries.ToList();
+        var version = _metadataSelectionVersion;
+        var assignments = await _tagRepo.GetTagsForImagesAsync(
+            snapshot.Select(e => e.Id).Where(id => id > 0).ToArray());
+        if (version != _metadataSelectionVersion) return;
+
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in snapshot)
+        {
+            if (!assignments.TryGetValue(entry.Id, out var items)) continue;
+            foreach (var tag in items.Distinct(StringComparer.OrdinalIgnoreCase))
+                counts[tag] = counts.GetValueOrDefault(tag) + 1;
+        }
         Tags.Clear();
-        var tagCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        int considered = 0;
-        foreach (var e in _entries)
-        {
-            if (e.Id <= 0) continue;
-            considered++;
-            var list = await _tagRepo.GetTagsAsync(e.Id);
-            foreach (var t in list)
-            {
-                if (string.IsNullOrWhiteSpace(t.Tag)) continue;
-                tagCounts[t.Tag] = tagCounts.GetValueOrDefault(t.Tag, 0) + 1;
-            }
-        }
-        if (considered == 0) considered = _entries.Count;
-        foreach (var kvp in tagCounts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
-        {
-            Tags.Add(new TagDisplayItem(kvp.Key, kvp.Value, considered));
-        }
+        foreach (var tag in counts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+            Tags.Add(new TagDisplayItem(tag.Key, tag.Value, snapshot.Count));
     }
 
     /// <summary>
@@ -768,75 +847,144 @@ public partial class MetadataPanelViewModel : ObservableObject
     [RelayCommand]
     public async Task AddTagAsync(string tag)
     {
-        if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag)) return;
+        if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag) || _tagRepo == null) return;
         var trimmed = tag.Trim();
+        var targets = _entries.Where(e => e.Id > 0)
+            .DistinctBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase).ToList();
+        if (targets.Count == 0) return;
 
-        // Anything the user actively adds becomes part of the album's curated
-        // vocabulary as well as being assigned to the selected photo(s).
-        AlbumService.AddSelectedTag(trimmed);
-
-        // Update UI tag list
-        var existing = Tags.FirstOrDefault(t => string.Equals(t.Tag, trimmed, StringComparison.OrdinalIgnoreCase));
-        if (existing == null)
+        int completed = 0, errors = 0;
+        // Only one metadata batch can run per panel instance. File I/O itself
+        // runs asynchronously; never perform synchronous image writes on the UI thread.
+        await _tagBatchGate.WaitAsync();
+        var job = _main?.BeginStatusJob("TAGS // ADD 0/" + targets.Count);
+        try
         {
-            Tags.Add(new TagDisplayItem(trimmed, _entries.Count, _entries.Count));
-        }
-        else
-        {
-            existing.PresentCount = _entries.Count;
-            existing.TotalCount = _entries.Count;
-        }
-
-        // Apply to every entry
-        foreach (var entry in _entries)
-        {
-            if (_tagRepo != null && entry.Id > 0)
+            foreach (var entry in targets)
             {
-                await _tagRepo.AddTagAsync(new ImageTag
+                try
                 {
-                    ImageId = entry.Id,
-                    Tag = trimmed,
-                    Source = TagSource.Manual,
-                    Confidence = 1.0f
-                });
-
-                // Rewrite sidecar with the full set for this image (DB is the source of truth)
-                var allTags = await _tagRepo.GetTagsAsync(entry.Id);
-                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath,
-                    allTags.Select(t => t.Tag).Distinct());
+                    var current = await _tagRepo.GetTagsAsync(entry.Id);
+                    if (!current.Any(t => string.Equals(t.Tag, trimmed, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var updated = current.Select(t => t.Tag)
+                            .Append(trimmed).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                        await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath, updated);
+                        await _tagRepo.AddTagAsync(new ImageTag
+                        {
+                            ImageId = entry.Id,
+                            Tag = trimmed,
+                            Source = TagSource.Manual,
+                            Confidence = 1.0f
+                        });
+                    }
+                    completed++;
+                }
+                catch (Exception ex)
+                {
+                    errors++;
+                    System.Diagnostics.Debug.WriteLine($"[TAGS] Add failed: {entry.FilePath}: {ex}");
+                }
+                if (targets.Count <= 10 || (completed + errors) % 10 == 0 || completed + errors == targets.Count)
+                {
+                    if (job.HasValue)
+                        _main?.UpdateStatusJob(job.Value,
+                            $"TAGS // ADD {completed + errors}/{targets.Count}  // {errors} failed");
+                    await Task.Yield();
+                }
             }
+            if (completed > 0)
+                AlbumService.AddSelectedTag(trimmed);
         }
-
-        // Refresh the tag navigation tree and picker so counts and new tags show up immediately
-        await ReloadAvailableTagsAsync();
-        if (_main != null) await _main.RefreshTagsTreeAsync();
+        finally
+        {
+            _tagBatchGate.Release();
+        }
+        try
+        {
+            if (job.HasValue) _main?.UpdateStatusJob(job.Value, "TAGS // ADD // REFRESHING INDEX");
+            await RefreshTagUiAfterBatchAsync("ADD", completed, errors);
+        }
+        finally
+        {
+            if (job.HasValue) _main?.EndStatusJob(job.Value);
+        }
     }
 
-    /// <summary>
-    /// Removes a tag from every selected image that has it.
-    /// </summary>
+    /// <summary>Remove one explicit tag assignment from selected images.</summary>
     [RelayCommand]
     public async Task RemoveTagAsync(string tag)
     {
-        if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag)) return;
-
-        // Update UI
-        var existing = Tags.FirstOrDefault(t => string.Equals(t.Tag, tag, StringComparison.OrdinalIgnoreCase));
-        if (existing != null) Tags.Remove(existing);
-
-        foreach (var entry in _entries)
+        if (_entries.Count == 0 || string.IsNullOrWhiteSpace(tag) || _tagRepo == null) return;
+        var targets = _entries.Where(e => e.Id > 0)
+            .DistinctBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase).ToList();
+        int completed = 0, errors = 0;
+        await _tagBatchGate.WaitAsync();
+        var job = _main?.BeginStatusJob("TAGS // REMOVE 0/" + targets.Count);
+        try
         {
-            if (_tagRepo != null && entry.Id > 0)
+            foreach (var entry in targets)
             {
-                await _tagRepo.RemoveTagAsync(entry.Id, tag);
-                var allTags = await _tagRepo.GetTagsAsync(entry.Id);
-                await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath,
-                    allTags.Select(t => t.Tag).Distinct());
+                try
+                {
+                    var current = await _tagRepo.GetTagsAsync(entry.Id);
+                    if (current.Any(t => string.Equals(t.Tag, tag, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var remaining = current.Where(t =>
+                            !string.Equals(t.Tag, tag, StringComparison.OrdinalIgnoreCase))
+                            .Select(t => t.Tag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                        await TagWriterService.WriteTagsToSidecarAsync(entry.FilePath, remaining);
+                        await _tagRepo.RemoveTagAsync(entry.Id, tag);
+                    }
+                    completed++;
+                }
+                catch (Exception ex)
+                {
+                    errors++;
+                    System.Diagnostics.Debug.WriteLine($"[TAGS] Remove failed: {entry.FilePath}: {ex}");
+                }
+                if (targets.Count <= 10 || (completed + errors) % 10 == 0 || completed + errors == targets.Count)
+                {
+                    if (job.HasValue)
+                        _main?.UpdateStatusJob(job.Value,
+                            $"TAGS // REMOVE {completed + errors}/{targets.Count}  // {errors} failed");
+                    await Task.Yield();
+                }
             }
         }
+        finally
+        {
+            _tagBatchGate.Release();
+        }
+        try
+        {
+            if (job.HasValue) _main?.UpdateStatusJob(job.Value, "TAGS // REMOVE // REFRESHING INDEX");
+            await RefreshTagUiAfterBatchAsync("REMOVE", completed, errors);
+        }
+        finally
+        {
+            if (job.HasValue) _main?.EndStatusJob(job.Value);
+        }
+    }
 
-        // Refresh the tag navigation tree so counts update immediately
-        if (_main != null) await _main.RefreshTagsTreeAsync();
+    private async Task RefreshTagUiAfterBatchAsync(string operation, int completed, int errors)
+    {
+        try
+        {
+            await ReloadTagsAsync();
+            await ReloadAvailableTagsAsync();
+            if (_main != null)
+            {
+                await _main.RefreshTagsTreeAsync();
+                _main.StatusText = $"TAGS // {operation}: {completed} completed, {errors} failed";
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TAGS] Refresh after batch failed: {ex}");
+            if (_main != null)
+                _main.StatusText = $"TAGS // {operation}: {completed} completed, {errors} failed; refresh failed";
+        }
     }
 
     /// <summary>

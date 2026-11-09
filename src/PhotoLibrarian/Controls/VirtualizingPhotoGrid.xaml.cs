@@ -1072,6 +1072,22 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
 
     private static Border GetFaceHighlightBorder(Grid grid) =>
         (Border)grid.Children.First(child => child is Border border && Equals(border.Tag, FaceHighlightTag));
+    private void OnEmptyCanvasTapped(object sender, TappedRoutedEventArgs e)
+    {
+        // The tap may bubble from a realized thumbnail. Only clicks in the
+        // canvas background should clear selection.
+        var element = e.OriginalSource as DependencyObject;
+        while (element != null && !ReferenceEquals(element, ScrollContainer))
+        {
+            if (element is FrameworkElement view &&
+                view.DataContext is ImageThumbnailViewModel)
+                return;
+            element = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element);
+        }
+        if (ReferenceEquals(element, ScrollContainer))
+            ClearSelection();
+    }
+
     private void OnPhotoTapped(object sender, TappedRoutedEventArgs e)
     {
         if (sender is FrameworkElement element && element.DataContext is ImageThumbnailViewModel vm)
@@ -1245,6 +1261,20 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
                 ApplySelectionVisual(kvp.Value, _selectedItems.Contains(vm));
             }
         }
+    }
+
+    /// <summary>Select every image currently included in the filtered/grouped visual index.</summary>
+    public void SelectAllVisibleImages()
+    {
+        var flat = GetFlatItems();
+        if (flat.Count == 0) return;
+        _selectedItems.Clear();
+        foreach (var image in flat)
+            _selectedItems.Add(image);
+        _primaryItem ??= flat[0];
+        _anchorItem ??= flat[0];
+        RefreshAllSelectionVisuals();
+        SelectionChanged?.Invoke(this, _selectedItems.ToList());
     }
 
     /// <summary>

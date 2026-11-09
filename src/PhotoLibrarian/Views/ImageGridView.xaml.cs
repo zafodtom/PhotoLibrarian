@@ -597,15 +597,35 @@ public sealed partial class ImageGridView : UserControl
         SizeSlider.Value = Math.Min(SizeSlider.Value + 40, 400);
     }
 
+    public void SelectAllDisplayedImages() =>
+        PhotoGrid.SelectAllVisibleImages();
+
     private async void OnGridKeyDown(
         object sender,
         Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key != Windows.System.VirtualKey.Delete ||
-            ViewModel is null)
+        if (ViewModel is null)
+            return;
+
+        // The containing image index may have focus even when no thumbnail is
+        // selected. Respect text editing controls and their native Ctrl+A.
+        if (e.OriginalSource is TextBox or RichEditBox or PasswordBox or
+            NumberBox or ComboBox)
+            return;
+
+        var ctrlState = Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+        if (e.Key == Windows.System.VirtualKey.A &&
+            (ctrlState & Windows.UI.Core.CoreVirtualKeyStates.Down) ==
+             Windows.UI.Core.CoreVirtualKeyStates.Down)
         {
+            PhotoGrid.SelectAllVisibleImages();
+            e.Handled = true;
             return;
         }
+
+        if (e.Key != Windows.System.VirtualKey.Delete)
+            return;
 
         // Do not hijack Delete while the user is editing a filter/text field.
         if (e.OriginalSource is TextBox or
@@ -794,6 +814,56 @@ public sealed partial class ImageGridView : UserControl
                 selected.Select(vm => vm.Entry));
         };
         menu.Items.Add(delete);
+
+        // Remove photo keyword assignments only; never delete the image itself.
+        var clearTags = new MenuFlyoutItem
+        {
+            Text = isMulti
+                ? $"Clear all tags ({selected.Count} photos)…"
+                : "Clear all tags…"
+        };
+        clearTags.Click += async (_, _) =>
+        {
+            var hudRed = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 255, 82, 96));
+            var message = new StackPanel { Spacing = 12, MinWidth = 410 };
+            message.Children.Add(new TextBlock
+            {
+                Text = "WARNING // CLEAR PHOTO TAGS",
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                FontSize = 17, Foreground = hudRed
+            });
+            message.Children.Add(new Border { Height = 3, Background = hudRed });
+            message.Children.Add(new TextBlock
+            {
+                Text = $"Remove every tag from {selected.Count} selected photo(s)? " +
+                       "Photo files, folders, dates, ratings and captions will remain. " +
+                       "Tag keywords already present before import will also be cleared.",
+                TextWrapping = TextWrapping.Wrap
+            });
+            var warning = new ContentDialog
+            {
+                Title = null,
+                Content = new Border
+                {
+                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                        Windows.UI.Color.FromArgb(255, 10, 18, 27)),
+                    BorderBrush = hudRed,
+                    BorderThickness = new Thickness(2),
+                    Padding = new Thickness(18),
+                    Child = message
+                },
+                PrimaryButtonText = "CLEAR ALL TAGS",
+                CloseButtonText = "ABORT",
+                DefaultButton = ContentDialogButton.Close,
+                RequestedTheme = ElementTheme.Dark,
+                XamlRoot = XamlRoot
+            };
+            if (await warning.ShowAsync() == ContentDialogResult.Primary)
+                await App.ViewModel.ClearSelectedImageTagsAsync(
+                    selected.Select(vm => vm.Entry));
+        };
+        menu.Items.Add(clearTags);
 
         // Rename — single only
         var rename = new MenuFlyoutItem { Text = "Rename…" };

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using XmpCore;
 
 namespace PhotoLibrarian.Core.Services;
@@ -9,6 +10,7 @@ namespace PhotoLibrarian.Core.Services;
 /// </summary>
 public static class TagWriterService
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> SidecarLocks = new(StringComparer.OrdinalIgnoreCase);
     private const string DcNamespace = "http://purl.org/dc/elements/1.1/";
 
     /// <summary>
@@ -35,31 +37,56 @@ public static class TagWriterService
             }
         }
 
-        // RAW fallback: write XMP sidecar
-        await Task.Run(() =>
+        // Serialize updates to the same sidecar inside this process. Retry a
+        // temporary lock held by an external editor or indexing worker.
+        var sidecarPath = Path.ChangeExtension(imagePath, ".xmp");
+        var gate = SidecarLocks.GetOrAdd(sidecarPath, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        try
         {
-            var sidecarPath = Path.ChangeExtension(imagePath, ".xmp");
-            IXmpMeta xmp;
-            try
+            await Task.Run(async () =>
             {
-                xmp = File.Exists(sidecarPath)
-                    ? XmpMetaFactory.ParseFromString(File.ReadAllText(sidecarPath))
-                    : XmpMetaFactory.Create();
-            }
-            catch { xmp = XmpMetaFactory.Create(); }
+                for (int attempt = 0; ; attempt++)
+                {
+                    try
+                    {
+                        IXmpMeta xmp = File.Exists(sidecarPath)
+                            ? XmpMetaFactory.ParseFromString(File.ReadAllText(sidecarPath))
+                            : XmpMetaFactory.Create();
 
-            try { xmp.DeleteProperty(DcNamespace, "dc:subject"); } catch { }
+                        try { xmp.DeleteProperty(DcNamespace, "dc:subject"); } catch { }
+                        foreach (var tag in distinct)
+                        {
+                            xmp.AppendArrayItem(DcNamespace, "dc:subject",
+                                new XmpCore.Options.PropertyOptions { IsArray = true, IsArrayOrdered = false },
+                                tag, null);
+                        }
 
-            foreach (var tag in distinct)
-            {
-                xmp.AppendArrayItem(DcNamespace, "dc:subject",
-                    new XmpCore.Options.PropertyOptions { IsArray = true, IsArrayOrdered = false },
-                    tag, null);
-            }
-
-            var serialized = XmpMetaFactory.SerializeToString(xmp, new XmpCore.Options.SerializeOptions());
-            File.WriteAllText(sidecarPath, serialized);
-        });
+                        var serialized = XmpMetaFactory.SerializeToString(
+                            xmp, new XmpCore.Options.SerializeOptions());
+                        var temporary = sidecarPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                        try
+                        {
+                            File.WriteAllText(temporary, serialized);
+                            File.Move(temporary, sidecarPath, overwrite: true);
+                        }
+                        finally
+                        {
+                            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+                        }
+                        break;
+                    }
+                    catch (IOException) when (attempt < 5)
+                    {
+                        await Task.Delay(125 * (attempt + 1));
+                    }
+                }
+            });
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     /// <summary>

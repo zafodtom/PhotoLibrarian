@@ -184,13 +184,13 @@ public sealed class ImageRepository
             else
             {
                 // Show images that have any of the selected tags (OR logic)
-                // Because we store all parent paths, we can use simple equality (uses index!)
-                // Example: Selecting "people/family" will match images with that exact tag entry,
-                // which was inserted for images tagged with "people/family/kids" and its parents
+                // Tags store only explicit assignments. A selected branch must
+                // match either that exact path or any descendant separated by '/'.
+                // For example "people/family" also matches "people/family/kids".
                 var conditions = new List<string>();
                 for (int i = 0; i < tagFilters!.Count; i++)
                 {
-                    conditions.Add($"t.tag = $tag{i}");
+                    conditions.Add($"(t.tag = $tag{i} OR substr(t.tag, 1, length($tag{i}) + 1) = $tag{i} || '/')");
                     cmd.Parameters.AddWithValue($"$tag{i}", tagFilters[i]);
                 }
 

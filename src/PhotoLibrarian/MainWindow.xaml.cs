@@ -203,6 +203,10 @@ public sealed partial class MainWindow : Window
             UIElement.KeyDownEvent,
             new KeyEventHandler(OnUserKeyActivity),
             true);
+        AppRoot.AddHandler(
+            UIElement.KeyDownEvent,
+            new KeyEventHandler(OnSelectAllImagesShortcut),
+            true);
 
         var appWindow = this.AppWindow;
         appWindow.Resize(new Windows.Graphics.SizeInt32(1600, 900));
@@ -265,6 +269,48 @@ public sealed partial class MainWindow : Window
 
         // Cleanup on window close
         this.Closed += OnWindowClosed;
+    }
+
+    private void OnSelectAllImagesShortcut(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Handled || e.Key != Windows.System.VirtualKey.A ||
+            SettingsOverlay.Visibility == Visibility.Visible ||
+            ViewerOverlay.Visibility == Visibility.Visible ||
+            e.OriginalSource is TextBox or PasswordBox or RichEditBox or
+                NumberBox or ComboBox)
+            return;
+
+        var modifiers = Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+        if ((modifiers & Windows.UI.Core.CoreVirtualKeyStates.Down) !=
+            Windows.UI.Core.CoreVirtualKeyStates.Down)
+            return;
+
+        ImageGridPanel.SelectAllDisplayedImages();
+        e.Handled = true;
+    }
+
+    public Task ConfirmDeleteAlbumAsync() =>
+        SettingsPanel.ConfirmDeleteAlbumAsync();
+
+    public async Task DeleteCurrentAlbumAsync()
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            throw new InvalidOperationException("No album is active.");
+
+        var albumPath = App.CurrentAlbumPath;
+        _isClosing = true;
+        ViewModel.PropertyChanged -= OnMainViewModelPropertyChanged;
+        ViewModel.ImageViewer.PropertyChanged -= OnImageViewerPropertyChanged;
+        ViewModel.Settings.PropertyChanged -= OnSettingsPropertyChanged;
+        ViewModel.ImageGrid.Cleanup();
+        await ViewModel.CleanupAsync();
+
+        // Database handles are now closed. Do not call asynchronous cleanup again.
+        AlbumService.DeleteAlbumBookkeeping(albumPath);
+        Closed -= OnWindowClosed;
+        Close();
+        App.Current.Exit();
     }
 
     private async void OnOpenAlbumClick(object sender, RoutedEventArgs e)
@@ -431,8 +477,12 @@ public sealed partial class MainWindow : Window
     {
         if (_isClosing) return;
 
-        if (e.PropertyName == nameof(ViewModel.StatusText))
-            StatusBarText.Text = ViewModel.StatusText;
+        if (e.PropertyName == nameof(ViewModel.StatusText) ||
+            e.PropertyName == nameof(ViewModel.ActiveJobsText) ||
+            e.PropertyName == nameof(ViewModel.RecentJobText))
+            UpdateStatusRail();
+        if (e.PropertyName == nameof(ViewModel.HasActiveJobs))
+            UpdateBackgroundProgress();
         if (e.PropertyName == nameof(ViewModel.IsIndexing))
             UpdateBackgroundProgress();
         if (e.PropertyName == nameof(ViewModel.IsFaceDetectionRunning))
@@ -477,12 +527,24 @@ public sealed partial class MainWindow : Window
             UpdateSettingsVisibility();
     }
 
+    private void UpdateStatusRail()
+    {
+        StatusBarText.Text = ViewModel.HasActiveJobs
+            ? ViewModel.ActiveJobsText
+            : !string.IsNullOrEmpty(ViewModel.RecentJobText)
+                ? ViewModel.RecentJobText
+                : ViewModel.StatusText;
+    }
+
     private void UpdateBackgroundProgress()
     {
         IndexingProgress.IsActive =
             ViewModel.IsIndexing ||
             ViewModel.IsFaceDetectionRunning ||
-            ViewModel.IsAutoTaggingRunning;
+            ViewModel.IsAutoTaggingRunning ||
+            ViewModel.IsRecognitionRunning ||
+            ViewModel.HasActiveJobs;
+        UpdateStatusRail();
     }
 
     private void OnUserPointerActivity(
@@ -492,8 +554,25 @@ public sealed partial class MainWindow : Window
 
     private void OnUserKeyActivity(
         object sender,
-        KeyRoutedEventArgs e) =>
+        KeyRoutedEventArgs e)
+    {
         ViewModel.NotifyUserActivity();
+        if (e.Handled || e.Key != Windows.System.VirtualKey.A ||
+            SettingsOverlay.Visibility == Visibility.Visible ||
+            ViewerOverlay.Visibility == Visibility.Visible ||
+            e.OriginalSource is TextBox or RichEditBox or PasswordBox or
+                NumberBox or ComboBox)
+            return;
+
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+        if ((ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) !=
+            Windows.UI.Core.CoreVirtualKeyStates.Down)
+            return;
+
+        ImageGridPanel.SelectAllDisplayedImages();
+        e.Handled = true;
+    }
 
     private async void OnWindowClosed(object sender, WindowEventArgs args)
     {
