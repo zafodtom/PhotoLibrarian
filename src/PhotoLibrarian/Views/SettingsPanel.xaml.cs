@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using PhotoLibrarian.Services;
 using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.ViewModels;
 
@@ -25,6 +26,7 @@ public sealed partial class SettingsPanel : UserControl
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         UpdateCacheDisplay();
+        InstalledVersionText.Text = GitHubUpdateService.InstalledVersion.ToString(3);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -290,6 +292,81 @@ public sealed partial class SettingsPanel : UserControl
             Microsoft.Data.Sqlite.SqliteException or
             ArgumentException or
             InvalidOperationException;
+
+    private bool _checkingUpdates;
+
+    private async void OnCheckForUpdatesClick(object sender, RoutedEventArgs e)
+    {
+        if (_checkingUpdates) return;
+        _checkingUpdates = true;
+        CheckUpdatesButton.IsEnabled = false;
+        UpdateDownloadProgress.Visibility = Visibility.Collapsed;
+        var job = App.ViewModel?.BeginStatusJob("UPDATES // checking stable GitHub release");
+        try
+        {
+            UpdateStatusText.Text = "Checking public PhotoLibrarian releases…";
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            var release = await GitHubUpdateService.CheckAsync(cancellation.Token);
+            if (release is null)
+            {
+                UpdateStatusText.Text = "You already have the latest stable version (or no stable release is published).";
+                return;
+            }
+
+            UpdateStatusText.Text = $"Version {release.Version.ToString(3)} available.";
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = $"Update PhotoLibrarian to {release.Version.ToString(3)}?",
+                Content = "Download the official installer from GitHub, verify its SHA-256 and then launch the installer? Your albums and photographs are not part of the installation.",
+                PrimaryButtonText = "Download update",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            UpdateDownloadProgress.Value = 0;
+            UpdateDownloadProgress.Visibility = Visibility.Visible;
+            var progress = new Progress<int>(percent =>
+            {
+                UpdateDownloadProgress.Value = percent;
+                UpdateStatusText.Text = $"Downloading verified update: {percent}%";
+                if (job.HasValue)
+                    App.ViewModel?.UpdateStatusJob(job.Value, $"UPDATES // download {percent}%");
+            });
+            using var downloadCancellation = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+            var installerPath = await GitHubUpdateService.DownloadVerifiedAsync(
+                release, progress, downloadCancellation.Token);
+            UpdateStatusText.Text = "Installer verified (SHA-256). Ready to install.";
+
+            var install = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "Start installation",
+                Content = "PhotoLibrarian will close and Windows will start the verified installer. Save any current edits before continuing.",
+                PrimaryButtonText = "Install and close",
+                CloseButtonText = "Later",
+                DefaultButton = ContentDialogButton.Close
+            };
+            if (await install.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            GitHubUpdateService.LaunchInstaller(installerPath);
+            App.Current.Exit();
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = "Update failed: " + ex.Message;
+            System.Diagnostics.Debug.WriteLine("[UPDATES] " + ex);
+        }
+        finally
+        {
+            if (job.HasValue) App.ViewModel?.EndStatusJob(job.Value);
+            _checkingUpdates = false;
+            CheckUpdatesButton.IsEnabled = true;
+        }
+    }
 
     private async void OnRebuildCache(
         object sender,
