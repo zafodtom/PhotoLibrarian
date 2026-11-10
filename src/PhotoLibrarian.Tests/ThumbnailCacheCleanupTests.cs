@@ -50,10 +50,9 @@ public sealed class ThumbnailCacheCleanupTests
             WindowsThumbnailService.ConfigureAlbumCache(album);
             var image = Path.Combine(album, "live.jpg");
             File.WriteAllBytes(image, [1, 2, 3]);
-            var liveKey = Assert.Single(
-                WindowsThumbnailService.CaptureThumbnailPathsForDeletion(image),
-                key => key.EndsWith(".bin", StringComparison.OrdinalIgnoreCase) &&
-                    key == WindowsThumbnailService.CaptureThumbnailPathsForDeletion(image)[0]);
+            var liveKeys = WindowsThumbnailService.CaptureThumbnailPathsForDeletion(image);
+            Assert.Equal(2, liveKeys.Length);
+            var liveKey = liveKeys[0];
             Directory.CreateDirectory(Path.GetDirectoryName(liveKey)!);
             File.WriteAllBytes(liveKey, [4, 5]);
 
