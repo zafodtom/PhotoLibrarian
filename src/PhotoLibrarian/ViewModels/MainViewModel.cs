@@ -206,6 +206,7 @@ public partial class MainViewModel : ObservableObject
         _recognitionPipeline.Progress += OnRecognitionProgress;
         Settings.AutoTaggingSettingsChanged += OnAutoTaggingSettingsChanged;
         ImageViewer.CurrentEntryChanged += OnViewerEntryChanged;
+        ImageViewer.ClosedAtEntry += ImageGrid.SelectLastViewedImage;
         ImageEditor.EditsApplied += OnEditsApplied;
         ImageEditor.Reverted += OnEditsReverted;
     }
