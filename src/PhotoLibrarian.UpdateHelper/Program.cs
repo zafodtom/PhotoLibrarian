@@ -264,6 +264,7 @@ internal sealed class UpdateWindow : Form
             start.ArgumentList.Add("--album");
             start.ArgumentList.Add(_job.AlbumPath);
         }
-        Process.Start(start) ?? throw new InvalidOperationException("PhotoLibrarian did not start.");
+        if (Process.Start(start) is null)
+            throw new InvalidOperationException("PhotoLibrarian did not start.");
     }
 }
