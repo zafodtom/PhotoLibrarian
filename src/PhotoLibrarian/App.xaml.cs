@@ -240,6 +240,24 @@ public partial class App : Application
 
             ViewModel.StartBackgroundIndexing();
             ViewModel.StatusText = $"Album: {CurrentAlbumPath}";
+
+            // One daily, delayed background cleanup of legacy cache blobs.
+            // Do not add database enumeration or disk scans to album startup,
+            // thumbnail scrolling, selection changes or deletion operations.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(2));
+                    var indexed = await imageRepo.GetAllAsync();
+                    await WindowsThumbnailService.PruneOrphanedThumbnailsAsync(indexed);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        "[THUMBNAILS] Deferred orphan maintenance skipped: " + ex.Message);
+                }
+            });
         }
         else
         {
