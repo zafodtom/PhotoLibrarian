@@ -406,6 +406,11 @@ public sealed class PhotoOperationsService
                 .Select(image => image.FilePath)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            // Hashes depend on file metadata, which becomes unavailable after
+            // recycling. Snapshot the keys before moving the folder.
+            var thumbnailPaths = await Task.Run(() => affectedPaths
+                .SelectMany(WindowsThumbnailService.CaptureThumbnailPathsForDeletion)
+                .ToArray());
 
             Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
                 directoryPath,
@@ -417,6 +422,7 @@ public sealed class PhotoOperationsService
                 return null;
 
             await _imageRepo.DeleteUnderDirectoryRootsAsync([root]);
+            await WindowsThumbnailService.DeleteCapturedThumbnailsAsync(thumbnailPaths);
             return affectedPaths;
         }
         catch (Exception ex)
@@ -548,6 +554,8 @@ public sealed class PhotoOperationsService
             {
                 var sidecar =
                     FaceMetadataStore.GetSidecarPathForImage(entry.FilePath);
+                var thumbnailPaths = WindowsThumbnailService
+                    .CaptureThumbnailPathsForDeletion(entry.FilePath);
                 Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
                     entry.FilePath,
                     Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
@@ -569,6 +577,7 @@ public sealed class PhotoOperationsService
                 }
 
                 if (entry.Id > 0) await _imageRepo.DeleteByPathAsync(entry.FilePath);
+                await WindowsThumbnailService.DeleteCapturedThumbnailsAsync(thumbnailPaths);
                 deleted.Add(entry.FilePath);
             }
             catch (OperationCanceledException) { /* user cancelled this file */ }
