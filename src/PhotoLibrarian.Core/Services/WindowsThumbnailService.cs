@@ -112,6 +112,74 @@ public static class WindowsThumbnailService
             }
         });
 
+    /// <summary>
+    /// Maintenance only: clean opaque, legacy SHA-256 cache names whose
+    /// source photo is no longer present (or whose metadata changed).
+    /// Run after startup indexing has had time to settle, at most once/day.
+    /// Does not touch the Windows thumbnail cache or photo/metadata files.
+    /// </summary>
+    public static Task PruneOrphanedThumbnailsAsync(
+        IReadOnlyCollection<PhotoLibrarian.Core.Models.ImageEntry> indexedImages) =>
+        Task.Run(() =>
+        {
+            var root = _albumCacheDirectory;
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+                return;
+            try
+            {
+                if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
+                    return;
+                var stamp = Path.Combine(root, ".last-orphan-sweep");
+                if (File.Exists(stamp) &&
+                    DateTime.UtcNow - File.GetLastWriteTimeUtc(stamp) < TimeSpan.FromDays(1))
+                    return;
+
+                // Calculate only live, known key variants from the existing
+                // library catalog. All image and filesystem reads occur on the
+                // worker thread; no work is placed on the WinUI dispatcher.
+                var valid = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var image in indexedImages)
+                    foreach (var key in CaptureThumbnailPathsForDeletion(image.FilePath))
+                        valid.Add(key);
+
+                int removed = 0;
+                var buckets = new List<string> { root };
+                buckets.AddRange(Directory.EnumerateDirectories(root, "*",
+                    SearchOption.TopDirectoryOnly));
+                foreach (var bucket in buckets)
+                {
+                    if ((File.GetAttributes(bucket) & FileAttributes.ReparsePoint) != 0)
+                        continue;
+                    foreach (var path in Directory.EnumerateFiles(bucket, "*.bin",
+                        SearchOption.TopDirectoryOnly))
+                    {
+                        if (valid.Contains(path)) continue;
+                        try
+                        {
+                            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                                continue;
+                            File.Delete(path);
+                            removed++;
+                        }
+                        catch (IOException) { /* still in use */ }
+                        catch (UnauthorizedAccessException) { }
+                    }
+                }
+                File.WriteAllText(stamp, DateTime.UtcNow.ToString("O",
+                    System.Globalization.CultureInfo.InvariantCulture));
+                System.Diagnostics.Debug.WriteLine(
+                    $"[THUMBNAILS] Orphan sweep removed {removed} unused cache entries.");
+            }
+            catch (IOException ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[THUMBNAILS] Orphan sweep failed: " + ex.Message);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[THUMBNAILS] Orphan sweep denied: " + ex.Message);
+            }
+        });
+
     public static string CacheDirectory => _albumCacheDirectory ?? "";
 
     public static Task<long> GetCacheSizeAsync() => Task.Run(() =>
