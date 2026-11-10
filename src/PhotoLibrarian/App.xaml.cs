@@ -249,6 +249,7 @@ public partial class App : Application
                 try
                 {
                     await Task.Delay(TimeSpan.FromMinutes(2));
+                    if (!WindowsThumbnailService.IsOrphanCleanupDue()) return;
                     var indexed = await imageRepo.GetAllAsync();
                     await WindowsThumbnailService.PruneOrphanedThumbnailsAsync(indexed);
                 }
