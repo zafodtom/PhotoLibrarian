@@ -9,7 +9,8 @@ namespace PhotoLibrarian.Services;
 
 /// <summary>
 /// Explicit, user-initiated updates from stable public GitHub Releases.
-/// No background network requests, account credentials or silent installation.
+/// No background network requests or account credentials; installation runs
+/// silently only after explicit confirmation and verified download.
 /// </summary>
 public static class GitHubUpdateService
 {
@@ -134,16 +135,53 @@ public static class GitHubUpdateService
         }
     }
 
-    public static void LaunchInstaller(string verifiedInstallerPath)
+    // The helper is published alongside the application, then copied beside
+    // the downloaded installer so Inno Setup can replace the app files.
+    // Pass verification data as immutable process arguments rather than an
+    // editable job file in a user-writable temporary directory.
+    public static void LaunchUpdateHelper(
+        Release release, string verifiedInstallerPath, string? albumPath)
     {
-        if (!File.Exists(verifiedInstallerPath))
-            throw new FileNotFoundException("Verified installer is missing.", verifiedInstallerPath);
-        var process = Process.Start(new ProcessStartInfo(verifiedInstallerPath)
+        var path = Path.GetFullPath(verifiedInstallerPath);
+        var directory = Path.GetDirectoryName(path)
+            ?? throw new InvalidDataException("Invalid update directory.");
+        if (!File.Exists(path) ||
+            new FileInfo(path).Length != release.Size ||
+            !string.Equals(Path.GetFileName(path), release.AssetName,
+                StringComparison.Ordinal))
+            throw new InvalidDataException("Downloaded installer is missing or changed.");
+
+        var installedHelper = Path.Combine(
+            AppContext.BaseDirectory, "PhotoLibrarian.UpdateHelper.exe");
+        if (!File.Exists(installedHelper))
+            throw new FileNotFoundException(
+                "The update helper is not installed. Reinstall PhotoLibrarian from the official release.",
+                installedHelper);
+
+        var targetApp = Environment.ProcessPath
+            ?? Path.Combine(AppContext.BaseDirectory, "PhotoLibrarian.exe");
+        targetApp = Path.GetFullPath(targetApp);
+        if (!string.Equals(Path.GetFileName(targetApp), "PhotoLibrarian.exe",
+            StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Unexpected PhotoLibrarian executable.");
+
+        var helperCopy = Path.Combine(directory, "PhotoLibrarian.UpdateHelper.exe");
+        File.Copy(installedHelper, helperCopy, overwrite: true);
+
+        var start = new ProcessStartInfo
         {
-            UseShellExecute = true,
-            Arguments = "/CLOSEAPPLICATIONS /NORESTART"
-        });
-        if (process is null)
-            throw new InvalidOperationException("Windows did not start the installer.");
+            FileName = helperCopy,
+            WorkingDirectory = directory,
+            UseShellExecute = true
+        };
+        start.ArgumentList.Add(path);
+        start.ArgumentList.Add(release.Size.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        start.ArgumentList.Add(release.Sha256);
+        start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        start.ArgumentList.Add(targetApp);
+        start.ArgumentList.Add(albumPath ?? "");
+        start.ArgumentList.Add(release.Version.ToString(3));
+        if (Process.Start(start) is null)
+            throw new InvalidOperationException("Windows did not start the update helper.");
     }
 }

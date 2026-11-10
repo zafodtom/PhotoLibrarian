@@ -455,7 +455,7 @@
 
                     <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="SOFTWARE UPDATES // TRIMENOR"
+                            <TextBlock Text="SYSTEM // UPDATE CONTROL"
                                        Style="{StaticResource HiTechSectionHeaderStyle}"/>
                             <TextBlock Text="Updates are checked only when requested. Stable GitHub releases only."
                                        TextWrapping="Wrap"
@@ -490,6 +490,66 @@
                     Background="#321016"
                     Foreground="#FF7180"
                     ToolTipService.ToolTip="Remove PhotoLibrarian catalog files; keep your photographs" />
+        </Grid>
+
+        <!-- Sci-fi archive confirmation surface reuses the application's HiTechTheme. -->
+        <Grid x:Name="UpdateConfirmOverlay"
+              Grid.RowSpan="3"
+              Canvas.ZIndex="30"
+              Background="#ED09121A"
+              Visibility="Collapsed"
+              IsHitTestVisible="True">
+            <Border Width="540"
+                    MaxWidth="540"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="#0D1D29"
+                    BorderBrush="{StaticResource HiTechAccentBrush}"
+                    BorderThickness="1"
+                    Padding="26,24">
+                <StackPanel Spacing="14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="5"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Grid.Column="0" Fill="{StaticResource HiTechAccentBrush}"/>
+                        <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="4">
+                            <TextBlock Text="PHOTO // LIBRARIAN"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}"/>
+                            <TextBlock Text="VISUAL ARCHIVE // UPDATE SEQUENCE"
+                                       Style="{StaticResource HiTechTinyLabelStyle}"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock x:Name="UpdateConfirmTitle"
+                               FontSize="18"
+                               FontFamily="Consolas"
+                               Foreground="{StaticResource HiTechTextPrimaryBrush}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock x:Name="UpdateConfirmDescription"
+                               Foreground="{StaticResource HiTechTextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                    <Border Background="#102D3B" Padding="12,10">
+                        <TextBlock Text="Official GitHub Release / SHA-256 verified / Windows UAC may be required."
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource HiTechAccentBrush}"/>
+                    </Border>
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="12"
+                                HorizontalAlignment="Right">
+                        <Button Content="CANCEL"
+                                MinWidth="105"
+                                Click="OnUpdateCancelClick"
+                                Style="{StaticResource HiTechIconButtonStyle}"/>
+                        <Button x:Name="UpdateAcceptButton"
+                                Content="CONTINUE"
+                                MinWidth="155"
+                                Click="OnUpdateAcceptClick"
+                                Style="{StaticResource HiTechPrimaryButtonStyle}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!-- Footer command rail -->

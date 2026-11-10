@@ -71,7 +71,7 @@ public partial class ImageGridViewModel : ObservableObject
     private List<string>? _currentTagFilters;
     private List<string>? _currentExcludedTagFilters;
     private bool _currentFlaggedSelected; // "Flagged" node selected (show flagged working set)
-    private string? _currentSortBy = "date_taken";
+    private string? _currentSortBy = "file_name";
     private CancellationTokenSource? _loadCts;
     private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
     private bool _updatingGridSelection;
@@ -104,14 +104,20 @@ public partial class ImageGridViewModel : ObservableObject
 
     public event EventHandler? ResultsChanged;
 
+    /// <summary>
+    /// Sent when the viewer returns to the grid. The grid view restores the
+    /// selected visual and scrolls it into view after the overlay closes.
+    /// </summary>
+    public event EventHandler? ViewerReturnSelectionRequested;
+
     [ObservableProperty]
     private GroupByOption _groupBy = GroupByOption.None;
     
     [ObservableProperty]
-    private SortByOption _sortBy = SortByOption.DateTaken;
+    private SortByOption _sortBy = SortByOption.FileName;
     
     [ObservableProperty]
-    private bool _sortDescending = true;
+    private bool _sortDescending = false;
     
     partial void OnGroupByChanged(GroupByOption value)
     {
@@ -159,7 +165,7 @@ public partial class ImageGridViewModel : ObservableObject
         _main = main;
 
         ThumbnailSize = 180;
-        SortField = "Date Taken";
+        SortField = "Name";
     }
     
     /// <summary>
@@ -1406,6 +1412,25 @@ public partial class ImageGridViewModel : ObservableObject
             _main.MetadataPanel.Clear();
         watch.Stop();
         SelectionPerformanceLog.Write("GRID_DISPATCH", selected.Count, watch.ElapsedMilliseconds);
+    }
+
+    /// <summary>
+    /// Make the last viewed photograph the single selected thumbnail after
+    /// closing the viewer. Use the rendered group order, so current filters
+    /// and sort order are respected. Do not select photos hidden by a filter.
+    /// </summary>
+    public void SelectLastViewedImage(ImageEntry? entry)
+    {
+        if (entry is null) return;
+        var match = GroupedImages
+            .SelectMany(group => group.Items)
+            .FirstOrDefault(item => string.Equals(
+                item.Entry.FilePath, entry.FilePath,
+                StringComparison.OrdinalIgnoreCase));
+        if (match is null) return;
+
+        UpdateSelection([match], match);
+        ViewerReturnSelectionRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void RestoreSelectionAfterLoad()

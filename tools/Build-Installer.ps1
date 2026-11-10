@@ -14,6 +14,7 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $repoRoot 'src\PhotoLibrarian\PhotoLibrarian.csproj'
+$helperProject = Join-Path $repoRoot 'src\PhotoLibrarian.UpdateHelper\PhotoLibrarian.UpdateHelper.csproj'
 $issFile = Join-Path $repoRoot 'packaging\PhotoLibrarian.iss'
 
 $outputRoot = if ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
@@ -23,6 +24,7 @@ $outputRoot = if ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
 }
 
 $publishDir = Join-Path $outputRoot 'publish\win-x64'
+$helperPublishDir = Join-Path $outputRoot 'publish\updater-win-x64'
 $installerDir = Join-Path $outputRoot 'installer'
 
 if (Test-Path $publishDir) {
@@ -48,8 +50,35 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE."
 }
 
+# Publish the out-of-process update helper to a single portable executable.
+# It is copied to a temporary folder before execution so Inno can replace
+# the installed app binaries while the helper remains running.
+if (Test-Path $helperPublishDir) {
+    Remove-Item $helperPublishDir -Recurse -Force
+}
+Write-Host 'Publishing standalone update helper (win-x64)...'
+dotnet publish $helperProject `
+    -c $Configuration `
+    -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:PublishTrimmed=false `
+    -p:DebugType=None `
+    -p:DebugSymbols=false `
+    --output $helperPublishDir
+if ($LASTEXITCODE -ne 0) {
+    throw "Update helper publish failed with exit code $LASTEXITCODE."
+}
+$helperExe = Join-Path $helperPublishDir 'PhotoLibrarian.UpdateHelper.exe'
+if (-not (Test-Path $helperExe)) {
+    throw 'The update helper executable is missing from the published output.'
+}
+Copy-Item $helperExe (Join-Path $publishDir 'PhotoLibrarian.UpdateHelper.exe') -Force
+
 foreach ($requiredFile in @(
     'PhotoLibrarian.exe',
+    'PhotoLibrarian.UpdateHelper.exe',
     'coreclr.dll',
     'Microsoft.UI.Xaml.dll',
     'App.xbf',

@@ -33,6 +33,7 @@ public sealed partial class SettingsPanel : UserControl
     {
         if (ViewModel is not null)
             ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        ResolveUpdateDecision(false);
     }
 
     private void OnViewModelPropertyChanged(
@@ -294,6 +295,37 @@ public sealed partial class SettingsPanel : UserControl
             InvalidOperationException;
 
     private bool _checkingUpdates;
+    private TaskCompletionSource<bool>? _updateDecision;
+
+    private Task<bool> ConfirmUpdateAsync(
+        string title, string description, string acceptLabel)
+    {
+        if (_updateDecision is not null)
+            throw new InvalidOperationException("An update confirmation is already visible.");
+
+        UpdateConfirmTitle.Text = title;
+        UpdateConfirmDescription.Text = description;
+        UpdateAcceptButton.Content = acceptLabel;
+        UpdateConfirmOverlay.Visibility = Visibility.Visible;
+        _updateDecision = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        UpdateAcceptButton.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        return _updateDecision.Task;
+    }
+
+    private void ResolveUpdateDecision(bool accepted)
+    {
+        UpdateConfirmOverlay.Visibility = Visibility.Collapsed;
+        var pending = _updateDecision;
+        _updateDecision = null;
+        pending?.TrySetResult(accepted);
+    }
+
+    private void OnUpdateAcceptClick(object sender, RoutedEventArgs e) =>
+        ResolveUpdateDecision(true);
+
+    private void OnUpdateCancelClick(object sender, RoutedEventArgs e) =>
+        ResolveUpdateDecision(false);
 
     private async void OnCheckForUpdatesClick(object sender, RoutedEventArgs e)
     {
@@ -314,16 +346,11 @@ public sealed partial class SettingsPanel : UserControl
             }
 
             UpdateStatusText.Text = $"Version {release.Version.ToString(3)} available.";
-            var dialog = new ContentDialog
-            {
-                XamlRoot = XamlRoot,
-                Title = $"Update PhotoLibrarian to {release.Version.ToString(3)}?",
-                Content = "Download the official installer from GitHub, verify its SHA-256 and then launch the installer? Your albums and photographs are not part of the installation.",
-                PrimaryButtonText = "Download update",
-                CloseButtonText = "Cancel",
-                DefaultButton = ContentDialogButton.Close
-            };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            if (!await ConfirmUpdateAsync(
+                $"UPDATE AVAILABLE // {release.Version.ToString(3)}",
+                "Download the official PhotoLibrarian installer from GitHub and verify SHA-256? " +
+                "Your photographs, catalogs and album data will not be removed.",
+                "DOWNLOAD UPDATE"))
                 return;
 
             UpdateDownloadProgress.Value = 0;
@@ -338,21 +365,21 @@ public sealed partial class SettingsPanel : UserControl
             using var downloadCancellation = new CancellationTokenSource(TimeSpan.FromMinutes(15));
             var installerPath = await GitHubUpdateService.DownloadVerifiedAsync(
                 release, progress, downloadCancellation.Token);
-            UpdateStatusText.Text = "Installer verified (SHA-256). Ready to install.";
+            UpdateStatusText.Text = "SHA-256 verified // Ready to install.";
 
-            var install = new ContentDialog
-            {
-                XamlRoot = XamlRoot,
-                Title = "Start installation",
-                Content = "PhotoLibrarian will close and Windows will start the verified installer. Save any current edits before continuing.",
-                PrimaryButtonText = "Install and close",
-                CloseButtonText = "Later",
-                DefaultButton = ContentDialogButton.Close
-            };
-            if (await install.ShowAsync() != ContentDialogResult.Primary)
+            if (!await ConfirmUpdateAsync(
+                "INSTALL VERIFIED UPDATE",
+                "PhotoLibrarian will close. A separate Trimenor update window will install " +
+                "the new version without the Inno Setup wizard and reopen this application. " +
+                "Save any outstanding changes before continuing. Windows may ask for administrator approval.",
+                "INSTALL & RESTART"))
                 return;
 
-            GitHubUpdateService.LaunchInstaller(installerPath);
+            // Start the helper before closing the app. It waits for this process
+            // to exit, independently verifies the installer and then runs Inno
+            // silently with a custom progress window.
+            GitHubUpdateService.LaunchUpdateHelper(
+                release, installerPath, App.CurrentAlbumPath);
             App.Current.Exit();
         }
         catch (Exception ex)

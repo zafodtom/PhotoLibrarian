@@ -1380,6 +1380,16 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         return null;
     }
 
+    /// <summary>
+    /// Scroll the selected thumbnail into view after leaving the image viewer.
+    /// Existing keyboard-navigation scroll behavior remains unchanged.
+    /// </summary>
+    public void ScrollPrimarySelectionIntoView()
+    {
+        if (_primaryItem is not null)
+            ScrollItemIntoView(_primaryItem);
+    }
+
     private void ScrollItemIntoView(ImageThumbnailViewModel vm)
     {
         var bounds = GetItemRowBounds(vm);

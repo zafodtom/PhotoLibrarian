@@ -365,10 +365,13 @@
                                Grid.RowSpan="3"
                                Visibility="Collapsed" />
 
-        <!-- Overlay: Settings Panel -->
+        <!-- Overlay: Settings Panel
+             Keep the configuration footer above the application's bottom SYS
+             rail (Grid.Row=3). The rail is rendered later and otherwise covers
+             the bottom buttons of a four-row overlay. -->
         <Border x:Name="SettingsOverlay"
                 Grid.Row="0"
-                Grid.RowSpan="4"
+                Grid.RowSpan="3"
                 Visibility="Collapsed"
                 Background="#F2070B10">
             <Grid Margin="18">

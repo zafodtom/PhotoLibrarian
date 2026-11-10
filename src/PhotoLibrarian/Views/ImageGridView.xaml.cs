@@ -75,6 +75,7 @@ public sealed partial class ImageGridView : UserControl
         UpdateSortByCombo();
         UpdateSortOrderIcon();
         ViewModel.ResultsChanged += OnResultsChanged;
+        ViewModel.ViewerReturnSelectionRequested += OnViewerReturnSelectionRequested;
         InitializeRefinementControls(ViewModel.Refinement);
         await RefreshPeopleAsync();
         UpdateActiveFilterChips();
@@ -166,6 +167,18 @@ public sealed partial class ImageGridView : UserControl
         {
             App.ViewModel.StatusText = $"Could not load people filters: {ex.Message}";
         }
+    }
+
+    private void OnViewerReturnSelectionRequested(object? sender, EventArgs e)
+    {
+        // The viewer may close while displaying an image far from the initial
+        // thumbnail. Repaint its selection and make it visible in the grid.
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (ViewModel is null) return;
+            PhotoGrid.RestoreSelection(ViewModel.SelectedImages, ViewModel.SelectedImage);
+            PhotoGrid.ScrollPrimarySelectionIntoView();
+        });
     }
 
     private void OnResultsChanged(object? sender, EventArgs e)
