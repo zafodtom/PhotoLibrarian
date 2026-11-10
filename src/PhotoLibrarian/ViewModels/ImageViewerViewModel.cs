@@ -50,6 +50,12 @@ public partial class ImageViewerViewModel : ObservableObject
     /// </summary>
     public event Action<ImageEntry?>? CurrentEntryChanged;
 
+    /// <summary>
+    /// Raised on viewer close with the final displayed photo. Must carry the
+    /// entry explicitly because CurrentEntry becomes null once IsOpen is false.
+    /// </summary>
+    public event Action<ImageEntry?>? ClosedAtEntry;
+
     private void RaiseCurrentEntryChanged()
     {
         OnPropertyChanged(nameof(CurrentEntry));
@@ -135,12 +141,17 @@ public partial class ImageViewerViewModel : ObservableObject
     [RelayCommand]
     private void Close()
     {
+        if (!IsOpen) return;
+        var lastDisplayedEntry = CurrentEntry;
         IsOpen = false;
         CurrentImage = null;
         _heifImageStream?.Dispose();
         _heifImageStream = null;
         VideoPath = null;
         IsVideo = false;
+        // Synchronize the grid before the metadata panel returns to its
+        // selection; otherwise it shows the image originally opened.
+        ClosedAtEntry?.Invoke(lastDisplayedEntry);
         RaiseCurrentEntryChanged();
     }
 
