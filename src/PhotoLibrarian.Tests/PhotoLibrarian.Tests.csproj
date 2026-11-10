@@ -25,6 +25,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\PhotoLibrarian\ViewModels\ImageGridViewModel.cs"
+          Link="TestAssets\ImageGridViewModel.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\ViewModels\ImageViewerViewModel.cs"
+          Link="TestAssets\ImageViewerViewModel.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\ViewModels\MainViewModel.cs"
+          Link="TestAssets\MainViewModel.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\ImageGridView.xaml.cs"
+          Link="TestAssets\ImageGridView.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Controls\VirtualizingPhotoGrid.xaml.cs"
+          Link="TestAssets\VirtualizingPhotoGrid.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\PhotoLibrarian\MainWindow.xaml"
           Link="TestAssets\MainWindow.xaml"
           CopyToOutputDirectory="PreserveNewest" />
