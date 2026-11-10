@@ -29,7 +29,7 @@ public sealed class SettingsLayoutTests
         var settings = XDocument.Load(Path.Combine(
             AppContext.BaseDirectory, "TestAssets", "SettingsPanel.xaml"));
         var close = settings.Descendants(presentation + "Button")
-            .Single(element => (string?)element.Attribute(x + "Name") == "CloseSettingsButton");
+            .Single(element => (string?)element.Attribute("AutomationProperties.AutomationId") == "CloseSettingsButton");
         var footer = close.Parent;
         Assert.NotNull(footer);
         Assert.Equal("Grid", footer!.Name.LocalName);
