@@ -1,7 +1,7 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Drawing;
 using System.Security.Cryptography;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
@@ -24,14 +24,19 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        if (args.Length != 1)
+        if (args.Length != 7)
             return;
         try
         {
-            var jobPath = Path.GetFullPath(args[0]);
-            var job = JsonSerializer.Deserialize<UpdateJob>(File.ReadAllText(jobPath))
-                ?? throw new InvalidDataException("Update job is empty.");
-            Application.Run(new UpdateWindow(job, jobPath));
+            var job = new UpdateJob(
+                args[0],
+                long.Parse(args[1], CultureInfo.InvariantCulture),
+                args[2],
+                int.Parse(args[3], CultureInfo.InvariantCulture),
+                args[4],
+                string.IsNullOrWhiteSpace(args[5]) ? null : args[5],
+                args[6]);
+            Application.Run(new UpdateWindow(job));
         }
         catch (Exception exception)
         {
@@ -57,17 +62,15 @@ internal static class Program
 internal sealed class UpdateWindow : Form
 {
     private readonly UpdateJob _job;
-    private readonly string _jobPath;
     private readonly Label _stage;
     private readonly Label _detail;
     private readonly ProgressBar _progress;
     private readonly Button _close;
     private readonly Color _accent = Color.FromArgb(72, 223, 235);
 
-    public UpdateWindow(UpdateJob job, string jobPath)
+    public UpdateWindow(UpdateJob job)
     {
         _job = job;
-        _jobPath = jobPath;
         Text = "PhotoLibrarian // Update";
         Width = 530;
         Height = 280;
@@ -200,10 +203,6 @@ internal sealed class UpdateWindow : Form
             throw new InvalidDataException("Unexpected target executable.");
         if (!File.Exists(_job.InstallerPath) || !File.Exists(_job.AppExecutable))
             throw new FileNotFoundException("Installer or application executable is missing.");
-        if (!Path.GetFullPath(_jobPath).StartsWith(
-                Path.GetDirectoryName(Path.GetFullPath(_job.InstallerPath))! +
-                Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("The update manifest is outside the update directory.");
     }
 
     private async Task WaitForApplicationExitAsync()
