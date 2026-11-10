@@ -188,7 +188,7 @@ public static class GitHubUpdateService
             UseShellExecute = true
         };
         start.ArgumentList.Add(jobPath);
-        Process.Start(start)
-            ?? throw new InvalidOperationException("Windows did not start the update helper.");
+        if (Process.Start(start) is null)
+            throw new InvalidOperationException("Windows did not start the update helper.");
     }
 }
