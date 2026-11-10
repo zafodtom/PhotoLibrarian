@@ -112,6 +112,23 @@ public static class WindowsThumbnailService
             }
         });
 
+    public static bool IsOrphanCleanupDue()
+    {
+        var root = _albumCacheDirectory;
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            return false;
+        try
+        {
+            if ((File.GetAttributes(root) & System.IO.FileAttributes.ReparsePoint) != 0)
+                return false;
+            var stamp = Path.Combine(root, ".last-orphan-sweep");
+            return !File.Exists(stamp) ||
+                DateTime.UtcNow - File.GetLastWriteTimeUtc(stamp) >= TimeSpan.FromDays(1);
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
     /// <summary>
     /// Maintenance only: clean opaque, legacy SHA-256 cache names whose
     /// source photo is no longer present (or whose metadata changed).
