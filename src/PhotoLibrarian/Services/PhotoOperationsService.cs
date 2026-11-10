@@ -562,6 +562,12 @@ public sealed class PhotoOperationsService
                     Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin,
                     Microsoft.VisualBasic.FileIO.UICancelOption.DoNothing);
 
+                // UICancelOption.DoNothing may return normally if the user
+                // cancels the Windows operation. Never remove DB rows or cache
+                // entries while the source image still exists.
+                if (File.Exists(entry.FilePath))
+                    continue;
+
                 // Also delete any sidecar
                 if (File.Exists(sidecar))
                 {
