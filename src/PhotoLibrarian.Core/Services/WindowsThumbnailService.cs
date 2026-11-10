@@ -127,7 +127,7 @@ public static class WindowsThumbnailService
                 return;
             try
             {
-                if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0)
+                if ((File.GetAttributes(root) & System.IO.FileAttributes.ReparsePoint) != 0)
                     return;
                 var stamp = Path.Combine(root, ".last-orphan-sweep");
                 if (File.Exists(stamp) &&
@@ -148,7 +148,7 @@ public static class WindowsThumbnailService
                     SearchOption.TopDirectoryOnly));
                 foreach (var bucket in buckets)
                 {
-                    if ((File.GetAttributes(bucket) & FileAttributes.ReparsePoint) != 0)
+                    if ((File.GetAttributes(bucket) & System.IO.FileAttributes.ReparsePoint) != 0)
                         continue;
                     foreach (var path in Directory.EnumerateFiles(bucket, "*.bin",
                         SearchOption.TopDirectoryOnly))
@@ -156,7 +156,7 @@ public static class WindowsThumbnailService
                         if (valid.Contains(path)) continue;
                         try
                         {
-                            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                            if ((File.GetAttributes(path) & System.IO.FileAttributes.ReparsePoint) != 0)
                                 continue;
                             File.Delete(path);
                             removed++;
