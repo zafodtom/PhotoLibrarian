@@ -492,8 +492,7 @@
                     ToolTipService.ToolTip="Remove PhotoLibrarian catalog files; keep your photographs" />
         </Grid>
 
-        <!-- Theming-compatible confirmation surface. Unlike WinUI ContentDialog,
-             this lives in our own accent/dark layout and blocks Settings input. -->
+        <!-- Sci-fi archive confirmation surface reuses the application's HiTechTheme. -->
         <Grid x:Name="UpdateConfirmOverlay"
               Grid.RowSpan="3"
               Canvas.ZIndex="30"
@@ -516,9 +515,9 @@
                         </Grid.ColumnDefinitions>
                         <Rectangle Grid.Column="0" Fill="{StaticResource HiTechAccentBrush}"/>
                         <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="4">
-                            <TextBlock Text="SYSTEM // UPDATE CONFIRMATION"
+                            <TextBlock Text="PHOTO // LIBRARIAN"
                                        Style="{StaticResource HiTechSectionHeaderStyle}"/>
-                            <TextBlock Text="TRIMENOR / VERSION CONTROL"
+                            <TextBlock Text="VISUAL ARCHIVE // UPDATE SEQUENCE"
                                        Style="{StaticResource HiTechTinyLabelStyle}"/>
                         </StackPanel>
                     </Grid>
