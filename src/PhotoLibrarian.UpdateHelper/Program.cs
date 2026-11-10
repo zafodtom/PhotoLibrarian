@@ -146,7 +146,9 @@ internal sealed class UpdateWindow : Form
             await WaitForApplicationExitAsync();
 
             Report("VERIFYING INSTALLER", "Rechecking the exact SHA-256 of the downloaded installer...");
-            await VerifyInstallerAsync();
+            // Keep a read-only handle open throughout installation to prevent
+            // replacing/deleting the verified installer between hashing and launch.
+            await using var verifiedInstaller = await VerifyInstallerAsync();
 
             Report("INSTALLING UPDATE", "The Windows administrator confirmation may appear.");
             using var installer = Process.Start(new ProcessStartInfo
@@ -222,18 +224,28 @@ internal sealed class UpdateWindow : Form
         }
     }
 
-    private async Task VerifyInstallerAsync()
+    private async Task<FileStream> VerifyInstallerAsync()
     {
         var info = new FileInfo(_job.InstallerPath);
         if (info.Length != _job.InstallerSize)
             throw new InvalidDataException("Installer length changed after download.");
-        await using var file = new FileStream(
+        var file = new FileStream(
             _job.InstallerPath, FileMode.Open, FileAccess.Read, FileShare.Read, 131072,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        using var sha = SHA256.Create();
-        var actual = Convert.ToHexString(await sha.ComputeHashAsync(file));
-        if (!string.Equals(actual, _job.Sha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Installer SHA-256 verification failed.");
+        try
+        {
+            using var sha = SHA256.Create();
+            var actual = Convert.ToHexString(await sha.ComputeHashAsync(file));
+            if (!string.Equals(actual, _job.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Installer SHA-256 verification failed.");
+            file.Position = 0;
+            return file;
+        }
+        catch
+        {
+            await file.DisposeAsync();
+            throw;
+        }
     }
 
     private void LaunchApplication()
