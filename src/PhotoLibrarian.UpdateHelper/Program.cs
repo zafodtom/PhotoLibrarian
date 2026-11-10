@@ -66,69 +66,93 @@ internal sealed class UpdateWindow : Form
     private readonly Label _detail;
     private readonly ProgressBar _progress;
     private readonly Button _close;
-    private readonly Color _accent = Color.FromArgb(72, 223, 235);
+    private readonly Color _accent = Color.FromArgb(83, 215, 232);
 
     public UpdateWindow(UpdateJob job)
     {
         _job = job;
-        Text = "PhotoLibrarian // Update";
-        Width = 530;
-        Height = 280;
+        Text = "PhotoLibrarian // Update Sequence";
+        Width = 570;
+        Height = 322;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        BackColor = Color.FromArgb(9, 18, 26);
-        ForeColor = Color.FromArgb(222, 240, 245);
+        BackColor = Color.FromArgb(7, 11, 16);
+        ForeColor = Color.FromArgb(230, 247, 250);
         Font = new Font("Segoe UI", 10f);
         ControlBox = false;
 
-        var accentLine = new Panel { Dock = DockStyle.Top, Height = 4, BackColor = _accent };
-        Controls.Add(accentLine);
+        // Match the BootWindow: inset framed panel, cyan side-bar, technical
+        // Consolas typography and the same dark archive palette.
+        var frame = new Panel
+        {
+            Left = 18, Top = 18, Width = 518, Height = 253,
+            BackColor = Color.FromArgb(10, 18, 26)
+        };
+        frame.Paint += (_, e) =>
+        {
+            using var border = new Pen(Color.FromArgb(52, 115, 138), 1f);
+            e.Graphics.DrawRectangle(border, 0, 0, frame.Width - 1, frame.Height - 1);
+        };
+        Controls.Add(frame);
+        frame.Controls.Add(new Panel
+        {
+            Left = 17, Top = 18, Height = 44, Width = 4, BackColor = _accent
+        });
         var heading = new Label
         {
-            Left = 24, Top = 27, Width = 470, Height = 30,
+            Left = 32, Top = 17, Width = 448, Height = 29,
             Font = new Font("Consolas", 16f, FontStyle.Bold),
-            Text = "PHOTOLIBRARIAN // UPDATE", ForeColor = _accent
+            Text = "PHOTO // LIBRARIAN", ForeColor = Color.FromArgb(230, 247, 250)
         };
-        Controls.Add(heading);
-        var brand = new Label
+        frame.Controls.Add(heading);
+        frame.Controls.Add(new Label
         {
-            Left = 24, Top = 62, Width = 460, Height = 20,
+            Left = 34, Top = 47, Width = 448, Height = 21,
             Font = new Font("Consolas", 9f),
-            Text = "TRIMENOR  /  INSTALLATION MANAGER",
-            ForeColor = Color.FromArgb(125, 165, 180)
-        };
-        Controls.Add(brand);
+            Text = "VISUAL ARCHIVE // UPDATE SEQUENCE",
+            ForeColor = Color.FromArgb(52, 115, 138)
+        });
         _stage = new Label
         {
-            Left = 24, Top = 101, Width = 470, Height = 30,
-            Text = "Preparing secure update..."
+            Left = 30, Top = 91, Width = 448, Height = 26,
+            Font = new Font("Consolas", 11f, FontStyle.Bold),
+            ForeColor = _accent,
+            Text = "INITIALIZING UPDATE..."
         };
-        Controls.Add(_stage);
+        frame.Controls.Add(_stage);
         _detail = new Label
         {
-            Left = 24, Top = 134, Width = 470, Height = 38,
+            Left = 30, Top = 125, Width = 448, Height = 41,
             Font = new Font("Segoe UI", 9f), ForeColor = Color.FromArgb(155, 183, 196)
         };
-        Controls.Add(_detail);
+        frame.Controls.Add(_detail);
         _progress = new ProgressBar
         {
-            Left = 24, Top = 181, Width = 470, Height = 8,
+            Left = 30, Top = 182, Width = 448, Height = 7,
             Style = ProgressBarStyle.Marquee,
             MarqueeAnimationSpeed = 28
         };
-        Controls.Add(_progress);
+        frame.Controls.Add(_progress);
+        frame.Controls.Add(new Label
+        {
+            Left = 30, Top = 209, Width = 255, Height = 17,
+            Font = new Font("Consolas", 8f),
+            ForeColor = Color.FromArgb(52, 115, 138),
+            Text = "SYS  /  UPDATE CONTROL"
+        });
         _close = new Button
         {
-            Left = 375, Top = 203, Width = 119, Height = 32,
+            Left = 366, Top = 201, Width = 112, Height = 32,
             Text = "CLOSE", Enabled = false,
             BackColor = Color.FromArgb(19, 48, 60),
-            ForeColor = _accent, FlatStyle = FlatStyle.Flat
+            ForeColor = _accent, FlatStyle = FlatStyle.Flat,
+            Font = new Font("Consolas", 10f, FontStyle.Bold)
         };
-        _close.FlatAppearance.BorderColor = _accent;
+        _close.FlatAppearance.BorderColor = Color.FromArgb(52, 115, 138);
         _close.Click += (_, _) => Close();
-        Controls.Add(_close);
+        frame.Controls.Add(_close);
 
         Shown += async (_, _) => await RunUpdateAsync();
     }
