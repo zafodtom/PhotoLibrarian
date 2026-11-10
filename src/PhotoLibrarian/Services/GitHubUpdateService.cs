@@ -136,16 +136,9 @@ public static class GitHubUpdateService
     }
 
     // The helper is published alongside the application, then copied beside
-    // the downloaded installer so Inno Setup may replace the running app files.
-    private sealed record UpdateJob(
-        string InstallerPath,
-        long InstallerSize,
-        string Sha256,
-        int ProcessId,
-        string AppExecutable,
-        string? AlbumPath,
-        string Version);
-
+    // the downloaded installer so Inno Setup can replace the app files.
+    // Pass verification data as immutable process arguments rather than an
+    // editable job file in a user-writable temporary directory.
     public static void LaunchUpdateHelper(
         Release release, string verifiedInstallerPath, string? albumPath)
     {
@@ -173,13 +166,7 @@ public static class GitHubUpdateService
             throw new InvalidOperationException("Unexpected PhotoLibrarian executable.");
 
         var helperCopy = Path.Combine(directory, "PhotoLibrarian.UpdateHelper.exe");
-        var jobPath = Path.Combine(directory, "update-job.json");
         File.Copy(installedHelper, helperCopy, overwrite: true);
-        var job = new UpdateJob(
-            path, release.Size, release.Sha256,
-            Environment.ProcessId, targetApp, albumPath,
-            release.Version.ToString(3));
-        File.WriteAllText(jobPath, JsonSerializer.Serialize(job));
 
         var start = new ProcessStartInfo
         {
@@ -187,7 +174,13 @@ public static class GitHubUpdateService
             WorkingDirectory = directory,
             UseShellExecute = true
         };
-        start.ArgumentList.Add(jobPath);
+        start.ArgumentList.Add(path);
+        start.ArgumentList.Add(release.Size.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        start.ArgumentList.Add(release.Sha256);
+        start.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        start.ArgumentList.Add(targetApp);
+        start.ArgumentList.Add(albumPath ?? "");
+        start.ArgumentList.Add(release.Version.ToString(3));
         if (Process.Start(start) is null)
             throw new InvalidOperationException("Windows did not start the update helper.");
     }
