@@ -32,6 +32,7 @@ public sealed partial class MetadataPanel : UserControl
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "PhotoLibrarian", "recent-tags.json");
     private readonly ObservableCollection<string> _recentTags = new();
+    private readonly ObservableCollection<string> _visibleRecentTags = new();
 
     // Accepted date formats (in order). M/d/yyyy h:mm tt is the canonical one shown to user.
     private static readonly string[] AcceptedDateFormats = new[]
@@ -59,8 +60,14 @@ public sealed partial class MetadataPanel : UserControl
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         TagsList.ItemsSource = ViewModel.Tags;
         PeopleTagsList.ItemsSource = ViewModel.PeopleTags;
-        RecentTagsList.ItemsSource = _recentTags;
+        RecentTagsList.ItemsSource = _visibleRecentTags;
+        ViewModel.Tags.CollectionChanged += OnSelectedTagsChanged;
         LoadRecentTags();
+    }
+
+    private void OnSelectedTagsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        RefreshRecentTagsVisibility();
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -116,6 +123,8 @@ public sealed partial class MetadataPanel : UserControl
 
         EmptyContent.Visibility = Visibility.Collapsed;
         DetailContent.Visibility = Visibility.Visible;
+
+        RefreshRecentTagsVisibility();
 
         // Multi-select banner
         bool multi = ViewModel.IsMultiSelect;
@@ -710,9 +719,27 @@ public sealed partial class MetadataPanel : UserControl
         }
     }
 
-    private void RefreshRecentTagsVisibility() =>
-        RecentTagsPanel.Visibility = _recentTags.Count > 0
+    private void RefreshRecentTagsVisibility()
+    {
+        _visibleRecentTags.Clear();
+        var model = ViewModel;
+        if (model?.HasImage == true)
+        {
+            // A quick-selection tag is useful only if at least one selected
+            // image does not already have that explicit assignment.
+            var fullyAssigned = model.Tags
+                .Where(t => t.IsOnAll)
+                .Select(t => t.Tag)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var tag in _recentTags)
+                if (!fullyAssigned.Contains(tag))
+                    _visibleRecentTags.Add(tag);
+        }
+
+        RecentTagsPanel.Visibility = _visibleRecentTags.Count > 0 &&
+            TagSuggestionsPanel.Visibility != Visibility.Visible
             ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void ShowTagSuggestions(IEnumerable<AvailableTagItem> tags)
     {
@@ -725,11 +752,13 @@ public sealed partial class MetadataPanel : UserControl
 
         TagSuggestionsList.ItemsSource = items;
         TagSuggestionsPanel.Visibility = Visibility.Visible;
+        RefreshRecentTagsVisibility();
     }
 
     private void HideTagSuggestions()
     {
         TagSuggestionsPanel.Visibility = Visibility.Collapsed;
+        RefreshRecentTagsVisibility();
     }
 
     private void OnRemoveTagClick(object sender, RoutedEventArgs e)
