@@ -1,3 +1,7 @@
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -23,6 +27,11 @@ public sealed partial class MetadataPanel : UserControl
     private bool _suppressDateBoxLostFocus;
     private string _lastLoadedDateText = "";
     private bool _suppressTagSuggestions;
+    private const int RecentTagLimit = 5;
+    private static readonly string RecentTagsFile = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "PhotoLibrarian", "recent-tags.json");
+    private readonly ObservableCollection<string> _recentTags = new();
 
     // Accepted date formats (in order). M/d/yyyy h:mm tt is the canonical one shown to user.
     private static readonly string[] AcceptedDateFormats = new[]
@@ -50,6 +59,8 @@ public sealed partial class MetadataPanel : UserControl
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         TagsList.ItemsSource = ViewModel.Tags;
         PeopleTagsList.ItemsSource = ViewModel.PeopleTags;
+        RecentTagsList.ItemsSource = _recentTags;
+        LoadRecentTags();
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -628,19 +639,80 @@ public sealed partial class MetadataPanel : UserControl
         }
     }
 
-    private void AddCurrentTag()
+    private async void AddCurrentTag()
     {
-        if (ViewModel is null) return;
         var tag = NewTagBox.Text?.Trim();
         if (string.IsNullOrEmpty(tag)) return;
-
-        ViewModel.AddTagCommand.Execute(tag);
-
+        await AssignAndRememberTagAsync(tag);
+        if (!string.Equals(NewTagBox.Text?.Trim(), tag, StringComparison.Ordinal)) return;
         _suppressTagSuggestions = true;
         NewTagBox.Text = "";
         _suppressTagSuggestions = false;
         HideTagSuggestions();
     }
+
+    private async void OnRecentTagClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string tag })
+            await AssignAndRememberTagAsync(tag);
+    }
+
+    private async Task AssignAndRememberTagAsync(string tag)
+    {
+        var viewModel = ViewModel;
+        if (viewModel is null || !viewModel.HasImage) return;
+        // Reuse the normal batch path (sidecars, database, selection, status).
+        await viewModel.AddTagAsync(tag);
+        RememberTag(tag);
+    }
+
+    private void LoadRecentTags()
+    {
+        try
+        {
+            if (File.Exists(RecentTagsFile))
+            {
+                var saved = JsonSerializer.Deserialize<string[]>(File.ReadAllText(RecentTagsFile));
+                foreach (var tag in (saved ?? Array.Empty<string>())
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(RecentTagLimit))
+                    _recentTags.Add(tag.Trim());
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[RECENT TAGS] Unable to load history: {ex}");
+        }
+        RefreshRecentTagsVisibility();
+    }
+
+    private void RememberTag(string tag)
+    {
+        tag = tag.Trim();
+        if (tag.Length == 0) return;
+        for (var i = _recentTags.Count - 1; i >= 0; i--)
+            if (string.Equals(_recentTags[i], tag, StringComparison.OrdinalIgnoreCase))
+                _recentTags.RemoveAt(i);
+        _recentTags.Insert(0, tag);
+        while (_recentTags.Count > RecentTagLimit)
+            _recentTags.RemoveAt(_recentTags.Count - 1);
+        RefreshRecentTagsVisibility();
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(RecentTagsFile)!);
+            File.WriteAllText(RecentTagsFile, JsonSerializer.Serialize(_recentTags.ToArray()));
+        }
+        catch (Exception ex)
+        {
+            // Tag assignment must not fail merely because history cannot be saved.
+            System.Diagnostics.Debug.WriteLine($"[RECENT TAGS] Unable to save history: {ex}");
+        }
+    }
+
+    private void RefreshRecentTagsVisibility() =>
+        RecentTagsPanel.Visibility = _recentTags.Count > 0
+            ? Visibility.Visible : Visibility.Collapsed;
 
     private void ShowTagSuggestions(IEnumerable<AvailableTagItem> tags)
     {
