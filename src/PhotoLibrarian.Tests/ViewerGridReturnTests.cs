@@ -12,6 +12,26 @@ public sealed class ViewerGridReturnTests
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", name));
 
     [Fact]
+    public void DeletingInViewerKeepsCurrentPhotoMetadataAndFolderTagScope()
+    {
+        var main = ReadSource("MainViewModel.cs");
+        var grid = ReadSource("ImageGridViewModel.cs");
+
+        Assert.Contains("if (!_main.ImageViewer.IsOpen)", grid);
+        Assert.Contains("if (ImageViewer.IsOpen && ImageViewer.CurrentEntry is { } shown)", main);
+        Assert.Contains("MetadataPanel.ShowMetadata(shown);", main);
+        Assert.Contains("await window.RefreshMetadataTreesAsync();", main);
+        Assert.Contains("await TagNav.LoadTagsAsync();", main);
+        // A blanket reload of the tag tree before the scoped window refresh
+        // would show tags from other folders and race against the filtered tree.
+        var deleteMethod = main[
+            main.IndexOf("public async Task<IReadOnlyList<string>> DeleteEntriesAsync(", StringComparison.Ordinal)..];
+        deleteMethod = deleteMethod[..deleteMethod.IndexOf("public async Task RefreshKnownLibraryStateAsync(", StringComparison.Ordinal)];
+        Assert.DoesNotContain("await TagNav.LoadTagsAsync();\n        await DateNav.LoadDatesAsync();", deleteMethod);
+        Assert.DoesNotContain("await MetadataPanel.ReloadTagsAsync();", deleteMethod);
+    }
+
+    [Fact]
     public void StartupSortsByFileNameAscending()
     {
         var source = ReadSource("ImageGridViewModel.cs");
