@@ -225,6 +225,30 @@
                             </Button>
                         </Grid>
 
+                        <!-- Five most recently assigned tags for one-click reuse. -->
+                        <StackPanel x:Name="RecentTagsPanel" Spacing="4" Margin="0,6,0,2" Visibility="Collapsed">
+                            <TextBlock Text="RECENT TAGS"
+                                       Style="{StaticResource HiTechTinyLabelStyle}" />
+                            <ItemsRepeater x:Name="RecentTagsList">
+                                <ItemsRepeater.Layout>
+                                    <StackLayout Orientation="Vertical" Spacing="3" />
+                                </ItemsRepeater.Layout>
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{Binding}"
+                                                Tag="{Binding}"
+                                                Click="OnRecentTagClick"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Left"
+                                                Padding="8,4"
+                                                FontSize="12"
+                                                ToolTipService.ToolTip="Assign this tag to selected photos"
+                                                AutomationProperties.Name="Assign recent tag" />
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+
                         <!-- Inline suggestion dropdown. Keeping it in the visual tree avoids
                              the Flyout focus hand-off that interrupted typing. -->
                         <Border x:Name="TagSuggestionsPanel"
