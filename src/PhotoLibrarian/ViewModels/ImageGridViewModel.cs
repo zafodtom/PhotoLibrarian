@@ -1056,7 +1056,10 @@ public partial class ImageGridViewModel : ObservableObject
 
         await ApplyGroupingAsync();
         ResultsChanged?.Invoke(this, EventArgs.Empty);
-        RefreshMetadataFromSelection();
+        // While the viewer is open, its CurrentEntry is authoritative for the
+        // metadata panel. Do not overwrite it with the old grid selection.
+        if (!_main.ImageViewer.IsOpen)
+            RefreshMetadataFromSelection();
     }
 
     /// <summary>
