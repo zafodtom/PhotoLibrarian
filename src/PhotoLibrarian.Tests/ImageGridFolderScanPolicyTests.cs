@@ -25,8 +25,8 @@ public sealed class ImageGridFolderScanPolicyTests
     {
         var indexed = new[]
         {
-            new ImageEntry { Id = 11, FilePath = @"C:\Album\kept.jpg" },
-            new ImageEntry { Id = 12, FilePath = @"C:\Album\excluded.jpg" }
+            new ImageEntry { Id = 11, FilePath = @"C:\Album\kept.jpg", FileName = "kept.jpg" },
+            new ImageEntry { Id = 12, FilePath = @"C:\Album\excluded.jpg", FileName = "excluded.jpg" }
         };
 
         var knownPaths = ImageGridFolderScanPolicy.GetIndexedPaths(indexed);
