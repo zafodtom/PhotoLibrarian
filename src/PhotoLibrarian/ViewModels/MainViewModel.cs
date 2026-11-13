@@ -1406,7 +1406,9 @@ public partial class MainViewModel : ObservableObject
         else
             await TagNav.LoadTagsAsync();
 
-        await MetadataPanel.ReloadTagsAsync();
+        // ShowMetadata refreshes the new selection's tag assignments after
+        // its debounce. ReloadTagsAsync here would instead query the deleted
+        // image still held by the previous selection snapshot.
         await MetadataPanel.ReloadAvailableTagsAsync();
 
         StatusText = deleted.Count == 1
