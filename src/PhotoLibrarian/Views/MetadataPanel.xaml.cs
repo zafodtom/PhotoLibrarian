@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -28,10 +30,12 @@ public sealed partial class MetadataPanel : UserControl
     private string _lastLoadedDateText = "";
     private bool _suppressTagSuggestions;
     private const int RecentTagLimit = 5;
-    private static readonly string RecentTagsFile = Path.Combine(
+    private static readonly string RecentTagsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "PhotoLibrarian", "recent-tags.json");
+        "PhotoLibrarian", "recent-tags");
+    private string? _recentTagsAlbumPath;
     private readonly ObservableCollection<string> _recentTags = new();
+    private readonly ObservableCollection<string> _visibleRecentTags = new();
 
     // Accepted date formats (in order). M/d/yyyy h:mm tt is the canonical one shown to user.
     private static readonly string[] AcceptedDateFormats = new[]
@@ -59,8 +63,14 @@ public sealed partial class MetadataPanel : UserControl
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         TagsList.ItemsSource = ViewModel.Tags;
         PeopleTagsList.ItemsSource = ViewModel.PeopleTags;
-        RecentTagsList.ItemsSource = _recentTags;
-        LoadRecentTags();
+        RecentTagsList.ItemsSource = _visibleRecentTags;
+        ViewModel.Tags.CollectionChanged += OnSelectedTagsChanged;
+        EnsureRecentTagsAlbum();
+    }
+
+    private void OnSelectedTagsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        RefreshRecentTagsVisibility();
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -107,6 +117,7 @@ public sealed partial class MetadataPanel : UserControl
 
     private void UpdateDisplay()
     {
+        EnsureRecentTagsAlbum();
         if (ViewModel is null || !ViewModel.HasImage)
         {
             EmptyContent.Visibility = Visibility.Visible;
@@ -116,6 +127,8 @@ public sealed partial class MetadataPanel : UserControl
 
         EmptyContent.Visibility = Visibility.Collapsed;
         DetailContent.Visibility = Visibility.Visible;
+
+        RefreshRecentTagsVisibility();
 
         // Multi-select banner
         bool multi = ViewModel.IsMultiSelect;
@@ -659,20 +672,41 @@ public sealed partial class MetadataPanel : UserControl
 
     private async Task AssignAndRememberTagAsync(string tag)
     {
+        EnsureRecentTagsAlbum();
         var viewModel = ViewModel;
-        if (viewModel is null || !viewModel.HasImage) return;
-        // Reuse the normal batch path (sidecars, database, selection, status).
+        var albumPath = _recentTagsAlbumPath;
+        if (viewModel is null || !viewModel.HasImage || albumPath is null) return;
         await viewModel.AddTagAsync(tag);
-        RememberTag(tag);
+        // A long-running write must not update another album's history.
+        EnsureRecentTagsAlbum();
+        if (string.Equals(albumPath, _recentTagsAlbumPath, StringComparison.OrdinalIgnoreCase))
+            RememberTag(tag);
     }
 
-    private void LoadRecentTags()
+    private static string? GetAlbumRecentTagsFile(string? albumPath)
     {
+        if (string.IsNullOrWhiteSpace(albumPath)) return null;
+        var normalized = Path.GetFullPath(albumPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .ToUpperInvariant();
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)));
+        return Path.Combine(RecentTagsDirectory, hash + ".json");
+    }
+
+    private void EnsureRecentTagsAlbum()
+    {
+        var album = App.HasActiveAlbum ? App.CurrentAlbumPath : null;
+        if (string.Equals(album, _recentTagsAlbumPath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _recentTagsAlbumPath = album;
+        _recentTags.Clear();
         try
         {
-            if (File.Exists(RecentTagsFile))
+            var file = GetAlbumRecentTagsFile(album);
+            if (file is not null && File.Exists(file))
             {
-                var saved = JsonSerializer.Deserialize<string[]>(File.ReadAllText(RecentTagsFile));
+                var saved = JsonSerializer.Deserialize<string[]>(File.ReadAllText(file));
                 foreach (var tag in (saved ?? Array.Empty<string>())
                     .Where(t => !string.IsNullOrWhiteSpace(t))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -682,15 +716,16 @@ public sealed partial class MetadataPanel : UserControl
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[RECENT TAGS] Unable to load history: {ex}");
+            System.Diagnostics.Debug.WriteLine($"[RECENT TAGS] Album history load failed: {ex}");
         }
         RefreshRecentTagsVisibility();
     }
 
     private void RememberTag(string tag)
     {
+        EnsureRecentTagsAlbum();
         tag = tag.Trim();
-        if (tag.Length == 0) return;
+        if (tag.Length == 0 || _recentTagsAlbumPath is null) return;
         for (var i = _recentTags.Count - 1; i >= 0; i--)
             if (string.Equals(_recentTags[i], tag, StringComparison.OrdinalIgnoreCase))
                 _recentTags.RemoveAt(i);
@@ -700,8 +735,10 @@ public sealed partial class MetadataPanel : UserControl
         RefreshRecentTagsVisibility();
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(RecentTagsFile)!);
-            File.WriteAllText(RecentTagsFile, JsonSerializer.Serialize(_recentTags.ToArray()));
+            var file = GetAlbumRecentTagsFile(_recentTagsAlbumPath);
+            if (file is null) return;
+            Directory.CreateDirectory(RecentTagsDirectory);
+            File.WriteAllText(file, JsonSerializer.Serialize(_recentTags.ToArray()));
         }
         catch (Exception ex)
         {
@@ -710,9 +747,27 @@ public sealed partial class MetadataPanel : UserControl
         }
     }
 
-    private void RefreshRecentTagsVisibility() =>
-        RecentTagsPanel.Visibility = _recentTags.Count > 0
+    private void RefreshRecentTagsVisibility()
+    {
+        _visibleRecentTags.Clear();
+        var model = ViewModel;
+        if (model?.HasImage == true)
+        {
+            // A quick-selection tag is useful only if at least one selected
+            // image does not already have that explicit assignment.
+            var fullyAssigned = model.Tags
+                .Where(t => t.IsOnAll)
+                .Select(t => t.Tag)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var tag in _recentTags)
+                if (!fullyAssigned.Contains(tag))
+                    _visibleRecentTags.Add(tag);
+        }
+
+        RecentTagsPanel.Visibility = _visibleRecentTags.Count > 0 &&
+            TagSuggestionsPanel.Visibility != Visibility.Visible
             ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void ShowTagSuggestions(IEnumerable<AvailableTagItem> tags)
     {
@@ -725,11 +780,13 @@ public sealed partial class MetadataPanel : UserControl
 
         TagSuggestionsList.ItemsSource = items;
         TagSuggestionsPanel.Visibility = Visibility.Visible;
+        RefreshRecentTagsVisibility();
     }
 
     private void HideTagSuggestions()
     {
         TagSuggestionsPanel.Visibility = Visibility.Collapsed;
+        RefreshRecentTagsVisibility();
     }
 
     private void OnRemoveTagClick(object sender, RoutedEventArgs e)

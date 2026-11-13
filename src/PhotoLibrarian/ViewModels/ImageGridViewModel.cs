@@ -385,10 +385,16 @@ public partial class ImageGridViewModel : ObservableObject
 
         // HYBRID APPROACH: Scan folders to find any missing/new files not in database
         // This ensures we show all images even if database is stale/incomplete
-        if (scanDiskForMissingFiles && hasFolderFilter && !hasTagFilter && folderFilters is not null)
+        // A tag exclusion needs indexed metadata to evaluate correctly. A direct
+        // folder scan cannot know the tags of disk-only entries, so inserting
+        // placeholders here would reintroduce excluded photos (with Id = 0).
+        if (ImageGridFolderScanPolicy.ShouldScanForMissingFiles(
+                scanDiskForMissingFiles, hasFolderFilter, hasTagFilter, hasExcludedTags) &&
+            folderFilters is not null)
         {
-            // Get indexed file paths for quick lookup
-            var indexedPaths = new HashSet<string>(Images.Select(i => i.Entry.FilePath), StringComparer.OrdinalIgnoreCase);
+            // Compare against the entire indexed library, not only the visible
+            // (filtered) grid. Hidden indexed photos are NOT missing files.
+            var indexedPaths = ImageGridFolderScanPolicy.GetIndexedPaths(allImages);
             var initialCount = Images.Count;
 
             foreach (var filter in folderFilters)
