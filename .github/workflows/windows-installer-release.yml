@@ -74,7 +74,20 @@ jobs:
               $version = $env:VERSION
             }
             "VERSION=$version" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-            "DEV_RELEASE_TAG=v${version}-dev.$env:GITHUB_RUN_NUMBER" |
+            # Use sequential prerelease numbers per version, rather than
+            # global GitHub Actions run numbers. The first vX.Y.Z dev
+            # release must be dev.1, then dev.2 etc.
+            $existingTags = @(gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')
+            if ($LASTEXITCODE -ne 0) { throw 'Development release list lookup failed.' }
+            $escapedVersion = [regex]::Escape($version)
+            $maxBuild = 0
+            foreach ($existingTag in $existingTags) {
+              if ($existingTag -match "^v$escapedVersion-dev[.](\d+)$") {
+                $maxBuild = [Math]::Max($maxBuild, [int]$Matches[1])
+              }
+            }
+            $nextBuild = $maxBuild + 1
+            "DEV_RELEASE_TAG=v${version}-dev.$nextBuild" |
               Out-File $env:GITHUB_ENV -Append -Encoding utf8
           }
       - name: Compile application and tests
