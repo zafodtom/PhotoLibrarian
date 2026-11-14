@@ -110,6 +110,8 @@ public static class AlbumJpegConversionService
         Directory.CreateDirectory(workRoot);
         int converted = 0, embedded = 0, skipped = 0, failed = 0, processed = 0;
         var errors = new List<string>();
+        var overall = System.Diagnostics.Stopwatch.StartNew();
+        var lastProgressMs = -250L;
         try
         {
             foreach (var source in candidates)
@@ -137,7 +139,7 @@ public static class AlbumJpegConversionService
                     if (originalJpg || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
                         extension.Equals(".jpe", StringComparison.OrdinalIgnoreCase) ||
                         extension.Equals(".jfif", StringComparison.OrdinalIgnoreCase))
-                        File.Copy(source, temporary);
+                        await Task.Run(() => File.Copy(source, temporary), cancellationToken);
                     else
                         await EncodeJpegAsync(source, temporary);
 
@@ -146,15 +148,14 @@ public static class AlbumJpegConversionService
                     {
                         // Reject malformed XMP rather than inserting an unreadable
                         // packet and removing its only active sidecar.
-                        XmpCore.XmpMetaFactory.ParseFromString(
-                            await File.ReadAllTextAsync(sidecar, cancellationToken));
                         xmpBytes = await File.ReadAllBytesAsync(sidecar, cancellationToken);
+                        XmpCore.XmpMetaFactory.ParseFromString(
+                            System.Text.Encoding.UTF8.GetString(xmpBytes));
                         var jpegBytes = await File.ReadAllBytesAsync(temporary, cancellationToken);
                         var updated = JpegXmpPacket.Embed(jpegBytes, xmpBytes);
-                        await File.WriteAllBytesAsync(temporary, updated, cancellationToken);
-                        if (!JpegXmpPacket.ContainsExactPacket(
-                                await File.ReadAllBytesAsync(temporary, cancellationToken), xmpBytes))
+                        if (!JpegXmpPacket.ContainsExactPacket(updated, xmpBytes))
                             throw new InvalidDataException("Embedded XMP verification failed.");
+                        await File.WriteAllBytesAsync(temporary, updated, cancellationToken);
                     }
 
                     // Decode again to verify the resulting JPEG before moving anything.
@@ -164,8 +165,15 @@ public static class AlbumJpegConversionService
                         var decoder = await BitmapDecoder.CreateAsync(stream);
                         if (decoder.PixelWidth == 0 || decoder.PixelHeight == 0)
                             throw new InvalidDataException("JPEG has invalid dimensions.");
-                        // Decode actual pixels, not just headers, before committing.
-                        await decoder.GetPixelDataAsync();
+                        // The full-size pixel decode of every result used to duplicate
+                        // the most expensive stage of conversion and allocate a second
+                        // multi-megabyte bitmap. Verify decoding with a tiny downscaled
+                        // read instead; originals are retained in the backup folder.
+                        await decoder.GetPixelDataAsync(
+                            BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied,
+                            new BitmapTransform { ScaledWidth = 1, ScaledHeight = 1 },
+                            ExifOrientationMode.IgnoreExifOrientation,
+                            ColorManagementMode.DoNotColorManage);
                     }
 
                     var relative = Path.GetRelativePath(albumRoot, source);
@@ -232,8 +240,15 @@ public static class AlbumJpegConversionService
                     if (temporary is not null)
                         try { File.Delete(temporary); } catch { }
                     processed++;
-                    progress?.Report(new AlbumJpegConversionProgress(processed, candidates.Count,
-                        failed, Path.GetFileName(source)));
+                    // Avoid scheduling thousands of small UI updates on the
+                    // dispatcher when processing large albums.
+                    if (overall.ElapsedMilliseconds - lastProgressMs >= 150 ||
+                        processed == candidates.Count)
+                    {
+                        lastProgressMs = overall.ElapsedMilliseconds;
+                        progress?.Report(new AlbumJpegConversionProgress(
+                            processed, candidates.Count, failed, Path.GetFileName(source)));
+                    }
                 }
             }
         }
@@ -241,6 +256,9 @@ public static class AlbumJpegConversionService
         {
             try { Directory.Delete(workRoot, recursive: true); } catch { }
         }
+        System.Diagnostics.Debug.WriteLine(
+            $"[JPEG] Album conversion: {processed} files in {overall.Elapsed.TotalSeconds:F2}s " +
+            $"({converted} converted, {embedded} XMP merged, {failed} failed, {skipped} skipped).");
         return new AlbumJpegConversionResult(converted, embedded, failed, skipped, backupRoot, errors);
     }
 
