@@ -82,7 +82,7 @@ jobs:
             $escapedVersion = [regex]::Escape($version)
             $maxBuild = 0
             foreach ($existingTag in $existingTags) {
-              if ($existingTag -match "^v$escapedVersion-dev[.](\\d+)$") {
+              if ($existingTag -match "^v$escapedVersion-dev[.](\d+)$") {
                 $maxBuild = [Math]::Max($maxBuild, [int]$Matches[1])
               }
             }
