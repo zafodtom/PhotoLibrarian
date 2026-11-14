@@ -48,21 +48,35 @@ public static class AlbumMetadataClearService
         if (packetBytes is null)
             return false;
 
-        var packet = XmpMetaFactory.ParseFromString(
-            System.Text.Encoding.UTF8.GetString(packetBytes));
-        bool hasKeywords = packet.DoesPropertyExist(DcNs, "dc:subject");
-        bool hasFlag = packet.DoesPropertyExist(PlibNs, FlagName);
-        if (!hasKeywords && !hasFlag)
+        // XmpCore's default serializer can emit an XMP packet with padding /
+        // packet wrapping unsuitable for a round-trip through a JPEG APP1
+        // payload. Edit the XML tree instead and validate the serialized result
+        // before touching the original file.
+        var xml = new System.Text.UTF8Encoding(false, true).GetString(packetBytes)
+            .TrimEnd('\0');
+        var document = System.Xml.Linq.XDocument.Parse(xml,
+            System.Xml.Linq.LoadOptions.PreserveWhitespace);
+        System.Xml.Linq.XName subject = System.Xml.Linq.XName.Get("subject", DcNs);
+        System.Xml.Linq.XName flagged = System.Xml.Linq.XName.Get("Flagged", PlibNs);
+        var targets = document.Descendants().Where(node =>
+            node.Name == subject || node.Name == flagged).ToArray();
+        var attributes = document.Descendants().Attributes().Where(attribute =>
+            attribute.Name == subject || attribute.Name == flagged).ToArray();
+        if (targets.Length == 0 && attributes.Length == 0)
             return false;
 
-        if (hasKeywords)
-            packet.DeleteProperty(DcNs, "dc:subject");
-        if (hasFlag)
-            packet.DeleteProperty(PlibNs, FlagName);
+        foreach (var node in targets)
+            node.Remove();
+        foreach (var attribute in attributes)
+            attribute.Remove();
 
         var rewrittenXmp = System.Text.Encoding.UTF8.GetBytes(
-            XmpMetaFactory.SerializeToString(packet,
-                new XmpCore.Options.SerializeOptions()));
+            document.ToString(System.Xml.Linq.SaveOptions.DisableFormatting));
+        var verifiedPacket = XmpMetaFactory.ParseFromString(
+            System.Text.Encoding.UTF8.GetString(rewrittenXmp));
+        if (verifiedPacket.DoesPropertyExist(DcNs, "dc:subject") ||
+            verifiedPacket.DoesPropertyExist(PlibNs, FlagName))
+            throw new InvalidDataException("Embedded XMP still contains tags or flags.");
         var updated = JpegXmpPacket.Embed(original, rewrittenXmp);
         if (!JpegXmpPacket.ContainsExactPacket(updated, rewrittenXmp))
             throw new InvalidDataException("Updated embedded XMP packet could not be verified.");
