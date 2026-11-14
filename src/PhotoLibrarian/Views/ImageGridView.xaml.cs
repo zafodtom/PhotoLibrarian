@@ -824,16 +824,34 @@ public sealed partial class ImageGridView : UserControl
         var copy = new MenuFlyoutItem { Text = isMulti ? $"Copy ({selected.Count} files)" : "Copy" };
         copy.Click += async (_, _) =>
         {
-            await Services.PhotoOperationsService.CopyFilesToClipboardAsync(
-                selected.Select(vm => vm.Entry.FilePath));
+            try
+            {
+                await Services.PhotoOperationsService.CopyFilesToClipboardAsync(
+                    selected.Select(vm => vm.Entry.FilePath));
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.DebugLog.WriteLine($"[CLIPBOARD] Copy failed: {ex}");
+                if (App.ViewModel is { } main)
+                    main.StatusText = $"Could not copy photos: {ex.Message}";
+            }
         };
         menu.Items.Add(copy);
 
         var cut = new MenuFlyoutItem { Text = isMulti ? $"Cut ({selected.Count} files)" : "Cut" };
         cut.Click += async (_, _) =>
         {
-            await Services.PhotoOperationsService.CutFilesToClipboardAsync(
-                selected.Select(vm => vm.Entry.FilePath));
+            try
+            {
+                await Services.PhotoOperationsService.CutFilesToClipboardAsync(
+                    selected.Select(vm => vm.Entry.FilePath));
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.DebugLog.WriteLine($"[CLIPBOARD] Cut failed: {ex}");
+                if (App.ViewModel is { } main)
+                    main.StatusText = $"Could not cut photos: {ex.Message}";
+            }
         };
         menu.Items.Add(cut);
 
