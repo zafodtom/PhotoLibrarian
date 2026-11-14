@@ -252,8 +252,25 @@ public sealed class PhotoOperationsService
             return;
 
         pkg.SetStorageItems(items);
-        Clipboard.SetContent(pkg);
-        Clipboard.Flush();
+        // Clipboard.SetContent / Flush can fail with CLIPBRD_E_CANT_OPEN
+        // (0x800401D0) if Explorer or another app temporarily owns it.
+        // WinRT clipboard calls must remain on the invoking UI thread.
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            try
+            {
+                Clipboard.SetContent(pkg);
+                Clipboard.Flush();
+                return;
+            }
+            catch (System.Runtime.InteropServices.COMException ex)
+                when (ex.HResult == unchecked((int)0x800401D0) && attempt < 3)
+            {
+                await Task.Delay(80 * (attempt + 1));
+            }
+        }
+        // On the last attempt an exception is propagated to the caller,
+        // which reports a recoverable error instead of crashing WinUI.
     }
 
     public async Task<List<string>> PasteClipboardToDirectoryAsync(
