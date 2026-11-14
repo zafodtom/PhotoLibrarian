@@ -18,7 +18,7 @@ public sealed class TagFirstCleanupTests
         var code = Source("ImageGridView.xaml.cs");
         var grid = Source("ImageGridViewModel.cs");
         var combo = view[view.IndexOf("<ComboBox x:Name=\"SortByCombo\"", StringComparison.Ordinal)..];
-        Assert.Contains("SelectedIndex=\"0\"", combo[..combo.IndexOf('>')]);
+        Assert.Contains("SelectedIndex=\"0\"", combo[..combo.IndexOf("</ComboBox>", StringComparison.Ordinal)]);
         Assert.Contains("SortByOption.FileName => 0", code);
         Assert.Contains("_sortBy = SortByOption.FileName;", grid);
         Assert.Contains("_sortDescending = false;", grid);
@@ -56,7 +56,7 @@ public sealed class TagFirstCleanupTests
     public void RecognitionPipelineKeepsAutoTagsButNeverRequestsFaces()
     {
         var main = Source("MainViewModel.cs");
-        Assert.Contains("new RecognitionRequest(\n                false,", main);
+        Assert.Matches(@"new RecognitionRequest\(\s*false\s*,", main);
         Assert.Contains("_autoTaggingEnabled ? Settings.CurrentAutoTaggingSettings : null", main);
         Assert.Contains("public void StartBackgroundFaceDetection() { }", main);
     }
