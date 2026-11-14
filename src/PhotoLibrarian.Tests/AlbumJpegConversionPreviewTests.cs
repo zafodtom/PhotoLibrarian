@@ -7,6 +7,39 @@ namespace PhotoLibrarian.Tests;
 public sealed class AlbumJpegConversionPreviewTests
 {
     [Fact]
+    public async Task Convert_HeicWithExistingJpeg_ExplainsSkipAndKeepsBothFiles()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-heic-conflict-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var heic = Path.Combine(root, "photo.heic");
+            var jpeg = Path.Combine(root, "photo.jpg");
+            await File.WriteAllBytesAsync(heic, [1, 2, 3]);
+            await File.WriteAllBytesAsync(jpeg, [4, 5, 6]);
+            var result = await AlbumJpegConversionService.RunAsync(
+                root, null, keepBackups: false);
+
+            Assert.Equal(1, result.Skipped);
+            Assert.Equal(0, result.Failed);
+            Assert.Equal(0, result.Converted);
+            Assert.Contains(result.Errors, error =>
+                error.Contains("photo.heic", StringComparison.OrdinalIgnoreCase) &&
+                error.Contains("target JPG already exists", StringComparison.Ordinal));
+            Assert.Equal(new byte[] { 1, 2, 3 },
+                await File.ReadAllBytesAsync(heic));
+            Assert.Equal(new byte[] { 4, 5, 6 },
+                await File.ReadAllBytesAsync(jpeg));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+
+    [Fact]
     public void Preview_DoesNotOverwriteJpegsOrTraverseAlbumBackups()
     {
         var root = Path.Combine(Path.GetTempPath(), "PhotoLibrarian-jpeg-preview-" + Guid.NewGuid().ToString("N"));
