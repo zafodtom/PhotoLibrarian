@@ -119,8 +119,7 @@ jobs:
           $isPrivate = gh api "repos/$repo" --jq '.private'
           if ($LASTEXITCODE -ne 0 -or $isPrivate -ne 'false') { throw 'Public GitHub prerelease required for automatic updates.' }
           $tag = $env:DEV_RELEASE_TAG
-          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+
-) { throw 'Invalid development tag.' }
+          if (-not $tag.StartsWith("v$env:VERSION-dev.")) { throw 'Invalid development tag.' }
           gh release view $tag --repo $repo *> $null
           if ($LASTEXITCODE -eq 0) { throw "Prerelease $tag already exists." }
           $installer = "artifacts/installer/PhotoLibrarian-$env:VERSION-Setup-x64.exe"
