@@ -517,7 +517,7 @@ public sealed partial class FolderNavigationPanel : UserControl
 
     private void OnTagCombinationChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (TagCombinationMode is null) return;
+        if (TagCombinationMode is null || TagsTree is null) return;
         _requireAllTags = TagCombinationMode.SelectedIndex != 1;
         UpdateGridFromSelection();
     }
