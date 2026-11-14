@@ -28,7 +28,9 @@ public sealed class AlbumMaintenancePresentationTests
         var conversion = Source("AlbumJpegConversionService.cs");
         Assert.Contains("ScaledWidth = 1, ScaledHeight = 1", conversion);
         Assert.Contains("overall.ElapsedMilliseconds - lastProgressMs >= 150", conversion);
-        Assert.Contains("XmpMetaFactory.ParseFromString(", conversion);
+        Assert.Contains("System.Xml.XmlReader.Create(", conversion);
+        Assert.Contains("DtdProcessing = System.Xml.DtdProcessing.Prohibit", conversion);
+        Assert.Contains("XmlResolver = null", conversion);
         Assert.Contains("File.ReadAllBytesAsync(sidecar, cancellationToken)", conversion);
         Assert.Contains("ContainsExactPacket(updated, xmpBytes)", conversion);
         Assert.DoesNotContain("await decoder.GetPixelDataAsync();", conversion);
