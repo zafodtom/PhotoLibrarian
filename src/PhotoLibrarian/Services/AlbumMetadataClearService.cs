@@ -195,6 +195,17 @@ public static class AlbumMetadataClearService
                     throw new NotSupportedException(
                         "Embedded tags or flags cannot safely be removed from this format.");
 
+                // A source can be readable/indexable but still deny writes.
+                // Fail before taking backups or changing anything, rather than
+                // reporting an opaque 0x80070005 later in the pipeline.
+                stage = "checking write access";
+                if (updateImage && (File.GetAttributes(source) & FileAttributes.ReadOnly) != 0)
+                    throw new UnauthorizedAccessException(
+                        "Photo is read-only; remove the Read-only attribute before clearing embedded tags.");
+                if (updateSidecar && (File.GetAttributes(sidecar) & FileAttributes.ReadOnly) != 0)
+                    throw new UnauthorizedAccessException(
+                        "XMP sidecar is read-only; remove the Read-only attribute before clearing tags.");
+
                 stage = "preparing backups";
                 var relative = Path.GetRelativePath(albumRoot, source);
                 if (updateImage || updateSidecar)
@@ -310,10 +321,21 @@ public static class AlbumMetadataClearService
                     cleaned++;
                     if (!keepBackups)
                     {
-                        if (imageBackup is not null && File.Exists(imageBackup))
-                            File.Delete(imageBackup);
-                        if (sidecarBackup is not null && File.Exists(sidecarBackup))
-                            File.Delete(sidecarBackup);
+                        // Metadata and SQLite changes have committed. Backup
+                        // cleanup must never trigger a rollback of committed
+                        // database work; keep recovery data if deletion fails.
+                        foreach (var retained in new[] { imageBackup, sidecarBackup })
+                        {
+                            if (retained is null || !File.Exists(retained)) continue;
+                            try { File.Delete(retained); }
+                            catch (Exception cleanupError) when (cleanupError is
+                                IOException or UnauthorizedAccessException)
+                            {
+                                System.Diagnostics.Debug.WriteLine(
+                                    "[RESET] Temporary rollback retained: " +
+                                    retained + ": " + cleanupError.Message);
+                            }
+                        }
                     }
                 }
                 catch

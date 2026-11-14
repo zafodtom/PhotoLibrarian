@@ -353,4 +353,38 @@ public sealed class AlbumMetadataClearTests
             Directory.Delete(root, recursive: true);
         }
     }
+    [Fact]
+    public async Task Reset_ReadOnlyTaggedPhoto_FailsBeforeEditingOriginal()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-readonly-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        var photo = Path.Combine(root, "readonly.jpg");
+        try
+        {
+            await WicTestImage.CreateAsync(photo, 12, 9, jpeg: true);
+            await EmbeddedMetadataWriter.WriteAsync(photo,
+                keywords: ["Keep"], flagged: true);
+            var bytes = await File.ReadAllBytesAsync(photo);
+            File.SetAttributes(photo, File.GetAttributes(photo) | FileAttributes.ReadOnly);
+            int dbClears = 0;
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [new ImageEntry { Id = 11, FilePath = photo, FileName = "readonly.jpg" }],
+                _ => { dbClears++; return Task.CompletedTask; }, keepBackups: false);
+
+            Assert.Equal(1, result.Failed);
+            Assert.Equal(0, result.Cleaned);
+            Assert.Equal(0, dbClears);
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(photo));
+            Assert.Contains("read-only", result.Errors.Single(),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (File.Exists(photo))
+                File.SetAttributes(photo, FileAttributes.Normal);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
 }

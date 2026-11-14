@@ -117,4 +117,36 @@ public sealed class AlbumJpegConversionPreviewTests
             Directory.Delete(root, recursive: true);
         }
     }
+    [Fact]
+    public async Task Convert_ReadOnlyPhoto_DoesNotMoveOriginalIntoNoBackupRollback()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-jpeg-readonly-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        var source = Path.Combine(root, "readonly.png");
+        try
+        {
+            await WicTestImage.CreateAsync(source, 8, 6);
+            var original = await File.ReadAllBytesAsync(source);
+            File.SetAttributes(source, File.GetAttributes(source) | FileAttributes.ReadOnly);
+
+            var result = await AlbumJpegConversionService.RunAsync(
+                root, null, keepBackups: false);
+
+            Assert.Equal(1, result.Failed);
+            Assert.Equal(0, result.Converted);
+            Assert.Contains("read-only", result.Errors.Single(),
+                StringComparison.OrdinalIgnoreCase);
+            Assert.True(File.Exists(source));
+            Assert.False(File.Exists(Path.ChangeExtension(source, ".jpg")));
+            Assert.Equal(original, await File.ReadAllBytesAsync(source));
+        }
+        finally
+        {
+            if (File.Exists(source))
+                File.SetAttributes(source, FileAttributes.Normal);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
 }
