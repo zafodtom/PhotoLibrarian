@@ -595,16 +595,6 @@ public sealed partial class MainWindow : Window
             ViewerOverlay.ExitCropMode();
             TopRibbon.ExitCropMode();
         }
-        if (!ViewModel.ImageViewer.IsOpen && ViewerOverlay.IsStraightening)
-        {
-            ViewerOverlay.ExitStraightenMode();
-            TopRibbon.ExitStraightenMode();
-        }
-        if (!ViewModel.ImageViewer.IsOpen && ViewerOverlay.IsRedEyeRemoving)
-        {
-            ViewerOverlay.ExitRedEyeMode();
-            TopRibbon.ExitRedEyeMode();
-        }
     }
 
     private void OnRibbonCropClicked(object? sender, EventArgs e)
