@@ -553,9 +553,18 @@
                         <StackPanel Spacing="10">
                             <TextBlock Text="SYSTEM // UPDATE CONTROL"
                                        Style="{StaticResource HiTechSectionHeaderStyle}"/>
-                            <TextBlock Text="Updates are checked only when requested. Stable GitHub releases only."
+                            <TextBlock Text="Updates are checked manually. Stable releases come from master; development prereleases are optional."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource HiTechTextSecondaryBrush}"/>
+                             <ToggleSwitch x:Name="DevelopmentUpdatesToggle"
+                                           Header="INCLUDE DEVELOPMENT UPDATES"
+                                           OffContent="Stable releases only"
+                                           OnContent="Stable + development prereleases"
+                                           Toggled="OnDevelopmentUpdatesToggled"
+                                           AutomationProperties.AutomationId="DevelopmentUpdatesToggle"/>
+                             <TextBlock Text="Development builds may contain bugs. Stable is the default."
+                                        TextWrapping="Wrap"
+                                        Foreground="{StaticResource HiTechTextSecondaryBrush}"/>
                             <TextBlock x:Name="UpdateStatusText" Text="No update check performed."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource HiTechAccentBrush}"/>
