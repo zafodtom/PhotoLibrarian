@@ -1,5 +1,6 @@
 using PhotoLibrarian.Core.Services;
 using Windows.Graphics.Imaging;
+using Windows.Foundation;
 using Windows.Storage;
 
 namespace PhotoLibrarian.Services;
@@ -27,7 +28,13 @@ public static class AlbumJpegConversionService
     private static readonly HashSet<string> Supported = new(StringComparer.OrdinalIgnoreCase)
     {
         ".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".bmp", ".tif", ".tiff",
-        ".heic", ".heif", ".jxr", ".wdp"
+        ".heic", ".heif", ".jxr", ".wdp", ".webp"
+    };
+
+    private static readonly HashSet<string> KnownUnsupported = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".gif", ".cr2", ".cr3", ".nef", ".arw", ".dng", ".orf", ".raf",
+        ".rw2", ".pef", ".raw", ".avif"
     };
 
     private static IEnumerable<string> EnumerateImages(string albumRoot)
@@ -62,7 +69,9 @@ public static class AlbumJpegConversionService
                 continue;
             if (!Supported.Contains(extension))
             {
-                // Videos, album catalogs and other non-photo files are never converted.
+                // Videos and catalog files are ignored; count known photo formats
+                // which require a future dedicated converter.
+                if (KnownUnsupported.Contains(extension)) unsupported++;
                 continue;
             }
             bool jpg = extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase);
@@ -132,6 +141,10 @@ public static class AlbumJpegConversionService
                     byte[]? xmpBytes = null;
                     if (hasSidecar)
                     {
+                        // Reject malformed XMP rather than inserting an unreadable
+                        // packet and removing its only active sidecar.
+                        XmpCore.XmpMetaFactory.ParseFromString(
+                            await File.ReadAllTextAsync(sidecar, cancellationToken));
                         xmpBytes = await File.ReadAllBytesAsync(sidecar, cancellationToken);
                         var jpegBytes = await File.ReadAllBytesAsync(temporary, cancellationToken);
                         var updated = JpegXmpPacket.Embed(jpegBytes, xmpBytes);
@@ -148,6 +161,8 @@ public static class AlbumJpegConversionService
                         var decoder = await BitmapDecoder.CreateAsync(stream);
                         if (decoder.PixelWidth == 0 || decoder.PixelHeight == 0)
                             throw new InvalidDataException("JPEG has invalid dimensions.");
+                        // Decode actual pixels, not just headers, before committing.
+                        await decoder.GetPixelDataAsync();
                     }
 
                     var relative = Path.GetRelativePath(albumRoot, source);
@@ -244,7 +259,12 @@ public static class AlbumJpegConversionService
         using (File.Create(destination)) { }
         var output = await StorageFile.GetFileFromPathAsync(destination);
         using var outputStream = await output.OpenAsync(FileAccessMode.ReadWrite);
-        var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, outputStream);
+        var options = new BitmapPropertySet
+        {
+            { "ImageQuality", new BitmapTypedValue(0.95f, PropertyType.Single) }
+        };
+        var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId,
+            outputStream, options);
         encoder.SetPixelData(BitmapPixelFormat.Rgba8, BitmapAlphaMode.Ignore,
             pixels.PixelWidth, pixels.PixelHeight, decoder.DpiX, decoder.DpiY, bytes);
         await encoder.FlushAsync();
