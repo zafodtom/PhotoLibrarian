@@ -8,6 +8,10 @@ namespace PhotoLibrarian.Core.Services;
 /// Uses Windows.Storage thumbnail provider (same as File Explorer) for fast thumbnail generation.
 /// This is what Windows Explorer uses internally and is highly optimized.
 /// </summary>
+public sealed record AlbumThumbnailProgress(
+    int Processed, int Total, int Generated, int AlreadyCached, int Failed, string FileName);
+public sealed record AlbumThumbnailResult(int Total, int Generated, int AlreadyCached, int Failed);
+
 public static class WindowsThumbnailService
 {
     // Portable, regenerable album cache. The key includes path, size, file length
@@ -61,6 +65,75 @@ public static class WindowsThumbnailService
             return Path.Combine(_albumCacheDirectory, hash[..2], hash + ".bin");
         }
         catch { return null; }
+    }
+
+    /// <summary>
+    /// Scans the active album with the shared album-boundary rules and fills
+    /// only missing portable grid thumbnails. No source image is modified.
+    /// </summary>
+    public static async Task<AlbumThumbnailResult> GenerateMissingAlbumThumbnailsAsync(
+        string albumRoot, IProgress<AlbumThumbnailProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var root = Path.GetFullPath(albumRoot);
+        var expectedCache = Path.Combine(root, ".album", "thumbnails");
+        if (!Directory.Exists(Path.Combine(root, ".album")))
+            throw new InvalidOperationException("No active PhotoLibrarian album.");
+        if (_albumCacheDirectory is null ||
+            !string.Equals(Path.GetFullPath(_albumCacheDirectory),
+                Path.GetFullPath(expectedCache), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                "The thumbnail cache is not configured for this album.");
+
+        const int size = 256; // Same size as ImageGridViewModel.
+        var missing = new List<string>();
+        int cached = 0;
+        using (var scanner = new FolderScannerService())
+        {
+            await foreach (var file in scanner.ScanFolderAsync(
+                root, includeSubfolders: true, cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (FolderScannerService.IsVideoFile(file)) continue;
+                var cache = GetCachePath(file, size);
+                if (cache is null) continue;
+                if (File.Exists(cache) && new FileInfo(cache).Length > 0)
+                    cached++;
+                else
+                    missing.Add(file);
+            }
+        }
+
+        var generated = 0;
+        var failed = 0;
+        var processed = 0;
+        progress?.Report(new AlbumThumbnailProgress(0, missing.Count,
+            0, cached, 0, ""));
+        foreach (var file in missing)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var bytes = await GetThumbnailStreamAsync(file, size);
+                var path = GetCachePath(file, size);
+                if (bytes is { Length: > 0 } && path is not null &&
+                    File.Exists(path) && new FileInfo(path).Length > 0)
+                    generated++;
+                else
+                    failed++;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                failed++;
+                System.Diagnostics.Debug.WriteLine(
+                    $"[THUMBNAILS] Backfill failed for {file}: {ex}");
+            }
+            processed++;
+            progress?.Report(new AlbumThumbnailProgress(processed, missing.Count,
+                generated, cached, failed, Path.GetFileName(file)));
+        }
+        return new AlbumThumbnailResult(missing.Count + cached,
+            generated, cached, failed);
     }
 
     // Keep both active grid sizes: 256px in the virtualized grid and 180px
