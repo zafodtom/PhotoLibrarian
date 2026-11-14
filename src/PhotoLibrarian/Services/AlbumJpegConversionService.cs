@@ -135,10 +135,10 @@ public static class AlbumJpegConversionService
                     // no-backup cleanup would then fail on deletion and leave
                     // a misleading partly converted album. Never change user
                     // file attributes implicitly.
-                    if ((File.GetAttributes(source) & FileAttributes.ReadOnly) != 0)
+                    if ((File.GetAttributes(source) & System.IO.FileAttributes.ReadOnly) != 0)
                         throw new UnauthorizedAccessException(
                             "Source is read-only; remove the Read-only attribute before conversion.");
-                    if (hasSidecar && (File.GetAttributes(sidecar) & FileAttributes.ReadOnly) != 0)
+                    if (hasSidecar && (File.GetAttributes(sidecar) & System.IO.FileAttributes.ReadOnly) != 0)
                         throw new UnauthorizedAccessException(
                             "XMP sidecar is read-only; remove the Read-only attribute before conversion.");
 
