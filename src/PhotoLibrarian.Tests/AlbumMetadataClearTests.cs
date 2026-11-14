@@ -136,6 +136,43 @@ public sealed class AlbumMetadataClearTests
     }
 
     [Fact]
+    public async Task Reset_RemovesRawSidecarTagsWithoutTouchingRawPixels()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-raw-xmp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var raw = Path.Combine(root, "portrait.cr3");
+            var sidecar = Path.ChangeExtension(raw, ".xmp");
+            var original = new byte[] { 1, 2, 3, 4 };
+            await File.WriteAllBytesAsync(raw, original);
+            var xml = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">" +
+                "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">" +
+                "<rdf:Description rdf:about=\"\" " +
+                "xmlns:dc=\"http://purl.org/dc/elements/1.1/\">" +
+                "<dc:subject><rdf:Bag><rdf:li>Person/Portrait</rdf:li>" +
+                "</rdf:Bag></dc:subject></rdf:Description></rdf:RDF></x:xmpmeta>";
+            await File.WriteAllTextAsync(sidecar, xml);
+            int dbCleared = 0;
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [new ImageEntry { Id = 7, FilePath = raw, FileName = "portrait.cr3" }],
+                _ => { dbCleared++; return Task.CompletedTask; });
+            Assert.Equal(1, result.Cleaned);
+            Assert.Equal(0, result.Failed);
+            Assert.Equal(1, dbCleared);
+            Assert.Equal(original, await File.ReadAllBytesAsync(raw));
+            Assert.Empty(TagWriterService.ReadTagsFromSidecar(raw));
+            Assert.True(File.Exists(Path.Combine(result.BackupDirectory, "portrait.xmp")));
+            Assert.False(File.Exists(Path.Combine(result.BackupDirectory, "portrait.cr3")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Reset_ContinuesAfterFailedDatabaseWriteAndLogsError()
     {
         var root = Path.Combine(Path.GetTempPath(),
