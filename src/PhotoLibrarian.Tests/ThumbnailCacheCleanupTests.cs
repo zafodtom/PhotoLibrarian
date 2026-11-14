@@ -7,6 +7,63 @@ namespace PhotoLibrarian.Tests;
 public sealed class ThumbnailCacheCleanupTests
 {
     [Fact]
+    public async Task Backfill_SkipsAlreadyCachedImagesAndInternalAlbumBackups()
+    {
+        var album = Path.Combine(Path.GetTempPath(),
+            "pl-backfill-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(album, ".album"));
+        try
+        {
+            var photo = Path.Combine(album, "cached.jpg");
+            await WicTestImage.CreateAsync(photo, 10, 8, jpeg: true);
+            var rollbackDir = Path.Combine(album, ".album", "backup");
+            Directory.CreateDirectory(rollbackDir);
+            await WicTestImage.CreateAsync(
+                Path.Combine(rollbackDir, "rollback.jpg"), 10, 8, jpeg: true);
+            WindowsThumbnailService.ConfigureAlbumCache(album);
+
+            var key = WindowsThumbnailService.CaptureThumbnailPathsForDeletion(photo)[1];
+            Directory.CreateDirectory(Path.GetDirectoryName(key)!);
+            await File.WriteAllBytesAsync(key, [1, 2, 3]);
+
+            var result = await WindowsThumbnailService.GenerateMissingAlbumThumbnailsAsync(album);
+            Assert.Equal(1, result.Total);
+            Assert.Equal(1, result.AlreadyCached);
+            Assert.Equal(0, result.Generated);
+            Assert.Equal(0, result.Failed);
+        }
+        finally
+        {
+            WindowsThumbnailService.ConfigureAlbumCache(null);
+            Directory.Delete(album, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Backfill_RejectsCacheConfiguredForDifferentAlbum()
+    {
+        var first = Path.Combine(Path.GetTempPath(),
+            "pl-backfill-a-" + Guid.NewGuid().ToString("N"));
+        var second = Path.Combine(Path.GetTempPath(),
+            "pl-backfill-b-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(first, ".album"));
+        Directory.CreateDirectory(Path.Combine(second, ".album"));
+        try
+        {
+            WindowsThumbnailService.ConfigureAlbumCache(first);
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                WindowsThumbnailService.GenerateMissingAlbumThumbnailsAsync(second));
+        }
+        finally
+        {
+            WindowsThumbnailService.ConfigureAlbumCache(null);
+            Directory.Delete(first, recursive: true);
+            Directory.Delete(second, recursive: true);
+        }
+    }
+
+
+    [Fact]
     public async Task PhotoDeletionRemovesOnlyCapturedCacheFiles()
     {
         var album = Path.Combine(Path.GetTempPath(), "pl-cache-delete-" + Guid.NewGuid().ToString("N"));
