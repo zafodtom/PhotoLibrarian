@@ -1,3 +1,4 @@
+using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.Services;
 using Xunit;
 
