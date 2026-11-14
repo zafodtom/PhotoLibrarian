@@ -504,11 +504,6 @@ public sealed partial class MainWindow : Window
                     TopRibbon.SetContextLabel(ViewModel.ImageViewer.Title ?? "");
                 }
             });
-        if (e.PropertyName == nameof(ImageViewerViewModel.IsVideo))
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                if (!_isClosing)
-            });
     }
 
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
