@@ -562,6 +562,30 @@ public sealed partial class SettingsPanel : UserControl
             !EnsureAlbumOpen(ClearAlbumStatusText))
             return;
         var root = App.CurrentAlbumPath!;
+        ClearAlbumMetadataButton.IsEnabled = false;
+        int photoCount = 0;
+        ClearAlbumStatusText.Text = "Scanning all album folders for image files…";
+        try
+        {
+            using var scanner = new FolderScannerService();
+            await foreach (var path in scanner.ScanFolderAsync(root, includeSubfolders: true))
+            {
+                if (!FolderScannerService.IsVideoFile(path))
+                    photoCount++;
+            }
+        }
+        catch (Exception ex)
+        {
+            ClearAlbumStatusText.Text = "Album scan failed: " + ex.Message;
+            ClearAlbumMetadataButton.IsEnabled = true;
+            return;
+        }
+        ClearAlbumMetadataButton.IsEnabled = true;
+        if (!string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
+        {
+            ClearAlbumStatusText.Text = "Active album changed; scan again.";
+            return;
+        }
         // A separate dialog avoids accidental single-click mass deletion.
         var dialog = new ContentDialog
         {
@@ -569,8 +593,8 @@ public sealed partial class SettingsPanel : UserControl
             Title = "WARNING // CLEAR ALBUM TAGS + FLAGS",
             Content = new TextBlock
             {
-                Text = "Remove all assigned image tags, user flags and saved tag " +
-                       "catalog names from the ACTIVE album?\n\n" +
+                Text = $"Remove all assigned tags and user flags from {photoCount:N0} " +
+                       "photo(s), plus saved catalog tag names, in the ACTIVE album?\n\n" +
                        "Ratings, dates, captions, face data and photos are preserved. " +
                        "Automatic tagging will be switched OFF to prevent tags from returning. " +
                        "The original image and XMP files will be backed up under " +
