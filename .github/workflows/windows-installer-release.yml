@@ -11,6 +11,11 @@ on:
         type: boolean
         required: false
         default: false
+      publish_development:
+        description: Publish selected development branch as prerelease (never latest)
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -39,7 +44,20 @@ jobs:
           [xml]$project = Get-Content src/PhotoLibrarian/PhotoLibrarian.csproj
           $version = [string]$project.Project.PropertyGroup.Version
           if ($version -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$') { throw "Invalid SemVer: $version" }
+          if ('${{ inputs.publish_release }}' -eq 'true' -and '${{ inputs.publish_development }}' -eq 'true') {
+            throw 'Choose either stable OR development release, never both.'
+          }
+          if ('${{ inputs.publish_release }}' -eq 'true' -and $env:GITHUB_REF -ne 'refs/heads/master') {
+            throw 'Stable releases must originate from master.'
+          }
+          if ('${{ inputs.publish_development }}' -eq 'true' -and $env:GITHUB_REF -eq 'refs/heads/master') {
+            throw 'Development releases must originate from a non-master branch.'
+          }
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if ('${{ inputs.publish_development }}' -eq 'true') {
+            "DEV_RELEASE_TAG=v$version-dev.$env:GITHUB_RUN_NUMBER" |
+              Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
       - name: Compile application and tests
         shell: pwsh
         run: |
@@ -73,7 +91,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Publish stable GitHub Release (manual opt-in only)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/master' }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -91,3 +109,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed.' }
           gh release edit $tag --repo $repo --draft=false --latest
           if ($LASTEXITCODE -ne 0) { throw 'Publishing failed; inspect the draft.' }
+      - name: Publish development GitHub prerelease (manual opt-in only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_development && github.ref != 'refs/heads/master' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          $isPrivate = gh api "repos/$repo" --jq '.private'
+          if ($LASTEXITCODE -ne 0 -or $isPrivate -ne 'false') { throw 'Public GitHub prerelease required for automatic updates.' }
+          $tag = $env:DEV_RELEASE_TAG
+          if ($tag -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+-dev\.[0-9]+
+) { throw 'Invalid development tag.' }
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Prerelease $tag already exists." }
+          $installer = "artifacts/installer/PhotoLibrarian-$env:VERSION-Setup-x64.exe"
+          $notes = "Development snapshot from branch $env:GITHUB_REF_NAME at commit $env:GITHUB_SHA. Experimental; test on a copy of an album. Stable releases remain on master."
+          gh release create $tag $installer artifacts/installer/SHA256SUMS.txt artifacts/installer/photolibrarian-update.json --repo $repo --target $env:GITHUB_SHA --title "PhotoLibrarian $tag (development)" --notes "$notes" --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Development prerelease creation failed.' }
