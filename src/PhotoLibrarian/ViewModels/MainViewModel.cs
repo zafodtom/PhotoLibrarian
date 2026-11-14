@@ -1428,6 +1428,10 @@ public partial class MainViewModel : ObservableObject
         var root = App.CurrentAlbumPath;
         PauseBackgroundIndexing();
         PauseRecognitionProcessing();
+        // Before clearing, index all images belonging to this album so the
+        // reset does not miss files that have not yet entered the cache.
+        await _indexingService.IndexFolderAsync(root, includeSubfolders: true,
+            cancellationToken);
         var indexed = (await _imageRepo.GetAllAsync())
             .Where(entry => FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
             .ToList();
