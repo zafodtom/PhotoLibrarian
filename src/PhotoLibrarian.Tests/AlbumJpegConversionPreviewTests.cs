@@ -44,20 +44,30 @@ public sealed class AlbumJpegConversionPreviewTests
     }
 
     [Fact]
-    public void Convert_ChoosesNextFreeSuffixForHeicAndDoesNotTouchOriginal()
+    public async Task Convert_CollisionSkipsOccupiedSuffixAndUsesNextFreeName()
     {
         var root = Path.Combine(Path.GetTempPath(),
-            "PL-heic-suffix-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
+            "PL-jpeg-suffix-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
         try
         {
-            var heic = Path.Combine(root, "photo.heic");
-            File.WriteAllBytes(heic, [1, 2, 3]);
-            File.WriteAllBytes(Path.Combine(root, "photo.jpg"), [4]);
-            File.WriteAllBytes(Path.Combine(root, "photo_001.jpg"), [5]);
-            Assert.Equal(Path.Combine(root, "photo_002.jpg"),
-                AlbumJpegConversionService.ChooseJpegDestination(heic));
-            Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(heic));
+            var source = Path.Combine(root, "photo.png");
+            var existing = Path.Combine(root, "photo.jpg");
+            var occupiedSuffix = Path.Combine(root, "photo_001.jpg");
+            var newDestination = Path.Combine(root, "photo_002.jpg");
+            await WicTestImage.CreateAsync(source, 8, 6);
+            await WicTestImage.CreateAsync(existing, 4, 4, jpeg: true);
+            await WicTestImage.CreateAsync(occupiedSuffix, 5, 5, jpeg: true);
+            var originalJpeg = await File.ReadAllBytesAsync(existing);
+            var originalSuffix = await File.ReadAllBytesAsync(occupiedSuffix);
+
+            var result = await AlbumJpegConversionService.RunAsync(root, null);
+            Assert.Equal(1, result.Converted);
+            Assert.Equal(0, result.Failed);
+            Assert.True(File.Exists(newDestination));
+            Assert.Equal((8u, 6u), await WicTestImage.ReadSizeAsync(newDestination));
+            Assert.Equal(originalJpeg, await File.ReadAllBytesAsync(existing));
+            Assert.Equal(originalSuffix, await File.ReadAllBytesAsync(occupiedSuffix));
         }
         finally
         {
