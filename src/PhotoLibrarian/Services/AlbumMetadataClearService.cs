@@ -20,6 +20,12 @@ public static class AlbumMetadataClearService
     private const string PlibNs = EmbeddedMetadataWriter.PhotoLibrarianXmpNamespace;
     private const string FlagName = "plib:Flagged";
 
+    static AlbumMetadataClearService()
+    {
+        try { XmpMetaFactory.SchemaRegistry.RegisterNamespace(PlibNs, "plib"); }
+        catch { /* Namespace was already registered by metadata writers. */ }
+    }
+
     public static async Task<AlbumMetadataClearResult> RunAsync(
         string albumRoot,
         IReadOnlyCollection<ImageEntry> images,
