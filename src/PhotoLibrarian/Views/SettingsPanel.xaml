@@ -389,6 +389,102 @@
                         </Grid>
                     </Border>
 
+                    <!-- Album JPEG conversion: explicit preview and confirmation before modifying files. -->
+                    <Grid Height="34" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Width="4" Height="22"
+                                   Fill="{StaticResource HiTechAccentBrush}"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                            <TextBlock Text="ALBUM // JPEG CONVERSION"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                            <TextBlock Text="LOCAL FILE CONVERSION + XMP EMBEDDING"
+                                       Style="{StaticResource HiTechTinyLabelStyle}" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="SEC // 03"
+                                   Style="{StaticResource HiTechTinyLabelStyle}"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Convert supported images in the active album to JPEG (including subfolders). Existing JPEGs with an XMP sidecar receive the full sidecar packet without recompression."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <TextBlock Text="Original files and sidecars are moved to a retained backup under .album/jpeg-conversion-backups. Existing destination JPEGs are never overwritten. RAW, video and unsupported formats are skipped. Non-JPEG images are lossy-encoded to JPEG."
+                                       TextWrapping="Wrap" FontSize="11"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="PreviewJpegConversionButton" Content="SCAN ALBUM"
+                                        Click="OnPreviewJpegConversion"
+                                        AutomationProperties.AutomationId="PreviewJpegConversionButton"
+                                        Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                                <Button x:Name="RunJpegConversionButton" Content="CONVERT TO JPG"
+                                        IsEnabled="False"
+                                        Click="OnRunJpegConversion"
+                                        AutomationProperties.AutomationId="RunJpegConversionButton"
+                                        Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                                <Button x:Name="CancelJpegConversionButton" Content="CANCEL"
+                                        IsEnabled="False"
+                                        Click="OnCancelJpegConversion"
+                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                            </StackPanel>
+                            <ProgressBar x:Name="JpegConversionProgressBar"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Visibility="Collapsed" />
+                            <TextBlock x:Name="JpegConversionStatusText"
+                                       Text="Scan the active album to preview the conversion."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechAccentBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Album-wide cleanup: only keywords, flags and tag vocabulary. -->
+                    <Grid Height="34" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Width="4" Height="22"
+                                   Fill="{StaticResource HiTechAccentBrush}"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                            <TextBlock Text="ALBUM // RESET TAGS"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                            <TextBlock Text="CLEAR TAGS, FLAGS AND TAG CATALOG"
+                                       Style="{StaticResource HiTechTinyLabelStyle}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Remove all image tags, user flags and catalog tag names in the active album. Photos, ratings, captions and capture dates are preserved. Originals and XMP are backed up before changes."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="ClearAlbumMetadataButton"
+                                        Content="CLEAR ALBUM TAGS + FLAGS"
+                                        Click="OnClearAlbumMetadata"
+                                        AutomationProperties.AutomationId="ClearAlbumMetadataButton"
+                                        Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                                <Button x:Name="CancelClearAlbumButton"
+                                        Content="CANCEL"
+                                        Click="OnCancelClearAlbum"
+                                        IsEnabled="False"
+                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                            </StackPanel>
+                            <ProgressBar x:Name="ClearAlbumProgressBar"
+                                         Minimum="0" Maximum="100"
+                                         Visibility="Collapsed" />
+                            <TextBlock x:Name="ClearAlbumStatusText"
+                                       Text="Album cleanup has not been run."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechAccentBrush}" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- About section -->
                     <Grid Height="34" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>

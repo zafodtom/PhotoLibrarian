@@ -395,6 +395,281 @@ public sealed partial class SettingsPanel : UserControl
         }
     }
 
+    // Album JPEG conversion is a deliberate one-shot action, never automatic.
+    private CancellationTokenSource? _jpegConversionCancellation;
+    private AlbumJpegConversionPreview? _jpegPreview;
+    private string? _jpegPreviewAlbum;
+    private bool _jpegConversionBusy;
+
+    private async void OnPreviewJpegConversion(object sender, RoutedEventArgs e)
+    {
+        if (!EnsureAlbumOpen(JpegConversionStatusText) || _jpegConversionBusy || _clearAlbumBusy)
+            return;
+
+        var root = App.CurrentAlbumPath!;
+        _jpegPreview = null;
+        _jpegPreviewAlbum = null;
+        PreviewJpegConversionButton.IsEnabled = false;
+        RunJpegConversionButton.IsEnabled = false;
+        JpegConversionStatusText.Text = "Scanning album for supported images…";
+        try
+        {
+            var preview = await Task.Run(() => AlbumJpegConversionService.Preview(root));
+            if (!string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
+            {
+                JpegConversionStatusText.Text = "Album changed; scan again.";
+                return;
+            }
+            _jpegPreview = preview;
+            _jpegPreviewAlbum = root;
+            RunJpegConversionButton.IsEnabled = preview.PendingCount > 0;
+            JpegConversionStatusText.Text =
+                $"Ready: {preview.ConvertCount:N0} photos to JPEG, " +
+                $"{preview.JpegMetadataCount:N0} existing JPEG XMP merges; " +
+                $"{preview.TargetConflictCount:N0} destination conflicts (will be skipped). " +
+                "Originals will be retained as backups.";
+        }
+        catch (Exception ex)
+        {
+            JpegConversionStatusText.Text = $"Scan failed: {ex.Message}";
+        }
+        finally
+        {
+            PreviewJpegConversionButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnRunJpegConversion(object sender, RoutedEventArgs e)
+    {
+        if (_jpegConversionBusy || _clearAlbumBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
+            !EnsureAlbumOpen(JpegConversionStatusText))
+            return;
+
+        var root = App.CurrentAlbumPath!;
+        if (!string.Equals(root, _jpegPreviewAlbum, StringComparison.OrdinalIgnoreCase))
+        {
+            JpegConversionStatusText.Text = "Album has changed. Scan it again first.";
+            RunJpegConversionButton.IsEnabled = false;
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "ALBUM // CONVERT TO JPEG",
+            Content = new TextBlock
+            {
+                Text = $"Convert {_jpegPreview.ConvertCount:N0} photo(s) and embed XMP " +
+                       $"into {_jpegPreview.JpegMetadataCount:N0} existing JPEG(s)?\n\n" +
+                       "JPEG conversion is lossy. Original photos and XMP sidecars " +
+                       "will be moved to a timestamped backup inside .album. " +
+                       "Existing JPEG destinations will NOT be overwritten. " +
+                       "Embedded EXIF and other metadata in non-JPEG sources may " +
+                       "not all survive transcoding; retain backups until inspected.\n\n" +
+                       "The operation cannot be automatically undone. " +
+                       "Keep a separate album backup before continuing.",
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 500
+            },
+            PrimaryButtonText = "CONVERT ALBUM",
+            CloseButtonText = "ABORT",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+
+        _jpegConversionBusy = true;
+        _jpegConversionCancellation = new CancellationTokenSource();
+        PreviewJpegConversionButton.IsEnabled = false;
+        RunJpegConversionButton.IsEnabled = false;
+        CancelJpegConversionButton.IsEnabled = true;
+        JpegConversionProgressBar.Value = 0;
+        JpegConversionProgressBar.Visibility = Visibility.Visible;
+        try
+        {
+            App.ViewModel?.PauseBackgroundIndexing();
+            App.ViewModel?.PauseRecognitionProcessing();
+            var progress = new Progress<AlbumJpegConversionProgress>(state =>
+            {
+                JpegConversionProgressBar.Value = state.Total == 0
+                    ? 100 : 100.0 * state.Processed / state.Total;
+                JpegConversionStatusText.Text =
+                    $"JPEG // {state.Processed:N0}/{state.Total:N0}  " +
+                    $"// {state.Failed:N0} failed  // {state.FileName}";
+            });
+
+            var result = await AlbumJpegConversionService.RunAsync(
+                root, progress, _jpegConversionCancellation.Token,
+                async (original, converted) =>
+                {
+                    if (App.ViewModel is { } main)
+                        await main.RemapConvertedImagePathAsync(original, converted);
+                });
+            JpegConversionStatusText.Text =
+                $"Complete: {result.Converted:N0} images converted; " +
+                $"{result.EmbeddedXmp:N0} XMP packets embedded; " +
+                $"{result.Failed:N0} failed, {result.Skipped:N0} skipped. " +
+                $"Backup: {result.BackupDirectory}" +
+                (result.Errors.Count > 0
+                    ? "\nErrors: " + string.Join("; ", result.Errors.Take(3))
+                    : "");
+        }
+        catch (OperationCanceledException)
+        {
+            JpegConversionStatusText.Text =
+                "Conversion cancelled. Completed photos stay converted; " +
+                "their originals remain in the backup folder.";
+        }
+        catch (Exception ex)
+        {
+            JpegConversionStatusText.Text = $"Conversion failed: {ex.Message}";
+        }
+        finally
+        {
+            _jpegConversionCancellation?.Dispose();
+            _jpegConversionCancellation = null;
+            _jpegConversionBusy = false;
+            CancelJpegConversionButton.IsEnabled = false;
+            PreviewJpegConversionButton.IsEnabled = true;
+            _jpegPreview = null;
+            _jpegPreviewAlbum = null;
+            try
+            {
+                if (App.ViewModel is { } main &&
+                    string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
+                    await main.RefreshFilesystemUiAsync();
+            }
+            catch (Exception ex)
+            {
+                JpegConversionStatusText.Text +=
+                    $"\nAlbum index refresh failed: {ex.Message}. Use the Refresh command.";
+            }
+        }
+    }
+
+    private void OnCancelJpegConversion(object sender, RoutedEventArgs e)
+    {
+        CancelJpegConversionButton.IsEnabled = false;
+        _jpegConversionCancellation?.Cancel();
+    }
+
+    private CancellationTokenSource? _clearAlbumCancellation;
+    private bool _clearAlbumBusy;
+
+    private async void OnClearAlbumMetadata(object sender, RoutedEventArgs e)
+    {
+        if (_clearAlbumBusy || _jpegConversionBusy || App.ViewModel is null ||
+            !EnsureAlbumOpen(ClearAlbumStatusText))
+            return;
+        var root = App.CurrentAlbumPath!;
+        ClearAlbumMetadataButton.IsEnabled = false;
+        int photoCount = 0;
+        ClearAlbumStatusText.Text = "Scanning all album folders for image files…";
+        try
+        {
+            using var scanner = new FolderScannerService();
+            await foreach (var path in scanner.ScanFolderAsync(root, includeSubfolders: true))
+            {
+                if (!FolderScannerService.IsVideoFile(path))
+                    photoCount++;
+            }
+        }
+        catch (Exception ex)
+        {
+            ClearAlbumStatusText.Text = "Album scan failed: " + ex.Message;
+            ClearAlbumMetadataButton.IsEnabled = true;
+            return;
+        }
+        ClearAlbumMetadataButton.IsEnabled = true;
+        if (!string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
+        {
+            ClearAlbumStatusText.Text = "Active album changed; scan again.";
+            return;
+        }
+        // A separate dialog avoids accidental single-click mass deletion.
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "WARNING // CLEAR ALBUM TAGS + FLAGS",
+            Content = new TextBlock
+            {
+                Text = $"Remove all assigned tags and user flags from {photoCount:N0} " +
+                       "photo(s), plus saved catalog tag names, in the ACTIVE album?\n\n" +
+                       "Ratings, dates, captions, face data and photos are preserved. " +
+                       "Automatic tagging will be switched OFF to prevent tags from returning. " +
+                       "The original image and XMP files will be backed up under " +
+                       ".album/metadata-reset-backups before each modification.\n\n" +
+                       "This is an album-wide operation and cannot be undone " +
+                       "automatically. Keep a separate backup before proceeding.",
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 500
+            },
+            PrimaryButtonText = "CLEAR TAGS AND FLAGS",
+            CloseButtonText = "ABORT",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+        if (!string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
+        {
+            ClearAlbumStatusText.Text = "Album changed; reset cancelled.";
+            return;
+        }
+        _clearAlbumBusy = true;
+        _clearAlbumCancellation = new CancellationTokenSource();
+        ClearAlbumMetadataButton.IsEnabled = false;
+        CancelClearAlbumButton.IsEnabled = true;
+        RunJpegConversionButton.IsEnabled = false;
+        PreviewJpegConversionButton.IsEnabled = false;
+        ClearAlbumProgressBar.Visibility = Visibility.Visible;
+        ClearAlbumProgressBar.Value = 0;
+        try
+        {
+            var progress = new Progress<AlbumMetadataClearProgress>(state =>
+            {
+                ClearAlbumProgressBar.Value = state.Total == 0
+                    ? 100 : 100.0 * state.Processed / state.Total;
+                ClearAlbumStatusText.Text =
+                    $"RESET // {state.Processed:N0}/{state.Total:N0} " +
+                    $"// {state.Failed:N0} failed  // {state.FileName}";
+            });
+            var result = await App.ViewModel.ClearActiveAlbumTagsAndFlagsAsync(
+                progress, _clearAlbumCancellation.Token);
+            ClearAlbumStatusText.Text =
+                $"Complete: {result.Cleaned:N0} cleaned, {result.Failed:N0} failed. " +
+                $"Backups: {result.BackupDirectory}" +
+                (result.Errors.Count > 0
+                    ? "\nErrors: " + string.Join("; ", result.Errors.Take(3))
+                    : "");
+        }
+        catch (OperationCanceledException)
+        {
+            ClearAlbumStatusText.Text =
+                "Reset cancelled; successfully cleaned photos stay cleaned. " +
+                "Keep backups for recovery.";
+        }
+        catch (Exception ex)
+        {
+            ClearAlbumStatusText.Text = "Album reset failed: " + ex.Message;
+        }
+        finally
+        {
+            _clearAlbumCancellation?.Dispose();
+            _clearAlbumCancellation = null;
+            _clearAlbumBusy = false;
+            CancelClearAlbumButton.IsEnabled = false;
+            ClearAlbumMetadataButton.IsEnabled = true;
+            PreviewJpegConversionButton.IsEnabled = true;
+            RunJpegConversionButton.IsEnabled = false;
+        }
+    }
+
+    private void OnCancelClearAlbum(object sender, RoutedEventArgs e)
+    {
+        CancelClearAlbumButton.IsEnabled = false;
+        _clearAlbumCancellation?.Cancel();
+    }
+
     private async void OnRebuildCache(
         object sender,
         RoutedEventArgs e)

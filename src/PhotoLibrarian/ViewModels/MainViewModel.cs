@@ -5,6 +5,7 @@ using PhotoLibrarian.Core.Models;
 using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.Diagnostics;
 using PhotoLibrarian.ML.Services;
+using PhotoLibrarian.Services;
 using System.Collections.ObjectModel;
 
 namespace PhotoLibrarian.ViewModels;
@@ -1357,6 +1358,67 @@ public partial class MainViewModel : ObservableObject
               string.Join("; ", errors.Take(3));
     }
 
+    /// <summary>Clear tags and user flags across the active album.</summary>
+    public async Task<AlbumMetadataClearResult> ClearActiveAlbumTagsAndFlagsAsync(
+        IProgress<AlbumMetadataClearProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            throw new InvalidOperationException("No active album.");
+        var root = App.CurrentAlbumPath;
+        PauseBackgroundIndexing();
+        // Automatic tagging must remain disabled after reset, otherwise a
+        // recognition pass can repopulate the just-cleaned album.
+        Settings.IsAutoTaggingEnabled = false;
+        _autoTaggingEnabled = false;
+        await StopRecognitionAsync();
+        // Before clearing, index all images belonging to this album so the
+        // reset does not miss files that have not yet entered the cache.
+        await _indexingService.IndexFolderAsync(root, includeSubfolders: true,
+            cancellationToken);
+        var indexed = (await _imageRepo.GetAllAsync())
+            .Where(entry => entry.MediaType == MediaType.Image &&
+                FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
+            .ToList();
+        try
+        {
+            var result = await AlbumMetadataClearService.RunAsync(
+                root, indexed,
+                async entry =>
+                {
+                    if (entry.Id > 0)
+                    {
+                        await _tagRepo.ClearImageTagsAsync(entry.Id);
+                        await _imageRepo.UpdateFlagAsync(entry.Id, false);
+                    }
+                    entry.IsFlagged = false;
+                },
+                progress, cancellationToken);
+            if (result.Failed == 0)
+            {
+                var catalog = AlbumService.LoadTagCatalog(root);
+                var catalogFile = Path.Combine(root, ".album", AlbumService.AlbumTagsName);
+                if (File.Exists(catalogFile))
+                {
+                    Directory.CreateDirectory(result.BackupDirectory);
+                    File.Copy(catalogFile,
+                        Path.Combine(result.BackupDirectory, "tags.json"), overwrite: false);
+                }
+                catalog.SelectedTags.Clear();
+                AlbumService.SaveTagCatalog(root, catalog);
+            }
+            return result;
+        }
+        finally
+        {
+            // Even after cancellation, previous items were committed. Always
+            // refresh the active gallery and tag/flag navigation.
+            await RefreshKnownLibraryStateAsync();
+            await MetadataPanel.ReloadTagsAsync();
+            await MetadataPanel.ReloadAvailableTagsAsync();
+        }
+    }
+
     public async Task<IReadOnlyList<string>> DeleteEntriesAsync(
         IEnumerable<ImageEntry> entries)
     {
@@ -1416,6 +1478,19 @@ public partial class MainViewModel : ObservableObject
             : $"Moved {deleted.Count:N0} items to Recycle Bin";
 
         return deleted;
+    }
+
+    /// <summary>
+    /// Keep image IDs (and their tag/face/rating relations) when an album-wide
+    /// conversion changes the source file extension to JPEG.
+    /// </summary>
+    public async Task RemapConvertedImagePathAsync(string originalPath, string jpegPath)
+    {
+        if (string.Equals(originalPath, jpegPath, StringComparison.OrdinalIgnoreCase))
+            return;
+        var original = await _imageRepo.GetByPathAsync(originalPath);
+        if (original is not null)
+            await _imageRepo.UpdatePathAsync(original.Id, jpegPath);
     }
 
     public async Task RefreshKnownLibraryStateAsync(
