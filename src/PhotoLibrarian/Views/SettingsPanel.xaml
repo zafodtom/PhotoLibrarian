@@ -477,6 +477,11 @@
                                         Click="OnClearAlbumMetadata"
                                         AutomationProperties.AutomationId="ClearAlbumMetadataButton"
                                         Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                                <Button x:Name="RetryFailedAlbumMetadataButton"
+                                        Content="RETRY FAILED ONLY"
+                                        Click="OnRetryFailedAlbumMetadata"
+                                        AutomationProperties.AutomationId="RetryFailedAlbumMetadataButton"
+                                        Style="{StaticResource HiTechIconButtonStyle}" />
                                 <Button x:Name="CancelClearAlbumButton"
                                         Content="CANCEL"
                                         Click="OnCancelClearAlbum"
