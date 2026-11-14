@@ -1340,7 +1340,8 @@ public partial class MainViewModel : ObservableObject
     public async Task<AlbumMetadataClearResult> ClearActiveAlbumTagsAndFlagsAsync(
         IProgress<AlbumMetadataClearProgress>? progress = null,
         CancellationToken cancellationToken = default,
-        bool keepBackups = true)
+        bool keepBackups = true,
+        bool retryFailedOnly = false)
     {
         if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
             throw new InvalidOperationException("No active album.");
@@ -1351,35 +1352,58 @@ public partial class MainViewModel : ObservableObject
         Settings.IsAutoTaggingEnabled = false;
         _autoTaggingEnabled = false;
         await StopRecognitionAsync();
-        // Before clearing, index all images belonging to this album so the
-        // reset does not miss files that have not yet entered the cache.
-        await _indexingService.IndexFolderAsync(root, includeSubfolders: true,
-            cancellationToken);
-        var indexed = (await _imageRepo.GetAllAsync())
-            .Where(entry => entry.MediaType == MediaType.Image &&
-                !AlbumMetadataClearService.IsInternalAlbumPath(root, entry.FilePath) &&
-                FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
-            .ToList();
-
-        // Indexing is best-effort and may fail for an individual format.
-        // Such files must still have their external XMP metadata processed.
-        var indexedPaths = indexed.Select(entry => entry.FilePath)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        using (var resetScanner = new FolderScannerService())
+        List<ImageEntry> indexed;
+        if (retryFailedOnly)
         {
-            await foreach (var path in resetScanner.ScanFolderAsync(
-                root, includeSubfolders: true, cancellationToken))
-            {
-                if (FolderScannerService.IsVideoFile(path) ||
-                    AlbumMetadataClearService.IsInternalAlbumPath(root, path) ||
-                    !indexedPaths.Add(path))
-                    continue;
-                indexed.Add(new ImageEntry
+            // No filesystem scan or reindexing for a retry: use the exact failed
+            // paths from the previous completed pass. Keep DB ids where known.
+            var failures = AlbumMetadataClearService.ReadPendingFailures(root);
+            if (failures.Count == 0)
+                throw new InvalidOperationException(
+                    "No failed photos recorded. Run a full album reset first.");
+            var allEntries = (await _imageRepo.GetAllAsync())
+                .ToDictionary(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase);
+            indexed = failures.Select(path => allEntries.TryGetValue(path, out var entry)
+                ? entry
+                : new ImageEntry
                 {
                     FilePath = path,
                     FileName = Path.GetFileName(path),
                     MediaType = MediaType.Image
-                });
+                }).ToList();
+        }
+        else
+        {
+            // Before clearing, index all images belonging to this album so the
+            // reset does not miss files that have not yet entered the cache.
+            await _indexingService.IndexFolderAsync(root, includeSubfolders: true,
+                cancellationToken);
+            var indexed = (await _imageRepo.GetAllAsync())
+                .Where(entry => entry.MediaType == MediaType.Image &&
+                    !AlbumMetadataClearService.IsInternalAlbumPath(root, entry.FilePath) &&
+                    FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
+                .ToList();
+
+            // Indexing is best-effort and may fail for an individual format.
+            // Such files must still have their external XMP metadata processed.
+            var indexedPaths = indexed.Select(entry => entry.FilePath)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            using (var resetScanner = new FolderScannerService())
+            {
+                await foreach (var path in resetScanner.ScanFolderAsync(
+                    root, includeSubfolders: true, cancellationToken))
+                {
+                    if (FolderScannerService.IsVideoFile(path) ||
+                        AlbumMetadataClearService.IsInternalAlbumPath(root, path) ||
+                        !indexedPaths.Add(path))
+                        continue;
+                    indexed.Add(new ImageEntry
+                    {
+                        FilePath = path,
+                        FileName = Path.GetFileName(path),
+                        MediaType = MediaType.Image
+                    });
+                }
             }
         }
         try
