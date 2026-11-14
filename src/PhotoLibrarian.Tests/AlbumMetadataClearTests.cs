@@ -26,7 +26,7 @@ public sealed class AlbumMetadataClearTests
                 [new ImageEntry { Id = 42, FilePath = photo, FileName = "photo.jpg" }],
                 _ => { cleared++; return Task.CompletedTask; });
 
-            Assert.Equal(1, result.Cleaned);
+            Assert.True(result.Cleaned == 1, string.Join(" | ", result.Errors));
             Assert.Equal(0, result.Failed);
             Assert.Equal(1, cleared);
             Assert.Empty(await EmbeddedMetadataWriter.ReadKeywordsAsync(photo));
