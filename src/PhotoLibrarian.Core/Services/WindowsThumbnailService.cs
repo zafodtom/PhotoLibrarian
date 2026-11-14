@@ -305,62 +305,33 @@ public static class WindowsThumbnailService
 
     private static async Task<byte[]?> GenerateThumbnailBytesAsync(string filePath, int size)
     {
-        if (HeifFallbackDecoder.IsHeifFamily(filePath))
-        {
-            try
-            {
-                return await HeifFallbackDecoder.DecodeToJpegAsync(filePath, size);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"HEIF thumbnail decode failed for {System.IO.Path.GetFileName(filePath)}: {ex.Message}");
-                return null;
-            }
-        }
-
+        // Use only Windows' thumbnail handler inside the main application
+        // process. The optional libheif decoder invokes unmanaged code which
+        // can terminate the entire app with 0xC0000005; .NET try/catch and
+        // CrashLog cannot recover from that. A native fallback must run in an
+        // isolated helper process before it may be enabled again.
         try
         {
             var file = await StorageFile.GetFileFromPathAsync(filePath);
-            
-            // Request cached thumbnail - UseCurrentScale avoids DPI scaling overhead
             using var thumb = await file.GetThumbnailAsync(
                 ThumbnailMode.SingleItem,
                 (uint)size,
                 ThumbnailOptions.UseCurrentScale);
-            
             if (thumb == null || thumb.Size == 0)
-            {
-                if (HeifFallbackDecoder.IsHeifFamily(filePath))
-                    return await HeifFallbackDecoder.DecodeToJpegAsync(filePath, size);
-
                 return null;
-            }
-            
-            // Return the encoded stream bytes (PNG/BMP from cache)
+
             var bytes = new byte[thumb.Size];
             await thumb.AsStreamForRead().ReadAsync(bytes, 0, bytes.Length);
             return bytes;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"WindowsThumbnailService.GetThumbnailStreamAsync failed for {System.IO.Path.GetFileName(filePath)}: {ex.Message}");
-
-            if (HeifFallbackDecoder.IsHeifFamily(filePath))
-            {
-                try
-                {
-                    return await HeifFallbackDecoder.DecodeToJpegAsync(filePath, size);
-                }
-                catch (Exception fallbackEx)
-                {
-                    System.Diagnostics.Debug.WriteLine($"HEIF thumbnail fallback failed for {System.IO.Path.GetFileName(filePath)}: {fallbackEx.Message}");
-                }
-            }
-
+            System.Diagnostics.Debug.WriteLine(
+                $"WindowsThumbnailService.GetThumbnailStreamAsync failed for {Path.GetFileName(filePath)}: {ex.Message}");
             return null;
         }
     }
-    
+
     /// <summary>
     /// Gets thumbnail as decoded BGRA8 pixels. Use this for WriteableBitmap.
     /// </summary>
