@@ -439,6 +439,92 @@ public sealed partial class SettingsPanel : UserControl
         }
     }
 
+    /// <summary>
+    /// Album maintenance confirmations use the same dark FUI surfaces, accent
+    /// typography and rectangular controls as the rest of PhotoLibrarian.
+    /// Never show the default white/rounded WinUI ContentDialog for these jobs.
+    /// </summary>
+    private ContentDialog CreateAlbumMaintenanceDialog(
+        string heading, string description, string confirmLabel, bool destructive)
+    {
+        var color = destructive
+            ? Windows.UI.Color.FromArgb(255, 255, 110, 120)
+            : Windows.UI.Color.FromArgb(255, 83, 215, 232);
+        var accent = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
+        var primary = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 230, 247, 250));
+        var surface = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 12, 19, 27));
+        var outerSurface = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 7, 11, 16));
+
+        var body = new StackPanel { Spacing = 13, MinWidth = 380, MaxWidth = 525 };
+        body.Children.Add(new TextBlock
+        {
+            Text = destructive ? "ALBUM MAINTENANCE // CAUTION" : "ALBUM MAINTENANCE // CONFIRM",
+            Foreground = accent,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 11,
+            CharacterSpacing = 140
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = heading,
+            Foreground = primary,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontSize = 17,
+            TextWrapping = TextWrapping.Wrap
+        });
+        body.Children.Add(new Border { Height = 2, Background = accent });
+        body.Children.Add(new TextBlock
+        {
+            Text = description,
+            Foreground = primary,
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = "BACKUP RECOMMENDED  //  REVIEW RESULTS BEFORE DELETING BACKUPS",
+            Foreground = accent,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 10,
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = null,
+            Content = new Border
+            {
+                Padding = new Thickness(20),
+                Background = surface,
+                BorderBrush = accent,
+                BorderThickness = new Thickness(1),
+                Child = body
+            },
+            PrimaryButtonText = confirmLabel,
+            CloseButtonText = "ABORT",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+            Background = outerSurface,
+            BorderBrush = accent,
+            BorderThickness = new Thickness(1)
+        };
+        // Restyle actual dialog buttons (not just its content border).
+        if (Application.Current.Resources.TryGetValue(
+                "HiTechPrimaryButtonStyle", out var primaryStyle) &&
+            primaryStyle is Style buttonStyle)
+            dialog.PrimaryButtonStyle = buttonStyle;
+        if (Application.Current.Resources.TryGetValue(
+                "HiTechIconButtonStyle", out var secondaryStyle) &&
+            secondaryStyle is Style closeStyle)
+            dialog.CloseButtonStyle = closeStyle;
+        return dialog;
+    }
+
     private async void OnRunJpegConversion(object sender, RoutedEventArgs e)
     {
         if (_jpegConversionBusy || _clearAlbumBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
@@ -453,28 +539,19 @@ public sealed partial class SettingsPanel : UserControl
             return;
         }
 
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "ALBUM // CONVERT TO JPEG",
-            Content = new TextBlock
-            {
-                Text = $"Convert {_jpegPreview.ConvertCount:N0} photo(s) and embed XMP " +
-                       $"into {_jpegPreview.JpegMetadataCount:N0} existing JPEG(s)?\n\n" +
-                       "JPEG conversion is lossy. Original photos and XMP sidecars " +
-                       "will be moved to a timestamped backup inside .album. " +
-                       "Existing JPEG destinations will NOT be overwritten. " +
-                       "Embedded EXIF and other metadata in non-JPEG sources may " +
-                       "not all survive transcoding; retain backups until inspected.\n\n" +
-                       "The operation cannot be automatically undone. " +
-                       "Keep a separate album backup before continuing.",
-                TextWrapping = TextWrapping.Wrap,
-                MaxWidth = 500
-            },
-            PrimaryButtonText = "CONVERT ALBUM",
-            CloseButtonText = "ABORT",
-            DefaultButton = ContentDialogButton.Close
-        };
+        var dialog = CreateAlbumMaintenanceDialog(
+            "CONVERT TO JPEG",
+            $"Convert {_jpegPreview.ConvertCount:N0} photo(s) and embed XMP " +
+            $"into {_jpegPreview.JpegMetadataCount:N0} existing JPEG(s)?\n\n" +
+            "JPEG conversion is lossy. Original photos and XMP sidecars " +
+            "will be moved to a timestamped backup inside .album. " +
+            "Existing JPEG destinations will NOT be overwritten. " +
+            "Embedded EXIF and other metadata in non-JPEG sources may " +
+            "not all survive transcoding; retain backups until inspected.\n\n" +
+            "The operation cannot be automatically undone. " +
+            "Keep a separate album backup before continuing.",
+            "CONVERT ALBUM",
+            destructive: false);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
@@ -587,27 +664,18 @@ public sealed partial class SettingsPanel : UserControl
             return;
         }
         // A separate dialog avoids accidental single-click mass deletion.
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "WARNING // CLEAR ALBUM TAGS + FLAGS",
-            Content = new TextBlock
-            {
-                Text = $"Remove all assigned tags and user flags from {photoCount:N0} " +
-                       "photo(s), plus saved catalog tag names, in the ACTIVE album?\n\n" +
-                       "Ratings, dates, captions, face data and photos are preserved. " +
-                       "Automatic tagging will be switched OFF to prevent tags from returning. " +
-                       "The original image and XMP files will be backed up under " +
-                       ".album/metadata-reset-backups before each modification.\n\n" +
-                       "This is an album-wide operation and cannot be undone " +
-                       "automatically. Keep a separate backup before proceeding.",
-                TextWrapping = TextWrapping.Wrap,
-                MaxWidth = 500
-            },
-            PrimaryButtonText = "CLEAR TAGS AND FLAGS",
-            CloseButtonText = "ABORT",
-            DefaultButton = ContentDialogButton.Close
-        };
+        var dialog = CreateAlbumMaintenanceDialog(
+            "CLEAR ALBUM TAGS + FLAGS",
+            $"Remove all assigned tags and user flags from {photoCount:N0} " +
+            "photo(s), plus saved catalog tag names, in the ACTIVE album?\n\n" +
+            "Ratings, dates, captions, face data and photos are preserved. " +
+            "Automatic tagging will be switched OFF to prevent tags from returning. " +
+            "The original image and XMP files will be backed up under " +
+            ".album/metadata-reset-backups before each modification.\n\n" +
+            "This is an album-wide operation and cannot be undone " +
+            "automatically. Keep a separate backup before proceeding.",
+            "CLEAR TAGS AND FLAGS",
+            destructive: true);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
         if (!string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
