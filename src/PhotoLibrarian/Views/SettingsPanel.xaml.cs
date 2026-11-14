@@ -11,6 +11,8 @@ public sealed partial class SettingsPanel : UserControl
     private SettingsViewModel? ViewModel =>
         App.ViewModel?.Settings;
 
+    private bool _loadingRecentTagSettings;
+
     public SettingsPanel()
     {
         InitializeComponent();
@@ -26,6 +28,13 @@ public sealed partial class SettingsPanel : UserControl
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         UpdateCacheDisplay();
+        _loadingRecentTagSettings = true;
+        try { RecentTagCountNumberBox.Value = RecentTagHistoryService.VisibleCount; }
+        finally { _loadingRecentTagSettings = false; }
+        RecentTagsSettingsStatusText.Text = App.HasActiveAlbum
+            ? "Recent tag history is specific to the active album."
+            : "Open an album to clear its recent tag history.";
+        ClearRecentTagsButton.IsEnabled = App.HasActiveAlbum;
         InstalledVersionText.Text = GitHubUpdateService.InstalledTag.TrimStart('v');
         _loadingUpdateChannel = true;
         try { DevelopmentUpdatesToggle.IsOn = GitHubUpdateService.DevelopmentUpdatesEnabled; }
@@ -48,6 +57,51 @@ public sealed partial class SettingsPanel : UserControl
             nameof(SettingsViewModel.CacheLocation))
         {
             DispatcherQueue.TryEnqueue(UpdateCacheDisplay);
+        }
+    }
+
+    private void OnRecentTagCountChanged(
+        NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loadingRecentTagSettings || double.IsNaN(args.NewValue)) return;
+        var count = Math.Clamp((int)Math.Round(args.NewValue), 0,
+            RecentTagHistoryService.MaximumVisibleCount);
+        try
+        {
+            RecentTagHistoryService.SetVisibleCount(count);
+            if (sender.Value != count)
+            {
+                _loadingRecentTagSettings = true;
+                try { sender.Value = count; }
+                finally { _loadingRecentTagSettings = false; }
+            }
+            RecentTagsSettingsStatusText.Text =
+                $"Showing up to {count} recent tag(s) in the metadata panel.";
+        }
+        catch (Exception ex)
+        {
+            RecentTagsSettingsStatusText.Text =
+                "Unable to save recent tag count: " + ex.Message;
+        }
+    }
+
+    private void OnClearRecentTagHistory(object sender, RoutedEventArgs e)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+        {
+            RecentTagsSettingsStatusText.Text = "Open an album first.";
+            return;
+        }
+
+        try
+        {
+            RecentTagHistoryService.Clear(App.CurrentAlbumPath);
+            RecentTagsSettingsStatusText.Text =
+                "Recent tag history cleared for the active album. Assigned photo tags were not changed.";
+        }
+        catch (Exception ex)
+        {
+            RecentTagsSettingsStatusText.Text = "Unable to clear recent tags: " + ex.Message;
         }
     }
 

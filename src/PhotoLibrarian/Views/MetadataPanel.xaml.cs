@@ -1,8 +1,5 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text.Json;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -10,6 +7,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using PhotoLibrarian.ViewModels;
+using PhotoLibrarian.Services;
 using System;
 using System.Globalization;
 using System.Linq;
@@ -25,10 +23,6 @@ public sealed partial class MetadataPanel : UserControl
     private bool _suppressDateBoxLostFocus;
     private string _lastLoadedDateText = "";
     private bool _suppressTagSuggestions;
-    private const int RecentTagLimit = 5;
-    private static readonly string RecentTagsDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "PhotoLibrarian", "recent-tags");
     private string? _recentTagsAlbumPath;
     private readonly ObservableCollection<string> _recentTags = new();
     private readonly ObservableCollection<string> _visibleRecentTags = new();
@@ -51,16 +45,42 @@ public sealed partial class MetadataPanel : UserControl
     {
         this.InitializeComponent();
         this.Loaded += OnLoaded;
+        this.Unloaded += OnUnloaded;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null) return;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ViewModel.Tags.CollectionChanged -= OnSelectedTagsChanged;
+        RecentTagHistoryService.Changed -= OnRecentHistoryChanged;
+        RecentTagHistoryService.Changed += OnRecentHistoryChanged;
         TagsList.ItemsSource = ViewModel.Tags;
         RecentTagsList.ItemsSource = _visibleRecentTags;
         ViewModel.Tags.CollectionChanged += OnSelectedTagsChanged;
         EnsureRecentTagsAlbum();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not null)
+        {
+            ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            ViewModel.Tags.CollectionChanged -= OnSelectedTagsChanged;
+        }
+        RecentTagHistoryService.Changed -= OnRecentHistoryChanged;
+        HideTagSuggestions();
+    }
+
+    private void OnRecentHistoryChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _recentTagsAlbumPath = null;
+            EnsureRecentTagsAlbum();
+            RefreshRecentTagsVisibility();
+        });
     }
 
     private void OnSelectedTagsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -186,8 +206,32 @@ public sealed partial class MetadataPanel : UserControl
     {
         if (ViewModel is null) return;
 
+        if (TagSuggestionsPanel.Visibility == Visibility.Visible)
+        {
+            HideTagSuggestions();
+            return;
+        }
         ShowTagSuggestions(ViewModel.AvailableTags);
         NewTagBox.Focus(FocusState.Programmatic);
+    }
+
+    private void OnNewTagBoxLostFocus(object sender, RoutedEventArgs e) =>
+        QueueCloseTagSuggestionsIfFocusOutside();
+
+    private void OnTagSuggestionPanelLostFocus(object sender, RoutedEventArgs e) =>
+        QueueCloseTagSuggestionsIfFocusOutside();
+
+    private void QueueCloseTagSuggestionsIfFocusOutside()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (TagSuggestionsPanel.Visibility != Visibility.Visible) return;
+            var focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+            for (var current = focused; current is not null; current = VisualTreeHelper.GetParent(current))
+                if (ReferenceEquals(current, NewTagBox) || ReferenceEquals(current, TagSuggestionsPanel))
+                    return;
+            HideTagSuggestions();
+        });
     }
 
     private void OnTagTextChanged(object sender, TextChangedEventArgs e)
@@ -552,16 +596,6 @@ public sealed partial class MetadataPanel : UserControl
             RememberTag(tag);
     }
 
-    private static string? GetAlbumRecentTagsFile(string? albumPath)
-    {
-        if (string.IsNullOrWhiteSpace(albumPath)) return null;
-        var normalized = Path.GetFullPath(albumPath)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .ToUpperInvariant();
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)));
-        return Path.Combine(RecentTagsDirectory, hash + ".json");
-    }
-
     private void EnsureRecentTagsAlbum()
     {
         var album = App.HasActiveAlbum ? App.CurrentAlbumPath : null;
@@ -570,49 +604,22 @@ public sealed partial class MetadataPanel : UserControl
 
         _recentTagsAlbumPath = album;
         _recentTags.Clear();
-        try
-        {
-            var file = GetAlbumRecentTagsFile(album);
-            if (file is not null && File.Exists(file))
-            {
-                var saved = JsonSerializer.Deserialize<string[]>(File.ReadAllText(file));
-                foreach (var tag in (saved ?? Array.Empty<string>())
-                    .Where(t => !string.IsNullOrWhiteSpace(t))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Take(RecentTagLimit))
-                    _recentTags.Add(tag.Trim());
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[RECENT TAGS] Album history load failed: {ex}");
-        }
+        foreach (var tag in RecentTagHistoryService.Load(album))
+            _recentTags.Add(tag);
         RefreshRecentTagsVisibility();
     }
 
     private void RememberTag(string tag)
     {
         EnsureRecentTagsAlbum();
-        tag = tag.Trim();
-        if (tag.Length == 0 || _recentTagsAlbumPath is null) return;
-        for (var i = _recentTags.Count - 1; i >= 0; i--)
-            if (string.Equals(_recentTags[i], tag, StringComparison.OrdinalIgnoreCase))
-                _recentTags.RemoveAt(i);
-        _recentTags.Insert(0, tag);
-        while (_recentTags.Count > RecentTagLimit)
-            _recentTags.RemoveAt(_recentTags.Count - 1);
-        RefreshRecentTagsVisibility();
+        if (_recentTagsAlbumPath is null) return;
         try
         {
-            var file = GetAlbumRecentTagsFile(_recentTagsAlbumPath);
-            if (file is null) return;
-            Directory.CreateDirectory(RecentTagsDirectory);
-            File.WriteAllText(file, JsonSerializer.Serialize(_recentTags.ToArray()));
+            RecentTagHistoryService.Remember(_recentTagsAlbumPath, tag);
         }
         catch (Exception ex)
         {
-            // Tag assignment must not fail merely because history cannot be saved.
-            System.Diagnostics.Debug.WriteLine($"[RECENT TAGS] Unable to save history: {ex}");
+            System.Diagnostics.Debug.WriteLine("[RECENT TAGS] Save failed: " + ex);
         }
     }
 
@@ -629,8 +636,13 @@ public sealed partial class MetadataPanel : UserControl
                 .Select(t => t.Tag)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var tag in _recentTags)
+            {
+                if (RecentTagHistoryService.VisibleCount == 0 ||
+                    _visibleRecentTags.Count >= RecentTagHistoryService.VisibleCount)
+                    break;
                 if (!fullyAssigned.Contains(tag))
                     _visibleRecentTags.Add(tag);
+            }
         }
 
         RecentTagsPanel.Visibility = _visibleRecentTags.Count > 0 &&

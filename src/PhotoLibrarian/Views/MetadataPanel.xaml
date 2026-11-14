@@ -158,8 +158,9 @@
                                      PlaceholderText="Add or choose tag"
                                      TextChanged="OnTagTextChanged"
                                      KeyDown="OnNewTagKeyDown"
+                                     LostFocus="OnNewTagBoxLostFocus"
                                      FontSize="13" />
-                            <Button Grid.Column="1"
+                            <Button x:Name="ShowAllTagsButton" Grid.Column="1"
                                     Click="OnShowAllTagsClick"
                                     Style="{StaticResource HiTechIconButtonStyle}"
                                     ToolTipService.ToolTip="Show all available tags"
@@ -177,6 +178,7 @@
                         <!-- Inline suggestion dropdown. Keeping it in the visual tree avoids
                              the Flyout focus hand-off that interrupted typing. -->
                         <Border x:Name="TagSuggestionsPanel"
+                                LostFocus="OnTagSuggestionPanelLostFocus"
                                 Visibility="Collapsed"
                                 Style="{StaticResource HiTechModuleStyle}"
                                 Padding="8">
@@ -236,7 +238,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Five most recently assigned tags for one-click reuse. -->
+                        <!-- Configurable recent tag shortcuts for this album. -->
                         <StackPanel x:Name="RecentTagsPanel" Spacing="4" Margin="0,6,0,2" Visibility="Collapsed">
                             <TextBlock Text="RECENT TAGS"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
