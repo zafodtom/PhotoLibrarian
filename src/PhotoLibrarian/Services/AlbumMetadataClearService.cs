@@ -18,6 +18,40 @@ public static class AlbumMetadataClearService
     private const string DcNs = "http://purl.org/dc/elements/1.1/";
     private const string PlibNs = EmbeddedMetadataWriter.PhotoLibrarianXmpNamespace;
     private const string FlagName = "plib:Flagged";
+    // Windows file-sharing and Shell metadata operations on NAS mounts can
+    // briefly report ACCESS_DENIED while an image handler still has a handle.
+    // Retry only at individual I/O boundaries: never repeat a committed album
+    // database update or an entire metadata rewrite.
+    private static bool IsRetryableAccess(Exception exception) =>
+        exception is UnauthorizedAccessException ||
+        exception is IOException ||
+        exception is System.Runtime.InteropServices.COMException com &&
+            (com.HResult == unchecked((int)0x80070005) ||
+             com.HResult == unchecked((int)0x80070020) ||
+             com.HResult == unchecked((int)0x80070021));
+
+    private static async Task<T> WithAccessRetryAsync<T>(
+        Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try { return await operation(); }
+            catch (Exception ex) when (attempt < 5 && IsRetryableAccess(ex))
+            {
+                await Task.Delay(200 * (attempt + 1), cancellationToken);
+            }
+        }
+    }
+
+    private static Task WithAccessRetryAsync(
+        Func<Task> operation, CancellationToken cancellationToken) =>
+        WithAccessRetryAsync(async () =>
+        {
+            await operation();
+            return true;
+        }, cancellationToken);
+
 
     static AlbumMetadataClearService()
     {
@@ -37,13 +71,15 @@ public static class AlbumMetadataClearService
     /// if verification fails.
     /// </summary>
     private static async Task<bool> TryClearJpegXmpAsync(
-        string source, CancellationToken cancellationToken)
+        string source, CancellationToken cancellationToken, Action<string>? setStage = null)
     {
         if (!new[] { ".jpg", ".jpeg", ".jpe", ".jfif" }.Contains(
             Path.GetExtension(source), StringComparer.OrdinalIgnoreCase))
             return false;
 
-        var original = await File.ReadAllBytesAsync(source, cancellationToken);
+        setStage?.Invoke("reading JPEG bytes for XMP");
+        var original = await WithAccessRetryAsync(
+            () => File.ReadAllBytesAsync(source, cancellationToken), cancellationToken);
         var packetBytes = JpegXmpPacket.ExtractStandardPacket(original);
         if (packetBytes is null)
             return false;
@@ -93,6 +129,7 @@ public static class AlbumMetadataClearService
         if (verifiedPacket.DoesPropertyExist(DcNs, "dc:subject") ||
             verifiedPacket.DoesPropertyExist(PlibNs, FlagName))
             throw new InvalidDataException("Embedded XMP still contains tags or flags.");
+        setStage?.Invoke("preparing modified JPEG XMP");
         var updated = JpegXmpPacket.Embed(original, rewrittenXmp);
         if (!JpegXmpPacket.ContainsExactPacket(updated, rewrittenXmp))
             throw new InvalidDataException("Updated embedded XMP packet could not be verified.");
@@ -100,12 +137,23 @@ public static class AlbumMetadataClearService
         string temp = source + ".reset-" + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
+            setStage?.Invoke("writing temporary JPEG XMP");
             await File.WriteAllBytesAsync(temp, updated, cancellationToken);
-            File.Move(temp, source, overwrite: true);
+            // Only retry the atomic replacement; the fully verified temporary
+            // image is kept untouched between attempts.
+            setStage?.Invoke("replacing JPEG after XMP update");
+            await WithAccessRetryAsync(() =>
+            {
+                File.Move(temp, source, overwrite: true);
+                return Task.CompletedTask;
+            }, cancellationToken);
         }
         finally
         {
-            if (File.Exists(temp)) File.Delete(temp);
+            if (File.Exists(temp))
+                try { File.Delete(temp); }
+                catch (IOException) { /* Keep recovery artifact on a sharing violation. */ }
+                catch (UnauthorizedAccessException) { /* Keep recovery artifact. */ }
         }
         return true;
     }
@@ -184,7 +232,9 @@ public static class AlbumMetadataClearService
                 var embeddedTags = metadataReader.ReadTags(source);
                 if (canWriteEmbedded)
                 {
-                    var systemTags = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
+                    var systemTags = await WithAccessRetryAsync(
+                        () => EmbeddedMetadataWriter.ReadKeywordsAsync(source, throwOnError: true),
+                        cancellationToken);
                     embeddedTags.AddRange(systemTags);
                 }
                 var embeddedFlag = metadataReader.ReadMetadata(source).IsFlagged &&
@@ -236,8 +286,9 @@ public static class AlbumMetadataClearService
                         // dc:subject/our flag directly where possible, preserving
                         // encoded JPEG pixels, EXIF and unrelated APP segments.
                         // Other embedded keyword formats remain fail-closed.
-                        stage = "inspecting JPEG XMP";
-                        await TryClearJpegXmpAsync(source, cancellationToken);
+                        stage = "inspecting and updating JPEG XMP";
+                        await TryClearJpegXmpAsync(
+                            source, cancellationToken, value => stage = value);
 
                         // System.Keywords is a merged view over XMP, IPTC and
                         // EXIF keyword fields. Cleaning only XMP is insufficient
@@ -245,29 +296,15 @@ public static class AlbumMetadataClearService
                         // Windows Shell deletion policy, not a zero-length WIC
                         // StringArray (which fails with E_INVALIDARG).
                         stage = "checking remaining Windows photo keywords";
-                        var remainingBeforeShell = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
+                        var remainingBeforeShell = await WithAccessRetryAsync(
+                        () => EmbeddedMetadataWriter.ReadKeywordsAsync(source, throwOnError: true),
+                        cancellationToken);
                         if (remainingBeforeShell.Count > 0)
                         {
                         stage = "removing Windows photo keywords";
-                        for (int attempt = 0; ; attempt++)
-                        {
-                            try
-                            {
-                                await EmbeddedMetadataWriter.ClearKeywordsUsingFilePropertiesAsync(source);
-                                break;
-                            }
-                            catch (IOException) when (attempt < 4)
-                            {
-                                await Task.Delay(150 * (attempt + 1), cancellationToken);
-                            }
-                            catch (System.Runtime.InteropServices.COMException ex)
-                                when (attempt < 4 &&
-                                      (ex.HResult == unchecked((int)0x80070020) ||
-                                       ex.HResult == unchecked((int)0x80070021)))
-                            {
-                                await Task.Delay(150 * (attempt + 1), cancellationToken);
-                            }
-                        }
+                        await WithAccessRetryAsync(
+                            () => EmbeddedMetadataWriter.ClearKeywordsUsingFilePropertiesAsync(source),
+                            cancellationToken);
 
                         }
 
@@ -279,7 +316,9 @@ public static class AlbumMetadataClearService
                         }
                         stage = "verifying embedded metadata";
                         var remaining = metadataReader.ReadTags(source);
-                        var remainingWic = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
+                        var remainingWic = await WithAccessRetryAsync(
+                        () => EmbeddedMetadataWriter.ReadKeywordsAsync(source, throwOnError: true),
+                        cancellationToken);
                         if (remaining.Count > 0 || remainingWic.Count > 0)
                             throw new InvalidDataException("Embedded keywords remained after reset.");
                         if (embeddedFlag && metadataReader.ReadMetadata(source).IsFlagged &&

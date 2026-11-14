@@ -8,6 +8,18 @@ namespace PhotoLibrarian.Tests;
 public sealed class AlbumMetadataClearTests
 {
     [Fact]
+    public async Task KeywordRead_StrictModeDoesNotSwallowMissingFileErrors()
+    {
+        var missing = Path.Combine(Path.GetTempPath(),
+            "PL-missing-" + Guid.NewGuid().ToString("N") + ".jpg");
+        // Existing callers retain the best-effort behavior, while destructive
+        // reset verification must not mistake a failed read for empty keywords.
+        Assert.Empty(await EmbeddedMetadataWriter.ReadKeywordsAsync(missing));
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            EmbeddedMetadataWriter.ReadKeywordsAsync(missing, throwOnError: true));
+    }
+
+    [Fact]
     public async Task Reset_ClearsKeywordsAndFlag_WithoutRemovingCaptionOrSource()
     {
         var root = Path.Combine(Path.GetTempPath(),
