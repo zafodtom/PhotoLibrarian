@@ -18,6 +18,51 @@ public static class AlbumMetadataClearService
     private const string DcNs = "http://purl.org/dc/elements/1.1/";
     private const string PlibNs = EmbeddedMetadataWriter.PhotoLibrarianXmpNamespace;
     private const string FlagName = "plib:Flagged";
+    // Compact checkpoint used by the explicit RETRY FAILED action. It lists
+    // only files that failed the last completed reset, never all indexed files.
+    private const string PendingFileName = "metadata-reset-pending.json";
+
+    private static string PendingPath(string albumRoot) =>
+        Path.Combine(albumRoot, ".album", PendingFileName);
+
+    public static IReadOnlyList<string> ReadPendingFailures(string albumRoot)
+    {
+        var manifest = PendingPath(albumRoot);
+        if (!File.Exists(manifest)) return [];
+        // A damaged manifest must be reported, not treated as successful reset.
+        var paths = System.Text.Json.JsonSerializer.Deserialize<string[]>(
+            File.ReadAllText(manifest)) ?? [];
+        var root = Path.GetFullPath(albumRoot);
+        return paths.Select(relative => Path.GetFullPath(Path.Combine(root, relative)))
+            .Where(path => !IsInternalAlbumPath(root, path) &&
+                FolderScannerService.IsPathOwnedByAlbumRoot(root, path))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static async Task SavePendingFailuresAsync(
+        string albumRoot, IReadOnlyCollection<string> failedPaths)
+    {
+        var destination = PendingPath(albumRoot);
+        if (failedPaths.Count == 0)
+        {
+            if (File.Exists(destination)) File.Delete(destination);
+            return;
+        }
+        var relative = failedPaths.Select(path => Path.GetRelativePath(albumRoot, path))
+            .ToArray();
+        var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await File.WriteAllTextAsync(temporary,
+                System.Text.Json.JsonSerializer.Serialize(relative));
+            File.Move(temporary, destination, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
     // Windows file-sharing and Shell metadata operations on NAS mounts can
     // briefly report ACCESS_DENIED while an image handler still has a handle.
     // Retry only at individual I/O boundaries: never repeat a committed album
@@ -192,6 +237,7 @@ public static class AlbumMetadataClearService
             StringComparer.OrdinalIgnoreCase).ToArray();
         int cleaned = 0, failed = 0, processed = 0;
         var errors = new List<string>();
+        var failedPaths = new List<string>();
         var metadataReader = new MetadataReaderService();
 
         foreach (var entry in candidates)
@@ -399,6 +445,7 @@ public static class AlbumMetadataClearService
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 failed++;
+                failedPaths.Add(source);
                 var hresult = $"0x{ex.HResult:X8}";
                 errors.Add($"{Path.GetRelativePath(albumRoot, source)}: [{stage}] {ex.GetType().Name} ({hresult}): {ex.Message}");
             }
@@ -427,6 +474,9 @@ public static class AlbumMetadataClearService
             catch (IOException) { /* Preserve any pending recovery artifacts. */ }
             catch (UnauthorizedAccessException) { /* Never remove failed recovery data. */ }
         }
+        // Only publish a checkpoint after the entire requested batch finishes.
+        // A retry will replace it with the smaller set still failing.
+        await SavePendingFailuresAsync(albumRoot, failedPaths);
         return new AlbumMetadataClearResult(cleaned, failed, backupRoot, errors);
     }
 }
