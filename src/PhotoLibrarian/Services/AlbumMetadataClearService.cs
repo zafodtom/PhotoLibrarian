@@ -111,10 +111,12 @@ public static class AlbumMetadataClearService
                     {
                         // This explicitly clears the System.Keywords fan-out
                         // (XMP dc:subject, EXIF XPKeywords, IPTC Keywords).
+                        // A failed WIC transcode can partially touch its source.
+                        // Mark this before writing so the backup is restored.
+                        imageModified = true;
                         await EmbeddedMetadataWriter.WriteAsync(
                             source, keywords: Array.Empty<string>(),
                             flagged: embeddedFlag ? false : null);
-                        imageModified = true;
                         var remaining = metadataReader.ReadTags(source);
                         var remainingWic = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
                         if (remaining.Count > 0 || remainingWic.Count > 0)
