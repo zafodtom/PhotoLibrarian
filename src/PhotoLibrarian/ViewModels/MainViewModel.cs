@@ -5,6 +5,7 @@ using PhotoLibrarian.Core.Models;
 using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.Diagnostics;
 using PhotoLibrarian.ML.Services;
+using PhotoLibrarian.Services;
 using System.Collections.ObjectModel;
 
 namespace PhotoLibrarian.ViewModels;
