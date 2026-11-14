@@ -18,6 +18,40 @@ public static class AlbumMetadataClearService
     private const string DcNs = "http://purl.org/dc/elements/1.1/";
     private const string PlibNs = EmbeddedMetadataWriter.PhotoLibrarianXmpNamespace;
     private const string FlagName = "plib:Flagged";
+    // Windows file-sharing and Shell metadata operations on NAS mounts can
+    // briefly report ACCESS_DENIED while an image handler still has a handle.
+    // Retry only at individual I/O boundaries: never repeat a committed album
+    // database update or an entire metadata rewrite.
+    private static bool IsRetryableAccess(Exception exception) =>
+        exception is UnauthorizedAccessException ||
+        exception is IOException ||
+        exception is System.Runtime.InteropServices.COMException com &&
+            (com.HResult == unchecked((int)0x80070005) ||
+             com.HResult == unchecked((int)0x80070020) ||
+             com.HResult == unchecked((int)0x80070021));
+
+    private static async Task<T> WithAccessRetryAsync<T>(
+        Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try { return await operation(); }
+            catch (Exception ex) when (attempt < 5 && IsRetryableAccess(ex))
+            {
+                await Task.Delay(200 * (attempt + 1), cancellationToken);
+            }
+        }
+    }
+
+    private static Task WithAccessRetryAsync(
+        Func<Task> operation, CancellationToken cancellationToken) =>
+        WithAccessRetryAsync(async () =>
+        {
+            await operation();
+            return true;
+        }, cancellationToken);
+
 
     static AlbumMetadataClearService()
     {
@@ -43,7 +77,8 @@ public static class AlbumMetadataClearService
             Path.GetExtension(source), StringComparer.OrdinalIgnoreCase))
             return false;
 
-        var original = await File.ReadAllBytesAsync(source, cancellationToken);
+        var original = await WithAccessRetryAsync(
+            () => File.ReadAllBytesAsync(source, cancellationToken), cancellationToken);
         var packetBytes = JpegXmpPacket.ExtractStandardPacket(original);
         if (packetBytes is null)
             return false;
@@ -101,11 +136,20 @@ public static class AlbumMetadataClearService
         try
         {
             await File.WriteAllBytesAsync(temp, updated, cancellationToken);
-            File.Move(temp, source, overwrite: true);
+            // Only retry the atomic replacement; the fully verified temporary
+            // image is kept untouched between attempts.
+            await WithAccessRetryAsync(() =>
+            {
+                File.Move(temp, source, overwrite: true);
+                return Task.CompletedTask;
+            }, cancellationToken);
         }
         finally
         {
-            if (File.Exists(temp)) File.Delete(temp);
+            if (File.Exists(temp))
+                try { File.Delete(temp); }
+                catch (IOException) { /* Keep recovery artifact on a sharing violation. */ }
+                catch (UnauthorizedAccessException) { /* Keep recovery artifact. */ }
         }
         return true;
     }
@@ -236,7 +280,7 @@ public static class AlbumMetadataClearService
                         // dc:subject/our flag directly where possible, preserving
                         // encoded JPEG pixels, EXIF and unrelated APP segments.
                         // Other embedded keyword formats remain fail-closed.
-                        stage = "inspecting JPEG XMP";
+                        stage = "inspecting and updating JPEG XMP";
                         await TryClearJpegXmpAsync(source, cancellationToken);
 
                         // System.Keywords is a merged view over XMP, IPTC and
@@ -249,25 +293,9 @@ public static class AlbumMetadataClearService
                         if (remainingBeforeShell.Count > 0)
                         {
                         stage = "removing Windows photo keywords";
-                        for (int attempt = 0; ; attempt++)
-                        {
-                            try
-                            {
-                                await EmbeddedMetadataWriter.ClearKeywordsUsingFilePropertiesAsync(source);
-                                break;
-                            }
-                            catch (IOException) when (attempt < 4)
-                            {
-                                await Task.Delay(150 * (attempt + 1), cancellationToken);
-                            }
-                            catch (System.Runtime.InteropServices.COMException ex)
-                                when (attempt < 4 &&
-                                      (ex.HResult == unchecked((int)0x80070020) ||
-                                       ex.HResult == unchecked((int)0x80070021)))
-                            {
-                                await Task.Delay(150 * (attempt + 1), cancellationToken);
-                            }
-                        }
+                        await WithAccessRetryAsync(
+                            () => EmbeddedMetadataWriter.ClearKeywordsUsingFilePropertiesAsync(source),
+                            cancellationToken);
 
                         }
 
