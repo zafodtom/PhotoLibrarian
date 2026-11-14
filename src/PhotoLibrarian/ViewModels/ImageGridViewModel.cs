@@ -70,6 +70,9 @@ public partial class ImageGridViewModel : ObservableObject
     private bool _currentUntaggedSelected; // Root "Tags" node selected (show all tagged images)
     private List<string>? _currentTagFilters;
     private List<string>? _currentExcludedTagFilters;
+    private bool _requireAllIncludedTags;
+    public IReadOnlyDictionary<string, int> TagFacetCounts { get; private set; } =
+        new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     private bool _currentFlaggedSelected; // "Flagged" node selected (show flagged working set)
     private string? _currentSortBy = "file_name";
     private CancellationTokenSource? _loadCts;
@@ -216,9 +219,9 @@ public partial class ImageGridViewModel : ObservableObject
         // Get all images from DB (we'll filter to union of all criteria)
         var allImages = await _imageRepo.GetAllAsync(_currentSortBy, SortDescending);
         bool hasExcludedTags = _currentExcludedTagFilters is { Count: > 0 };
-        var tagsByImageId = Refinement.RequiresTags || hasExcludedTags
-            ? await _tagRepo.GetTagsByImageIdAsync()
-            : null;
+        // One indexed batch serves tag matching and live facet counts.
+        // Never read XMP metadata per photo when the user changes a filter.
+        var tagsByImageId = await _tagRepo.GetTagsByImageIdAsync();
         bool hasPeopleFilter = _currentPeopleRootSelected ||
                                (_currentPersonFilters is not null &&
                                 _currentPersonFilters.Count > 0);
@@ -255,16 +258,10 @@ public partial class ImageGridViewModel : ObservableObject
             return;
         }
 
-        // Pre-load tag data if tag filtering active
-        HashSet<long>? taggedImageIds = null;
-        if (hasTagFilter)
-        {
-            var taggedImages = _currentUntaggedSelected
-                ? await _imageRepo.GetUntaggedAsync(_currentSortBy, SortDescending)
-                : await _imageRepo.GetFilteredAsync(_currentTagRootSelected, _currentTagFilters, _currentSortBy, SortDescending);
-            taggedImageIds = new HashSet<long>(taggedImages.Select(i => i.Id));
-            DebugLog.WriteLine($"LoadImagesAsync: Loaded {taggedImageIds.Count} images matching tag filters");
-        }
+        var includePaths = (_currentTagFilters ?? [])
+            .Concat(_currentTagRootSelected ? [""] : [])
+            .Concat(_currentUntaggedSelected ? ["__untagged__"] : [])
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
         // Prepare folder filters with separators for correct prefix matching
         var folderFilters = _currentFolderFilters?.Select(f => 
@@ -285,8 +282,9 @@ public partial class ImageGridViewModel : ObservableObject
                  folderFilters.Any(folder =>
                      img.FilePath.StartsWith(folder, StringComparison.OrdinalIgnoreCase)));
 
+            tagsByImageId.TryGetValue(img.Id, out var assignedTags);
             var matchesTag = !hasTagFilter ||
-                (taggedImageIds is not null && taggedImageIds.Contains(img.Id));
+                TagFacetFilter.Matches(assignedTags, includePaths, null, _requireAllIncludedTags);
 
             // Folder selection is the scope for tag filtering:
             // selecting "Folder A" + "Tag X" means Tag X inside Folder A,
@@ -334,15 +332,7 @@ public partial class ImageGridViewModel : ObservableObject
             // filters are OR-composed. Selecting only a minus starts from all
             // photos (or the selected folder scope) and removes matching tags.
             bool isExcluded = hasExcludedTags &&
-                _currentExcludedTagFilters!.Any(path =>
-                    path switch
-                    {
-                        "" => imageTags is { Count: > 0 },
-                        "__untagged__" => imageTags is null || imageTags.Count == 0,
-                        _ => imageTags is not null && imageTags.Any(tag =>
-                            string.Equals(tag, path, StringComparison.OrdinalIgnoreCase) ||
-                            tag.StartsWith(path + "/", StringComparison.OrdinalIgnoreCase))
-                    });
+                _currentExcludedTagFilters!.Any(path => TagFacetFilter.MatchesPath(imageTags, path));
 
             if (matchesAnyFilter && !isExcluded &&
                 Refinement.Matches(img, imageTags, imagePersonIds))
@@ -496,6 +486,10 @@ public partial class ImageGridViewModel : ObservableObject
             _queuedItems.Clear();
         }
         _thumbnailsLoaded = 0;
+
+        TagFacetCounts = TagFacetFilter.CountFacets(Images.Select(vm =>
+            (IReadOnlyCollection<string>)(tagsByImageId.TryGetValue(vm.Entry.Id, out var tags)
+                ? tags : Array.Empty<string>())));
 
         await ApplyGroupingAsync();
         RestoreSelectionAfterLoad();
@@ -940,7 +934,8 @@ public partial class ImageGridViewModel : ObservableObject
         List<string>? tags,
         bool untaggedSelected,
         bool flaggedSelected = false,
-        List<string>? excludedTags = null)
+        List<string>? excludedTags = null,
+        bool requireAllIncludedTags = false)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
         DebugLog.WriteLine($"FilterByMultipleCriteriaAsync: folders={folderPaths?.Count ?? 0}, years={years?.Count ?? 0}, months={months?.Count ?? 0}, people={personIds?.Count ?? 0}, tags={tags?.Count ?? 0}, untagged={untaggedSelected}, flagged={flaggedSelected}");
@@ -957,6 +952,7 @@ public partial class ImageGridViewModel : ObservableObject
         _currentTagRootSelected = tagRootSelected;
         _currentTagFilters = tags;
         _currentExcludedTagFilters = excludedTags;
+        _requireAllIncludedTags = requireAllIncludedTags;
         _currentUntaggedSelected = untaggedSelected;
         _currentFlaggedSelected = flaggedSelected;
         
@@ -1341,6 +1337,8 @@ public partial class ImageGridViewModel : ObservableObject
         _currentTagRootSelected = false;
         _currentTagFilters = null;
         _currentExcludedTagFilters = null;
+        _requireAllIncludedTags = false;
+        TagFacetCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         _currentFlaggedSelected = false;
         Refinement = ImageRefinementFilter.Empty;
         OnPropertyChanged(nameof(Refinement));
