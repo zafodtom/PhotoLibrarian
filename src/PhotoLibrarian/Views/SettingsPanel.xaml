@@ -382,6 +382,36 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Album-specific recent tag shortcuts (global display count). -->
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="TAGS // RECENT HISTORY"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                            <TextBlock Text="Number of recently assigned tags shown below Add tag. Set 0 to hide the shortcuts. The history is kept separately for each album."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <NumberBox x:Name="RecentTagCountNumberBox"
+                                           Header="VISIBLE RECENT TAGS"
+                                           Minimum="0" Maximum="20" SmallChange="1" LargeChange="5"
+                                           SpinButtonPlacementMode="Compact"
+                                           Width="190"
+                                           Value="5"
+                                           ValueChanged="OnRecentTagCountChanged" />
+                                <Button x:Name="ClearRecentTagsButton"
+                                        Content="CLEAR HISTORY"
+                                        VerticalAlignment="Bottom"
+                                        Click="OnClearRecentTagHistory"
+                                        AutomationProperties.AutomationId="ClearRecentTagsButton"
+                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                            </StackPanel>
+                            <TextBlock x:Name="RecentTagsSettingsStatusText"
+                                       Text="History changes apply to the current album only."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechAccentBrush}" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Album JPEG conversion: explicit preview and confirmation before modifying files. -->
                     <Grid x:Name="AlbumSectionHeader" Height="34" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
