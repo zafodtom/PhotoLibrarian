@@ -287,7 +287,8 @@ public static class AlbumJpegConversionService
         var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId,
             outputStream, options);
         encoder.SetPixelData(BitmapPixelFormat.Rgba8, BitmapAlphaMode.Ignore,
-            pixels.PixelWidth, pixels.PixelHeight, decoder.DpiX, decoder.DpiY, bytes);
+            decoder.OrientedPixelWidth, decoder.OrientedPixelHeight,
+            decoder.DpiX, decoder.DpiY, bytes);
         await encoder.FlushAsync();
     }
 }
