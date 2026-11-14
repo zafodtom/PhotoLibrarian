@@ -279,6 +279,11 @@ public partial class ImageGridViewModel : ObservableObject
         int index = 0;
         foreach (var img in allImages)
         {
+            // Legacy databases may still contain previously indexed .album
+            // rollback images. Never present or thumbnail internal files.
+            if (FolderScannerService.ContainsAlbumMetadataComponent(img.FilePath))
+                continue;
+
             var matchesFolder = !hasFolderFilter ||
                 (folderFilters is not null &&
                  folderFilters.Any(folder =>
@@ -402,26 +407,14 @@ public partial class ImageGridViewModel : ObservableObject
                 List<string> missingFiles;
                 try
                 {
-                    missingFiles = await Task.Run(() =>
+                    missingFiles = await Task.Run(async () =>
                     {
                         var result = new List<string>();
-                        foreach (var filePath in Directory.EnumerateFiles(
-                                     folderPath,
-                                     "*.*",
-                                     new EnumerationOptions
-                                     {
-                                         RecurseSubdirectories = true,
-                                         IgnoreInaccessible = true
-                                     }))
+                        await foreach (var filePath in _scanner.ScanFolderAsync(
+                                           folderPath, includeSubfolders: true, ct))
                         {
-                            if (ct.IsCancellationRequested)
-                                break;
-
-                            if (FolderScannerService.IsSupportedFile(filePath) &&
-                                !indexedPaths.Contains(filePath))
-                            {
+                            if (!indexedPaths.Contains(filePath))
                                 result.Add(filePath);
-                            }
                         }
 
                         return result;
@@ -718,19 +711,13 @@ public partial class ImageGridViewModel : ObservableObject
             
             // Scan files on background thread
             var enumSw = System.Diagnostics.Stopwatch.StartNew();
-            var files = await Task.Run(() =>
+            var files = await Task.Run(async () =>
             {
                 var result = new List<string>();
-                foreach (var filePath in Directory.EnumerateFiles(folderPath, "*.*", 
-                    new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
+                await foreach (var filePath in _scanner.ScanFolderAsync(
+                                   folderPath, includeSubfolders: true, ct))
                 {
-                    if (ct.IsCancellationRequested) break;
-                    
-                    if (FolderScannerService.IsSupportedFile(filePath))
-                    {
-                        result.Add(filePath);
-                        // No limit - ItemsRepeater virtualizes UI, thumbnails load in batches
-                    }
+                    result.Add(filePath);
                 }
                 return result;
             }, ct);
