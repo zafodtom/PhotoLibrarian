@@ -15,6 +15,9 @@ namespace PhotoLibrarian.Services;
 public sealed class PhotoOperationsService
 {
     private readonly ImageRepository _imageRepo;
+    // Suppress overlapping transfers (double paste / concurrent UI commands).
+    // The gate is instance-scoped so independent albums do not share state.
+    private readonly SemaphoreSlim _transferGate = new(1, 1);
 
     private readonly OriginalBackupService _backupService;
 
@@ -249,8 +252,25 @@ public sealed class PhotoOperationsService
             return;
 
         pkg.SetStorageItems(items);
-        Clipboard.SetContent(pkg);
-        Clipboard.Flush();
+        // Clipboard.SetContent / Flush can fail with CLIPBRD_E_CANT_OPEN
+        // (0x800401D0) if Explorer or another app temporarily owns it.
+        // WinRT clipboard calls must remain on the invoking UI thread.
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            try
+            {
+                Clipboard.SetContent(pkg);
+                Clipboard.Flush();
+                return;
+            }
+            catch (System.Runtime.InteropServices.COMException ex)
+                when (ex.HResult == unchecked((int)0x800401D0) && attempt < 3)
+            {
+                await Task.Delay(80 * (attempt + 1));
+            }
+        }
+        // On the last attempt an exception is propagated to the caller,
+        // which reports a recoverable error instead of crashing WinUI.
     }
 
     public async Task<List<string>> PasteClipboardToDirectoryAsync(
@@ -258,85 +278,107 @@ public sealed class PhotoOperationsService
     {
         if (string.IsNullOrWhiteSpace(destinationDirectory) ||
             !Directory.Exists(destinationDirectory))
+            return [];
+
+        // WinRT clipboard APIs are accessed from the UI thread, but the
+        // potentially long-running file copies must not block that thread.
+        if (!await _transferGate.WaitAsync(0))
         {
+            System.Diagnostics.Debug.WriteLine("[OPS] A file transfer is already running.");
             return [];
         }
 
-        var view = Clipboard.GetContent();
-        if (!view.Contains(StandardDataFormats.StorageItems))
-            return [];
-
-        var storageItems = await view.GetStorageItemsAsync();
-        var move = view.RequestedOperation == DataPackageOperation.Move;
-        var results = new List<string>();
-
-        foreach (var item in storageItems)
+        try
         {
-            var sourcePath = item.Path;
-            if (string.IsNullOrWhiteSpace(sourcePath))
-                continue;
+            var view = Clipboard.GetContent();
+            if (!view.Contains(StandardDataFormats.StorageItems))
+                return [];
 
-            try
+            var storageItems = await view.GetStorageItemsAsync();
+            var move = view.RequestedOperation == DataPackageOperation.Move;
+            var sourcePaths = storageItems
+                .Select(item => item.Path)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var results = new List<string>();
+            bool allSucceeded = true;
+
+            foreach (var sourcePath in sourcePaths)
             {
-                if (Directory.Exists(sourcePath))
+                try
                 {
-                    if (IsSameOrDescendant(destinationDirectory, sourcePath))
-                        continue;
-
-                    var destination = GetUniqueDestinationPath(
-                        destinationDirectory,
-                        Path.GetFileName(sourcePath),
-                        isDirectory: true);
-
-                    if (move)
+                    if (Directory.Exists(sourcePath))
                     {
-                        MoveDirectory(sourcePath, destination);
-                        await _imageRepo.UpdatePathPrefixAsync(
-                            sourcePath,
-                            destination);
+                        if (IsSameOrDescendant(destinationDirectory, sourcePath))
+                        {
+                            allSucceeded = false;
+                            continue;
+                        }
+
+                        var destination = GetUniqueDestinationPath(
+                            destinationDirectory, Path.GetFileName(sourcePath),
+                            isDirectory: true);
+                        if (move)
+                        {
+                            await Task.Run(() => MoveDirectory(sourcePath, destination));
+                            await _imageRepo.UpdatePathPrefixAsync(sourcePath, destination);
+                        }
+                        else
+                        {
+                            await Task.Run(() => CopyDirectory(sourcePath, destination));
+                        }
+                        results.Add(destination);
+                    }
+                    else if (File.Exists(sourcePath))
+                    {
+                        var destination = GetUniqueDestinationPath(
+                            destinationDirectory, Path.GetFileName(sourcePath),
+                            isDirectory: false);
+                        if (move)
+                        {
+                            var existing = await _imageRepo.GetByPathAsync(sourcePath);
+                            await Task.Run(() => MoveFile(sourcePath, destination));
+                            if (existing is not null)
+                                await _imageRepo.UpdatePathAsync(existing.Id, destination);
+                        }
+                        else
+                        {
+                            await Task.Run(() =>
+                                File.Copy(sourcePath, destination, overwrite: false));
+                        }
+                        results.Add(destination);
                     }
                     else
                     {
-                        CopyDirectory(sourcePath, destination);
+                        allSucceeded = false;
                     }
-
-                    results.Add(destination);
                 }
-                else if (File.Exists(sourcePath))
+                catch (Exception ex)
                 {
-                    var destination = GetUniqueDestinationPath(
-                        destinationDirectory,
-                        Path.GetFileName(sourcePath),
-                        isDirectory: false);
-
-                    if (move)
-                    {
-                        var existing = await _imageRepo.GetByPathAsync(sourcePath);
-                        MoveFile(sourcePath, destination);
-                        if (existing is not null)
-                            await _imageRepo.UpdatePathAsync(
-                                existing.Id,
-                                destination);
-                    }
-                    else
-                    {
-                        File.Copy(sourcePath, destination, overwrite: false);
-                    }
-
-                    results.Add(destination);
+                    allSucceeded = false;
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[OPS] Transfer failed for '{sourcePath}': {ex}");
                 }
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine(
-                    $"[OPS] Paste failed for '{sourcePath}': {ex.Message}");
-            }
+
+            // A partially failed Cut/Paste must not discard the remaining
+            // sources from the clipboard, so they can be retried.
+            if (move && allSucceeded && sourcePaths.Length > 0 &&
+                results.Count == sourcePaths.Length)
+                Clipboard.Clear();
+
+            return results;
         }
-
-        if (move && results.Count > 0)
-            Clipboard.Clear();
-
-        return results;
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[OPS] Clipboard transfer failed: {ex}");
+            return [];
+        }
+        finally
+        {
+            _transferGate.Release();
+        }
     }
 
     public static string CreateNewFolder(string parentDirectory)

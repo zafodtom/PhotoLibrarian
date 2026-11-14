@@ -1136,23 +1136,40 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     {
         if (sender is not FrameworkElement element || element.DataContext is not ImageThumbnailViewModel vm) return;
 
-        // If user starts dragging an unselected item, select it first (Explorer behavior)
-        if (!_selectedItems.Contains(vm))
-        {
-            HandleSelection(vm, ModifierState.None);
-        }
-
-        var paths = _selectedItems.Select(i => i.Entry.FilePath).ToList();
-        if (paths.Count == 0) paths.Add(vm.Entry.FilePath);
-
+        // WinUI drag events are async-void entry points. Never allow a COM,
+        // storage or selection exception to escape and terminate the process.
         var deferral = args.GetDeferral();
         try
         {
-            await PhotoLibrarian.Services.PhotoOperationsService.PopulateDragDataAsync(args.Data, paths);
+            // Selecting during DragStarting can recycle the thumbnail container.
+            // Snapshot the paths before awaiting WinRT StorageFile operations.
+            if (!_selectedItems.Contains(vm))
+                HandleSelection(vm, ModifierState.None);
+
+            var paths = _selectedItems.Select(i => i.Entry.FilePath)
+                .Where(File.Exists)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (paths.Length == 0 && File.Exists(vm.Entry.FilePath))
+                paths = [vm.Entry.FilePath];
+            if (paths.Length == 0)
+            {
+                args.Cancel = true;
+                return;
+            }
+
+            await PhotoLibrarian.Services.PhotoOperationsService.PopulateDragDataAsync(
+                args.Data, paths);
             args.AllowedOperations = DataPackageOperation.Copy;
-            // Marker so in-app drop targets (e.g. tags tree) can distinguish drags that
-            // originated from our own grid from arbitrary file drops from Explorer.
             args.Data.Properties[PhotoLibrarian.Services.PhotoOperationsService.TagDropFormatId] = "1";
+        }
+        catch (Exception ex)
+        {
+            args.Cancel = true;
+            PhotoLibrarian.Diagnostics.DebugLog.WriteLine(
+                $"[DRAG] Could not prepare photo drag: {ex}");
+            if (PhotoLibrarian.App.ViewModel is { } main)
+                main.StatusText = $"Photo drag failed: {ex.Message}";
         }
         finally
         {

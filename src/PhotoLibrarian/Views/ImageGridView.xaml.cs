@@ -47,6 +47,9 @@ public sealed partial class ImageGridView : UserControl
 
         // Right-click context menu
         PhotoGrid.ContextMenuRequested += OnContextMenuRequested;
+        // The flat virtualized layout uses a separate DragStarting event from
+        // the grouped photo tiles. Both must populate the Windows data package.
+        PhotoGrid.FlatDragStarting += OnFlatPhotoDragStarting;
 
         // Keyboard file operations. Register handledEventsToo so Delete works
         // while the custom virtualized grid owns keyboard focus.
@@ -79,6 +82,45 @@ public sealed partial class ImageGridView : UserControl
         InitializeRefinementControls(ViewModel.Refinement);
         await RefreshPeopleAsync();
         UpdateActiveFilterChips();
+    }
+
+    private async void OnFlatPhotoDragStarting(
+        object? sender,
+        Controls.VirtualizingPhotoGridDragStartingEventArgs e)
+    {
+        var drag = e.DragArguments;
+        var deferral = drag.GetDeferral();
+        try
+        {
+            var paths = e.Items
+                .OfType<ImageThumbnailViewModel>()
+                .Select(item => item.Entry.FilePath)
+                .Where(System.IO.File.Exists)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (paths.Length == 0)
+            {
+                drag.Cancel = true;
+                return;
+            }
+
+            await Services.PhotoOperationsService.PopulateDragDataAsync(drag.Data, paths);
+            drag.AllowedOperations = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+            drag.Data.Properties[Services.PhotoOperationsService.TagDropFormatId] = "1";
+        }
+        catch (Exception ex)
+        {
+            drag.Cancel = true;
+            PhotoLibrarian.Diagnostics.DebugLog.WriteLine(
+                $"[DRAG] Flat grid drag preparation failed: {ex}");
+            if (App.ViewModel is { } main)
+                main.StatusText = $"Photo drag failed: {ex.Message}";
+        }
+        finally
+        {
+            deferral.Complete();
+        }
     }
 
     private void OnMainViewModelPropertyChanged(
@@ -782,16 +824,34 @@ public sealed partial class ImageGridView : UserControl
         var copy = new MenuFlyoutItem { Text = isMulti ? $"Copy ({selected.Count} files)" : "Copy" };
         copy.Click += async (_, _) =>
         {
-            await Services.PhotoOperationsService.CopyFilesToClipboardAsync(
-                selected.Select(vm => vm.Entry.FilePath));
+            try
+            {
+                await Services.PhotoOperationsService.CopyFilesToClipboardAsync(
+                    selected.Select(vm => vm.Entry.FilePath));
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.DebugLog.WriteLine($"[CLIPBOARD] Copy failed: {ex}");
+                if (App.ViewModel is { } main)
+                    main.StatusText = $"Could not copy photos: {ex.Message}";
+            }
         };
         menu.Items.Add(copy);
 
         var cut = new MenuFlyoutItem { Text = isMulti ? $"Cut ({selected.Count} files)" : "Cut" };
         cut.Click += async (_, _) =>
         {
-            await Services.PhotoOperationsService.CutFilesToClipboardAsync(
-                selected.Select(vm => vm.Entry.FilePath));
+            try
+            {
+                await Services.PhotoOperationsService.CutFilesToClipboardAsync(
+                    selected.Select(vm => vm.Entry.FilePath));
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.DebugLog.WriteLine($"[CLIPBOARD] Cut failed: {ex}");
+                if (App.ViewModel is { } main)
+                    main.StatusText = $"Could not cut photos: {ex.Message}";
+            }
         };
         menu.Items.Add(cut);
 
