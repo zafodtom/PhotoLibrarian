@@ -73,6 +73,10 @@ public static class GitHubUpdateService
         }
     }
 
+    /// <summary>Compare a candidate GitHub release to an installed release tag.</summary>
+    public static bool IsNewerReleaseTag(string candidateTag, string installedTag) =>
+        CompareTags(candidateTag, installedTag) > 0;
+
     private static int CompareTags(string a, string b)
     {
         var matchA = ReleaseTagPattern.Match(a);
