@@ -131,6 +131,17 @@ public static class AlbumJpegConversionService
                 string? sidecarBackup = null;
                 try
                 {
+                    // Do not move read-only originals into a rollback directory:
+                    // no-backup cleanup would then fail on deletion and leave
+                    // a misleading partly converted album. Never change user
+                    // file attributes implicitly.
+                    if ((File.GetAttributes(source) & FileAttributes.ReadOnly) != 0)
+                        throw new UnauthorizedAccessException(
+                            "Source is read-only; remove the Read-only attribute before conversion.");
+                    if (hasSidecar && (File.GetAttributes(sidecar) & FileAttributes.ReadOnly) != 0)
+                        throw new UnauthorizedAccessException(
+                            "XMP sidecar is read-only; remove the Read-only attribute before conversion.");
+
                     // A JPEG with the target basename already present is never overwritten.
                     if (!originalJpg && File.Exists(destination))
                     {
@@ -153,8 +164,21 @@ public static class AlbumJpegConversionService
                         // Reject malformed XMP rather than inserting an unreadable
                         // packet and removing its only active sidecar.
                         xmpBytes = await File.ReadAllBytesAsync(sidecar, cancellationToken);
-                        XmpCore.XmpMetaFactory.ParseFromString(
-                            System.Text.Encoding.UTF8.GetString(xmpBytes));
+                        // XmpCore may fail with "XML Parser not correctly configured"
+                        // even for valid sidecar XML on the .NET 10 runtime.
+                        // Validate using the built-in XML reader, with DTD and
+                        // external entity resolution explicitly disabled.
+                        using (var xmpStream = new MemoryStream(xmpBytes))
+                        using (var reader = System.Xml.XmlReader.Create(xmpStream,
+                            new System.Xml.XmlReaderSettings
+                            {
+                                DtdProcessing = System.Xml.DtdProcessing.Prohibit,
+                                XmlResolver = null,
+                                ConformanceLevel = System.Xml.ConformanceLevel.Document
+                            }))
+                        {
+                            System.Xml.Linq.XDocument.Load(reader);
+                        }
                         var jpegBytes = await File.ReadAllBytesAsync(temporary, cancellationToken);
                         var updated = JpegXmpPacket.Embed(jpegBytes, xmpBytes);
                         if (!JpegXmpPacket.ContainsExactPacket(updated, xmpBytes))
@@ -247,7 +271,9 @@ public static class AlbumJpegConversionService
                 catch (Exception ex)
                 {
                     failed++;
-                    errors.Add(Path.GetFileName(source) + ": " + ex.Message);
+                    errors.Add(Path.GetRelativePath(albumRoot, source) +
+                        ": [" + ex.GetType().Name + ", 0x" +
+                        ex.HResult.ToString("X8") + "] " + ex.Message);
                 }
                 finally
                 {
