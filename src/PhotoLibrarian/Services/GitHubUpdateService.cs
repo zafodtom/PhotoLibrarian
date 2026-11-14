@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -16,11 +17,13 @@ public static class GitHubUpdateService
 {
     private const string Repository = "zafodtom/PhotoLibrarian";
     private const string ApiUrl = "https://api.github.com/repos/" + Repository + "/releases/latest";
+    private const string ReleasesApiUrl = "https://api.github.com/repos/" + Repository + "/releases?per_page=50";
+    private static readonly Regex ReleaseTagPattern = new(@"^v(?<core>[0-9]+\.[0-9]+\.[0-9]+)(?:-dev\.(?<build>[0-9]+))?$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private const long MaximumInstallerBytes = 700L * 1024 * 1024;
     private static readonly HttpClient Client = CreateClient();
 
     public sealed record Release(Version Version, string Tag, string AssetName,
-        Uri DownloadUrl, long Size, string Sha256);
+        Uri DownloadUrl, long Size, string Sha256, bool IsDevelopment = false);
 
     private static HttpClient CreateClient()
     {
@@ -34,56 +37,131 @@ public static class GitHubUpdateService
     public static Version InstalledVersion =>
         typeof(GitHubUpdateService).Assembly.GetName().Version ?? new Version(1, 1, 0, 0);
 
-    public static async Task<Release?> CheckAsync(CancellationToken cancellationToken = default)
+    private static readonly string PreferenceFile = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "PhotoLibrarian", "update-channel.txt");
+
+    public static bool DevelopmentUpdatesEnabled
     {
-        using var response = await Client.GetAsync(ApiUrl, cancellationToken);
-        // A new project can have Actions artifacts but no published stable release yet.
+        get
+        {
+            try { return File.ReadAllText(PreferenceFile).Trim() == "development"; }
+            catch (IOException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
+        }
+        set
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(PreferenceFile)!);
+            File.WriteAllText(PreferenceFile, value ? "development" : "stable");
+        }
+    }
+
+    // In development builds the installer embeds its prerelease build number
+    // into AssemblyInformationalVersion; a normal install cannot infer this
+    // from numeric AssemblyVersion alone.
+    public static string InstalledTag
+    {
+        get
+        {
+            var informational = typeof(GitHubUpdateService).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                .InformationalVersion?.Split('+')[0] ?? "";
+            var tag = "v" + informational.TrimStart('v');
+            return ReleaseTagPattern.IsMatch(tag)
+                ? tag
+                : "v" + InstalledVersion.ToString(3);
+        }
+    }
+
+    private static int CompareTags(string a, string b)
+    {
+        var matchA = ReleaseTagPattern.Match(a);
+        var matchB = ReleaseTagPattern.Match(b);
+        if (!matchA.Success || !matchB.Success)
+            throw new InvalidDataException("Invalid release version tag.");
+
+        var aVersion = Version.Parse(matchA.Groups["core"].Value);
+        var bVersion = Version.Parse(matchB.Groups["core"].Value);
+        var versionComparison = aVersion.CompareTo(bVersion);
+        if (versionComparison != 0) return versionComparison;
+        var aDev = matchA.Groups["build"].Success;
+        var bDev = matchB.Groups["build"].Success;
+        // A final release ranks above every development build of the same version.
+        if (aDev != bDev) return aDev ? -1 : 1;
+        if (!aDev) return 0;
+        return long.Parse(matchA.Groups["build"].Value,
+            System.Globalization.CultureInfo.InvariantCulture).CompareTo(
+            long.Parse(matchB.Groups["build"].Value,
+                System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public static async Task<Release?> CheckAsync(
+        CancellationToken cancellationToken = default, bool includeDevelopment = false)
+    {
+        using var response = await Client.GetAsync(
+            includeDevelopment ? ReleasesApiUrl : ApiUrl, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
             return null;
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
         var root = document.RootElement;
-        if (root.GetProperty("draft").GetBoolean() ||
-            root.GetProperty("prerelease").GetBoolean())
-            return null;
-
-        var tag = root.GetProperty("tag_name").GetString() ?? "";
-        if (!Regex.IsMatch(tag, @"^v[0-9]+\.[0-9]+\.[0-9]+$",
-                RegexOptions.CultureInvariant) ||
-            !Version.TryParse(tag[1..], out var latest) ||
-            latest <= InstalledVersion)
-            return null;
-
-        var expectedName = $"PhotoLibrarian-{latest.Major}.{latest.Minor}.{latest.Build}-Setup-x64.exe";
-        foreach (var asset in root.GetProperty("assets").EnumerateArray())
+        var releases = root.ValueKind == JsonValueKind.Array
+            ? root.EnumerateArray().ToArray()
+            : new[] { root };
+        Release? best = null;
+        foreach (var candidate in releases)
         {
-            if (!string.Equals(asset.GetProperty("name").GetString(),
-                    expectedName, StringComparison.Ordinal))
+            if (candidate.GetProperty("draft").GetBoolean())
+                continue;
+            var tag = candidate.GetProperty("tag_name").GetString() ?? "";
+            var match = ReleaseTagPattern.Match(tag);
+            if (!match.Success ||
+                !Version.TryParse(match.Groups["core"].Value, out var version))
                 continue;
 
-            var size = asset.GetProperty("size").GetInt64();
-            if (size <= 0 || size > MaximumInstallerBytes)
-                throw new InvalidDataException("Release installer size is invalid.");
+            var development = match.Groups["build"].Success;
+            if (development != candidate.GetProperty("prerelease").GetBoolean())
+                continue;
+            if (development && !includeDevelopment)
+                continue;
+            if (CompareTags(tag, InstalledTag) <= 0)
+                continue;
+            if (best is not null && CompareTags(tag, best.Tag) <= 0)
+                continue;
 
-            if (!asset.TryGetProperty("digest", out var digestElement))
-                throw new InvalidDataException("Release lacks SHA-256 digest.");
-            var digest = digestElement.GetString() ?? "";
-            if (!Regex.IsMatch(digest, "^sha256:[a-fA-F0-9]{64}$",
-                    RegexOptions.CultureInvariant))
-                throw new InvalidDataException("Release has no valid SHA-256 digest.");
+            var expectedName = $"PhotoLibrarian-{version.Major}.{version.Minor}.{version.Build}-Setup-x64.exe";
+            foreach (var asset in candidate.GetProperty("assets").EnumerateArray())
+            {
+                if (!string.Equals(asset.GetProperty("name").GetString(),
+                        expectedName, StringComparison.Ordinal))
+                    continue;
 
-            var urlText = asset.GetProperty("browser_download_url").GetString() ?? "";
-            if (!Uri.TryCreate(urlText, UriKind.Absolute, out var url) ||
-                url.Scheme != Uri.UriSchemeHttps ||
-                url.Host != "github.com" ||
-                url.AbsolutePath !=
-                    $"/{Repository}/releases/download/{tag}/{expectedName}")
-                throw new InvalidDataException("Installer URL does not match the official release.");
+                var size = asset.GetProperty("size").GetInt64();
+                if (size <= 0 || size > MaximumInstallerBytes)
+                    throw new InvalidDataException("Release installer size is invalid.");
 
-            return new Release(latest, tag, expectedName, url, size, digest[7..]);
+                if (!asset.TryGetProperty("digest", out var digestElement))
+                    throw new InvalidDataException("Release lacks SHA-256 digest.");
+                var digest = digestElement.GetString() ?? "";
+                if (!Regex.IsMatch(digest, "^sha256:[a-fA-F0-9]{64}$",
+                        RegexOptions.CultureInvariant))
+                    throw new InvalidDataException("Release has no valid SHA-256 digest.");
+
+                var urlText = asset.GetProperty("browser_download_url").GetString() ?? "";
+                if (!Uri.TryCreate(urlText, UriKind.Absolute, out var url) ||
+                    url.Scheme != Uri.UriSchemeHttps ||
+                    url.Host != "github.com" ||
+                    url.AbsolutePath !=
+                        $"/{Repository}/releases/download/{tag}/{expectedName}")
+                    throw new InvalidDataException("Installer URL does not match the official release.");
+
+                best = new Release(version, tag, expectedName, url, size, digest[7..], development);
+                break;
+            }
         }
-        throw new InvalidDataException("The release has no matching x64 installer.");
+        return best;
     }
 
     public static async Task<string> DownloadVerifiedAsync(Release release,
