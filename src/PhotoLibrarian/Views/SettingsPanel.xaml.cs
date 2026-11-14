@@ -572,6 +572,7 @@ public sealed partial class SettingsPanel : UserControl
                 Text = "Remove all assigned image tags, user flags and saved tag " +
                        "catalog names from the ACTIVE album?\n\n" +
                        "Ratings, dates, captions, face data and photos are preserved. " +
+                       "Automatic tagging will be switched OFF to prevent tags from returning. " +
                        "The original image and XMP files will be backed up under " +
                        ".album/metadata-reset-backups before each modification.\n\n" +
                        "This is an album-wide operation and cannot be undone " +
