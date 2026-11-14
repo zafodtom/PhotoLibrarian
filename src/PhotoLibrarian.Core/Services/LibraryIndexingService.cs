@@ -144,6 +144,25 @@ public sealed class LibraryIndexingService
                 }
             });
 
+        // Remove incorrectly indexed internal backup files left by earlier
+        // versions. This touches only database records, never physical backups.
+        var internalPaths = (await _imageRepo.GetAllAsync())
+            .Where(image => FolderScannerService.ContainsAlbumMetadataComponent(
+                    image.FilePath) &&
+                image.FilePath.StartsWith(
+                    Path.GetFullPath(folderPath).TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase))
+            .Select(image => image.FilePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        foreach (var internalPath in internalPaths)
+            await _imageRepo.DeleteByPathAsync(internalPath);
+        if (internalPaths.Length > 0)
+            DebugLog.WriteLine(
+                $"IndexFolderAsync: Removed {internalPaths.Length} internal .album entries from index.");
+
         var nestedAlbumRoots =
             FolderScannerService.FindNestedAlbumRoots(folderPath);
         var removedNested = await _imageRepo.DeleteUnderDirectoryRootsAsync(
@@ -181,6 +200,8 @@ public sealed class LibraryIndexingService
         CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
+        if (FolderScannerService.ContainsAlbumMetadataComponent(filePath))
+            return false;
         var fileInfo = new FileInfo(filePath);
         if (!fileInfo.Exists)
         {
