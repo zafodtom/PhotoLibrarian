@@ -449,7 +449,9 @@ public sealed partial class SettingsPanel : UserControl
                 $"Ready: {preview.ConvertCount:N0} photos to JPEG, " +
                 $"{preview.JpegMetadataCount:N0} existing JPEG XMP merges; " +
                 $"{preview.TargetConflictCount:N0} destination conflicts (will be skipped). " +
-                "Originals will be retained as backups.";
+                (KeepJpegConversionBackupsCheckBox.IsChecked != false
+                    ? "Originals will be retained as backups."
+                    : "NO RETAINED BACKUPS: originals are deleted after verified conversion.");
         }
         catch (Exception ex)
         {
@@ -561,12 +563,14 @@ public sealed partial class SettingsPanel : UserControl
             return;
         }
 
+        bool keepJpegBackups = KeepJpegConversionBackupsCheckBox.IsChecked != false;
         var dialog = CreateAlbumMaintenanceDialog(
             "CONVERT TO JPEG",
             $"Convert {_jpegPreview.ConvertCount:N0} photo(s) and embed XMP " +
             $"into {_jpegPreview.JpegMetadataCount:N0} existing JPEG(s)?\n\n" +
-            "JPEG conversion is lossy. Original photos and XMP sidecars " +
-            "will be moved to a timestamped backup inside .album. " +
+            (keepJpegBackups
+                ? "JPEG conversion is lossy. Original photos and XMP sidecars will be retained in a timestamped .album backup. "
+                : "WARNING: NO BACKUPS. JPEG conversion is lossy and your original images and XMP sidecars will be permanently discarded after verified conversion. ") +
             "Existing JPEG destinations will NOT be overwritten. " +
             "Embedded EXIF and other metadata in non-JPEG sources may " +
             "not all survive transcoding; retain backups until inspected.\n\n" +
@@ -603,12 +607,14 @@ public sealed partial class SettingsPanel : UserControl
                 {
                     if (App.ViewModel is { } main)
                         await main.RemapConvertedImagePathAsync(original, converted);
-                });
+                }, keepBackups: keepJpegBackups);
             JpegConversionStatusText.Text =
                 $"Complete: {result.Converted:N0} images converted; " +
                 $"{result.EmbeddedXmp:N0} XMP packets embedded; " +
                 $"{result.Failed:N0} failed, {result.Skipped:N0} skipped. " +
-                $"Backup: {result.BackupDirectory}" +
+                (keepJpegBackups
+                    ? $"Backup: {result.BackupDirectory}"
+                    : $"No retained backups. Error reports: {result.BackupDirectory}") +
                 (result.Errors.Count > 0
                     ? "\nErrors: " + string.Join("; ", result.Errors.Take(3))
                     : "");
@@ -617,7 +623,9 @@ public sealed partial class SettingsPanel : UserControl
         {
             JpegConversionStatusText.Text =
                 "Conversion cancelled. Completed photos stay converted; " +
-                "their originals remain in the backup folder.";
+                (keepJpegBackups
+                    ? "their originals remain in the backup folder."
+                    : "completed originals were permanently removed (no-backup mode).");
         }
         catch (Exception ex)
         {
@@ -686,14 +694,16 @@ public sealed partial class SettingsPanel : UserControl
             return;
         }
         // A separate dialog avoids accidental single-click mass deletion.
+        bool keepResetBackups = KeepAlbumResetBackupsCheckBox.IsChecked != false;
         var dialog = CreateAlbumMaintenanceDialog(
             "CLEAR ALBUM TAGS + FLAGS",
             $"Remove all assigned tags and user flags from {photoCount:N0} " +
             "photo(s), plus saved catalog tag names, in the ACTIVE album?\n\n" +
             "Ratings, dates, captions, face data and photos are preserved. " +
             "Automatic tagging will be switched OFF to prevent tags from returning. " +
-            "The original image and XMP files will be backed up under " +
-            ".album/metadata-reset-backups before each modification.\n\n" +
+            (keepResetBackups
+                ? "Original image and XMP files will be backed up under .album/metadata-reset-backups before each modification.\n\n"
+                : "WARNING: NO RETAINED BACKUPS. Changes to embedded tags and flags cannot be reversed; only temporary rollback files are used during each write.\n\n") +
             "This is an album-wide operation and cannot be undone " +
             "automatically. Keep a separate backup before proceeding.",
             "CLEAR TAGS AND FLAGS",
@@ -724,14 +734,16 @@ public sealed partial class SettingsPanel : UserControl
                     $"// {state.Failed:N0} failed  // {state.FileName}";
             });
             var result = await App.ViewModel.ClearActiveAlbumTagsAndFlagsAsync(
-                progress, _clearAlbumCancellation.Token);
+                progress, _clearAlbumCancellation.Token, keepBackups: keepResetBackups);
             ClearAlbumStatusText.Text =
                 $"Finished: {result.Cleaned:N0} photos cleaned, {result.Failed:N0} failed. " +
                 (result.Failed > 0
                     ? "PARTIAL RESET: tag catalog was preserved. " +
                       "Review reset-errors.txt in the backup directory. "
                     : "All processed photos passed; tag catalog cleared. ") +
-                $"Backup: {result.BackupDirectory}" +
+                (keepResetBackups
+                    ? $"Backup: {result.BackupDirectory}"
+                    : $"No retained backups. Error reports: {result.BackupDirectory}") +
                 (result.Errors.Count > 0
                     ? "\nFirst errors: " + string.Join("; ", result.Errors.Take(3))
                     : "");
@@ -740,7 +752,9 @@ public sealed partial class SettingsPanel : UserControl
         {
             ClearAlbumStatusText.Text =
                 "Reset cancelled; successfully cleaned photos stay cleaned. " +
-                "Keep backups for recovery.";
+                (keepResetBackups
+                    ? "Keep backups for recovery."
+                    : "No retained backups; completed changes cannot be undone.");
         }
         catch (Exception ex)
         {

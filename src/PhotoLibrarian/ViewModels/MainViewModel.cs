@@ -1339,7 +1339,8 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Clear tags and user flags across the active album.</summary>
     public async Task<AlbumMetadataClearResult> ClearActiveAlbumTagsAndFlagsAsync(
         IProgress<AlbumMetadataClearProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool keepBackups = true)
     {
         if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
             throw new InvalidOperationException("No active album.");
@@ -1391,12 +1392,12 @@ public partial class MainViewModel : ObservableObject
                         await _tagRepo.ClearImageTagsAndFlagAsync(entry.Id);
                     entry.IsFlagged = false;
                 },
-                progress, cancellationToken);
+                progress, cancellationToken, keepBackups);
             if (result.Failed == 0)
             {
                 var catalog = AlbumService.LoadTagCatalog(root);
                 var catalogFile = Path.Combine(root, ".album", AlbumService.AlbumTagsName);
-                if (File.Exists(catalogFile))
+                if (keepBackups && File.Exists(catalogFile))
                 {
                     Directory.CreateDirectory(result.BackupDirectory);
                     File.Copy(catalogFile,
