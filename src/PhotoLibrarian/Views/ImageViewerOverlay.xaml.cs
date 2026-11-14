@@ -574,21 +574,6 @@ public sealed partial class ImageViewerOverlay : UserControl
         _zoomPan?.HandlePointerCanceled(ImageScrollViewer, e);
     }
 
-    private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        // Kept for backwards compatibility, but not used with new zoom controller
-    }
-
-    private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
-    {
-        // Kept for backwards compatibility, but not used with new zoom controller
-    }
-
-    private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
-    {
-        // Kept for backwards compatibility, but not used with new zoom controller
-    }
-
     private async void OnWindowKeyDown(
         object sender,
         KeyRoutedEventArgs e)
@@ -672,17 +657,7 @@ public sealed partial class ImageViewerOverlay : UserControl
                 ViewModel.ZoomOutCommand.Execute(null);
                 e.Handled = true;
                 break;
-            // Flag shortcut intentionally disabled in the current album UI.
         }
-    }
-
-    /// <summary>Toggles the flag on the image currently shown in the viewer (F shortcut).</summary>
-    private async Task ToggleFlagAsync()
-    {
-        var entry = ViewModel?.CurrentEntry;
-        if (entry is null || App.ViewModel is null) return;
-
-        await App.ViewModel.SetFlagAsync(new[] { entry }, !entry.IsFlagged);
     }
 
     private void OnStraightenAngleChanged(

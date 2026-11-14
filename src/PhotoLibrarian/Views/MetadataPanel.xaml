@@ -95,57 +95,6 @@
                                    FontWeight="SemiBold" FontSize="13" />
                     </Border>
 
-                    <TextBlock Text="People tags" Style="{StaticResource SectionHeaderStyle}" Visibility="Collapsed" />
-                    <ItemsRepeater x:Name="PeopleTagsList" Margin="0,2,0,0" Visibility="Collapsed">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Orientation="Vertical" Spacing="4" />
-                        </ItemsRepeater.Layout>
-                        <ItemsRepeater.ItemTemplate>
-                            <DataTemplate x:DataType="vm:PersonTagDisplayItem">
-                                <Grid Tag="{x:Bind FaceId, Mode=OneWay}"
-                                      ColumnSpacing="8"
-                                      PointerEntered="OnPersonRowPointerEntered"
-                                      PointerExited="OnPersonRowPointerExited">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="32" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Ellipse Width="32" Height="32">
-                                        <Ellipse.Fill>
-                                            <ImageBrush ImageSource="{x:Bind Thumbnail, Mode=OneWay}"
-                                                        Stretch="UniformToFill" />
-                                        </Ellipse.Fill>
-                                    </Ellipse>
-                                    <TextBlock Grid.Column="1"
-                                               Text="{x:Bind Name, Mode=OneWay}"
-                                               VerticalAlignment="Center"
-                                               FontSize="13" />
-                                    <Button Grid.Column="2"
-                                            Tag="{x:Bind FaceId, Mode=OneWay}"
-                                            AutomationProperties.AutomationId="RemovePeopleTagButton"
-                                            AutomationProperties.Name="Remove people tag"
-                                            ToolTipService.ToolTip="Remove this people tag"
-                                            Click="OnRemoveFaceTagClick"
-                                            Padding="6"
-                                            Background="Transparent"
-                                            BorderThickness="0">
-                                        <FontIcon Glyph="&#xE711;" FontSize="12" />
-                                    </Button>
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsRepeater.ItemTemplate>
-                    </ItemsRepeater>
-                    <Button x:Name="AddPeopleTagsButton"
-                            Visibility="Collapsed"
-                            AutomationProperties.AutomationId="AddPeopleTagsButton"
-                            AutomationProperties.Name="Add people tags"
-                            Content="Add people tags"
-                            Click="OnAddPeopleTagsClick"
-                            HorizontalAlignment="Left"
-                            Padding="8,4"
-                            Margin="0,2,0,0" />
-
                     <TextBlock Text="Geotag" Style="{StaticResource SectionHeaderStyle}" Visibility="Collapsed" />
                     <TextBlock x:Name="GeotagText" Style="{StaticResource PlaceholderStyle}" Margin="0,2,0,0" Visibility="Collapsed" />
 
@@ -491,39 +440,6 @@
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Size:" Style="{StaticResource InfoLabelStyle}" />
                             <TextBlock Grid.Column="1" x:Name="InfoFileSize" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid Visibility="Collapsed">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Rating:" Style="{StaticResource InfoLabelStyle}" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" x:Name="StarPanel">
-                                <Button x:Name="Star1" Tag="1" Click="OnStarClick" Style="{StaticResource DateTimePickerFlyoutButtonStyle}" Padding="2">
-                                    <FontIcon x:Name="Star1Icon" Glyph="&#xE1CE;" FontSize="16" />
-                                </Button>
-                                <Button x:Name="Star2" Tag="2" Click="OnStarClick" Style="{StaticResource DateTimePickerFlyoutButtonStyle}" Padding="2">
-                                    <FontIcon x:Name="Star2Icon" Glyph="&#xE1CE;" FontSize="16" />
-                                </Button>
-                                <Button x:Name="Star3" Tag="3" Click="OnStarClick" Style="{StaticResource DateTimePickerFlyoutButtonStyle}" Padding="2">
-                                    <FontIcon x:Name="Star3Icon" Glyph="&#xE1CE;" FontSize="16" />
-                                </Button>
-                                <Button x:Name="Star4" Tag="4" Click="OnStarClick" Style="{StaticResource DateTimePickerFlyoutButtonStyle}" Padding="2">
-                                    <FontIcon x:Name="Star4Icon" Glyph="&#xE1CE;" FontSize="16" />
-                                </Button>
-                                <Button x:Name="Star5" Tag="5" Click="OnStarClick" Style="{StaticResource DateTimePickerFlyoutButtonStyle}" Padding="2">
-                                    <FontIcon x:Name="Star5Icon" Glyph="&#xE1CE;" FontSize="16" />
-                                </Button>
-                            </StackPanel>
-                        </Grid>
-                        <Grid Visibility="Collapsed">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Flag:" Style="{StaticResource InfoLabelStyle}" />
-                            <Button Grid.Column="1" x:Name="FlagButton" Click="OnFlagClick"
-                                    Style="{StaticResource DateTimePickerFlyoutButtonStyle}"
-                                    Padding="4,2" HorizontalAlignment="Left">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon x:Name="FlagIcon" Glyph="&#xE129;" FontSize="16" />
-                                    <TextBlock x:Name="FlagText" Text="Not flagged" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
                         </Grid>
                         <Grid x:Name="InfoDimensionsRow">
                             <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>

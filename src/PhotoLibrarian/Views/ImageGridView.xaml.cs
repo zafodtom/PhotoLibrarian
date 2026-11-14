@@ -164,52 +164,10 @@ public sealed partial class ImageGridView : UserControl
         }
     }
 
-    public async System.Threading.Tasks.Task RefreshPeopleAsync()
-    {
-        if (ViewModel is null) return;
-
-        try
-        {
-            var selectedPersonId = ViewModel.Refinement.PersonId;
-            var people = await ViewModel.GetAvailablePeopleAsync();
-            while (PersonCombo.Items.Count > 1)
-                PersonCombo.Items.RemoveAt(PersonCombo.Items.Count - 1);
-
-            ComboBoxItem? selectedItem = null;
-            foreach (var person in people)
-            {
-                var item = new ComboBoxItem
-                {
-                    Content = $"{person.Name} ({person.FaceCount:N0})",
-                    Tag = person.Id
-                };
-                PersonCombo.Items.Add(item);
-                if (person.Id == selectedPersonId)
-                    selectedItem = item;
-            }
-
-            if (selectedItem is not null)
-            {
-                PersonCombo.SelectedItem = selectedItem;
-            }
-            else if (selectedPersonId.HasValue)
-            {
-                PersonCombo.SelectedIndex = 0;
-                await ViewModel.ApplyRefinementAsync(
-                    ViewModel.Refinement with { PersonId = null });
-            }
-
-            if (PersonCombo.SelectedIndex < 0)
-                PersonCombo.SelectedIndex = 0;
-
-            if (_isInitialized)
-                UpdateActiveFilterChips();
-        }
-        catch (Exception ex)
-        {
-            App.ViewModel.StatusText = $"Could not load people filters: {ex.Message}";
-        }
-    }
+    // Retained as a harmless compatibility entry point for MainWindow callers.
+    // Person-specific filtering has been retired from the gallery.
+    public System.Threading.Tasks.Task RefreshPeopleAsync() =>
+        System.Threading.Tasks.Task.CompletedTask;
 
     private void OnViewerReturnSelectionRequested(object? sender, EventArgs e)
     {
@@ -233,18 +191,6 @@ public sealed partial class ImageGridView : UserControl
                 ViewModel.SelectedImages,
                 ViewModel.SelectedImage);
         });
-    }
-
-    private void OnDatePresetChanged(object sender, SelectionChangedEventArgs e)
-    {
-        // SelectedIndex is applied while InitializeComponent is still creating later elements.
-        if (CustomDatePanel is null || sender is not ComboBox datePresetCombo)
-            return;
-
-        CustomDatePanel.Visibility =
-            GetSelectedTag(datePresetCombo) == "Custom"
-                ? Visibility.Visible
-                : Visibility.Collapsed;
     }
 
     private async void OnApplyFilters(object sender, RoutedEventArgs e)
@@ -278,101 +224,35 @@ public sealed partial class ImageGridView : UserControl
 
     private ImageRefinementFilter BuildRefinementFromControls()
     {
-        int? rating = int.TryParse(GetSelectedTag(RatingCombo), out var parsedRating)
-            ? parsedRating
-            : null;
-        _ = Enum.TryParse<RatingFilterMode>(
-            GetSelectedTag(RatingModeCombo),
-            out var ratingMode);
-
-        var (dateFrom, dateTo) = GetDateRange();
-        _ = Enum.TryParse<FlagFilterMode>(
-            GetSelectedTag(FlagCombo),
-            out var flag);
         _ = Enum.TryParse<MediaKindFilter>(
-            GetSelectedTag(MediaKindCombo),
-            out var mediaKind);
-        _ = Enum.TryParse<MissingMetadataFilter>(
-            GetSelectedTag(MissingMetadataCombo),
-            out var missingMetadata);
-
+            GetSelectedTag(MediaKindCombo), out var mediaKind);
         return new ImageRefinementFilter
         {
-            Rating = rating,
-            RatingMode = ratingMode,
-            DateFrom = dateFrom,
-            DateTo = dateTo,
             IncludedTags = ParseTokens(IncludeTagsBox.Text),
             ExcludedTags = ParseTokens(ExcludeTagsBox.Text),
-            PersonId = (PersonCombo.SelectedItem as ComboBoxItem)?.Tag as long?,
-            Flag = flag,
             MediaKind = mediaKind,
             Extensions = ParseTokens(ExtensionsBox.Text)
                 .Select(ImageRefinementFilter.NormalizeExtension)
                 .Where(extension => extension.Length > 1)
-                .ToList(),
-            MissingMetadata = missingMetadata
-        };
-    }
-
-    private (DateTime? From, DateTime? To) GetDateRange()
-    {
-        var today = DateTime.Today;
-        return GetSelectedTag(DatePresetCombo) switch
-        {
-            "ThisYear" => (new DateTime(today.Year, 1, 1), today),
-            "Last12Months" => (today.AddMonths(-12), today),
-            "Custom" => (
-                DateFromPicker.Date?.DateTime.Date,
-                DateToPicker.Date?.DateTime.Date),
-            _ => (null, null)
+                .ToList()
         };
     }
 
     private void InitializeRefinementControls(ImageRefinementFilter refinement)
     {
-        SelectByTag(
-            RatingCombo,
-            refinement.Rating?.ToString() ?? string.Empty);
-        SelectByTag(RatingModeCombo, refinement.RatingMode.ToString());
-
-        if (refinement.DateFrom.HasValue || refinement.DateTo.HasValue)
-        {
-            SelectByTag(DatePresetCombo, "Custom");
-            DateFromPicker.Date = refinement.DateFrom.HasValue
-                ? new DateTimeOffset(refinement.DateFrom.Value)
-                : null;
-            DateToPicker.Date = refinement.DateTo.HasValue
-                ? new DateTimeOffset(refinement.DateTo.Value)
-                : null;
-        }
-
         IncludeTagsBox.Text = string.Join(", ", refinement.IncludedTags);
         ExcludeTagsBox.Text = string.Join(", ", refinement.ExcludedTags);
-        SelectByTag(FlagCombo, refinement.Flag.ToString());
         SelectByTag(MediaKindCombo, refinement.MediaKind.ToString());
-        ExtensionsBox.Text = string.Join(
-            ", ",
+        ExtensionsBox.Text = string.Join(", ",
             refinement.Extensions.Select(extension => extension.TrimStart('.')));
-        SelectByTag(
-            MissingMetadataCombo,
-            refinement.MissingMetadata.ToString());
     }
 
     private void ResetRefinementControls()
     {
-        RatingCombo.SelectedIndex = 0;
-        RatingModeCombo.SelectedIndex = 0;
-        DatePresetCombo.SelectedIndex = 0;
-        DateFromPicker.Date = null;
-        DateToPicker.Date = null;
         IncludeTagsBox.Text = string.Empty;
         ExcludeTagsBox.Text = string.Empty;
-        PersonCombo.SelectedIndex = 0;
-        FlagCombo.SelectedIndex = 0;
         MediaKindCombo.SelectedIndex = 0;
         ExtensionsBox.Text = string.Empty;
-        MissingMetadataCombo.SelectedIndex = 0;
     }
 
     private void UpdateActiveFilterChips()
@@ -382,48 +262,16 @@ public sealed partial class ImageGridView : UserControl
         var refinement = ViewModel.Refinement;
         ActiveFiltersPanel.Children.Clear();
 
-        if (refinement.Rating is int rating)
-        {
-            var qualifier = refinement.RatingMode switch
-            {
-                RatingFilterMode.Exact => "exactly",
-                RatingFilterMode.AndLower => "and lower",
-                _ => "and higher"
-            };
-            AddFilterChip("rating", $"{rating} star {qualifier}");
-        }
-
-        if (refinement.DateFrom.HasValue || refinement.DateTo.HasValue)
-        {
-            AddFilterChip(
-                "date",
-                $"Date: {refinement.DateFrom?.ToString("d") ?? "any"} - " +
-                $"{refinement.DateTo?.ToString("d") ?? "any"}");
-        }
-
         foreach (var tag in refinement.IncludedTags)
             AddFilterChip($"include:{tag}", $"Tag: {tag}");
         foreach (var tag in refinement.ExcludedTags)
             AddFilterChip($"exclude:{tag}", $"Not tag: {tag}");
-
-        if (refinement.PersonId.HasValue)
-        {
-            var personName = (PersonCombo.SelectedItem as ComboBoxItem)?.Content?.ToString()
-                ?? "Selected person";
-            AddFilterChip("person", $"Person: {personName}");
-        }
-
-        if (refinement.Flag != FlagFilterMode.Any)
-            AddFilterChip("flag", refinement.Flag.ToString());
 
         if (refinement.MediaKind != MediaKindFilter.Any)
             AddFilterChip("media", refinement.MediaKind.ToString());
 
         foreach (var extension in refinement.Extensions)
             AddFilterChip($"extension:{extension}", extension.ToUpperInvariant());
-
-        if (refinement.MissingMetadata != MissingMetadataFilter.None)
-            AddFilterChip("missing", $"Missing {refinement.MissingMetadata}");
 
         if (ActiveFiltersPanel.Children.Count > 0)
         {
@@ -477,18 +325,8 @@ public sealed partial class ImageGridView : UserControl
     {
         if (sender is not Button { Tag: string key }) return;
 
-        if (key == "rating")
-            RatingCombo.SelectedIndex = 0;
-        else if (key == "date")
-            DatePresetCombo.SelectedIndex = 0;
-        else if (key == "person")
-            PersonCombo.SelectedIndex = 0;
-        else if (key == "flag")
-            FlagCombo.SelectedIndex = 0;
-        else if (key == "media")
+        if (key == "media")
             MediaKindCombo.SelectedIndex = 0;
-        else if (key == "missing")
-            MissingMetadataCombo.SelectedIndex = 0;
         else if (key.StartsWith("include:", StringComparison.Ordinal))
             IncludeTagsBox.Text = RemoveToken(IncludeTagsBox.Text, key["include:".Length..]);
         else if (key.StartsWith("exclude:", StringComparison.Ordinal))
@@ -553,15 +391,10 @@ public sealed partial class ImageGridView : UserControl
         ViewModel.UpdateSelection(selected, PhotoGrid.PrimaryItem);
     }
 
-    private void OnFlagToggleRequested(object? sender, EventArgs e)
-    {
-        ViewModel?.ToggleFlagCommand.Execute(null);
-    }
-    
     // Group By / Sort handlers
     private void OnGroupByChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ViewModel is null || GroupByCombo.SelectedItem is not ComboBoxItem item) return;
+        if (!_isInitialized || ViewModel is null || GroupByCombo.SelectedItem is not ComboBoxItem item) return;
         
         if (Enum.TryParse<GroupByOption>(item.Tag?.ToString(), out var groupBy))
         {
@@ -571,7 +404,7 @@ public sealed partial class ImageGridView : UserControl
     
     private void OnSortByChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ViewModel is null || SortByCombo.SelectedItem is not ComboBoxItem item) return;
+        if (!_isInitialized || ViewModel is null || SortByCombo.SelectedItem is not ComboBoxItem item) return;
         
         if (Enum.TryParse<SortByOption>(item.Tag?.ToString(), out var sortBy))
         {
@@ -596,12 +429,9 @@ public sealed partial class ImageGridView : UserControl
             GroupByOption.None => 0,
             GroupByOption.FileType => 1,
             GroupByOption.MediaType => 2,
-            GroupByOption.YearTaken => 3,
-            GroupByOption.MonthTaken => 4,
-            GroupByOption.FileSize => 5,
-            GroupByOption.ImageSize => 6,
-            GroupByOption.Rating => 7,
-            GroupByOption.Camera => 8,
+            GroupByOption.FileSize => 3,
+            GroupByOption.ImageSize => 4,
+            GroupByOption.Camera => 5,
             _ => 0
         };
         
@@ -618,8 +448,7 @@ public sealed partial class ImageGridView : UserControl
             SortByOption.DateTaken => 1,
             SortByOption.DateModified => 2,
             SortByOption.FileSize => 3,
-            SortByOption.Rating => 4,
-            _ => 1
+            _ => 0
         };
         
         SortByCombo.SelectedIndex = index;

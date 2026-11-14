@@ -52,11 +52,8 @@
                     <ComboBoxItem Content="None" Tag="None" />
                     <ComboBoxItem Content="File Type" Tag="FileType" />
                     <ComboBoxItem Content="Media Type" Tag="MediaType" />
-                    <ComboBoxItem Content="Year Taken" Tag="YearTaken" Visibility="Collapsed" />
-                    <ComboBoxItem Content="Month Taken" Tag="MonthTaken" Visibility="Collapsed" />
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
                     <ComboBoxItem Content="Image Size" Tag="ImageSize" />
-                    <ComboBoxItem Content="Rating" Tag="Rating" Visibility="Collapsed" />
                     <ComboBoxItem Content="Camera" Tag="Camera" />
                 </ComboBox>
             </StackPanel>
@@ -68,14 +65,13 @@
                            Margin="4,0"
                            Style="{StaticResource HiTechSectionHeaderStyle}" />
                 <ComboBox x:Name="SortByCombo" 
-                          SelectedIndex="1" 
+                          SelectedIndex="0" 
                           MinWidth="120"
                           SelectionChanged="OnSortByChanged">
                     <ComboBoxItem Content="File Name" Tag="FileName" />
                     <ComboBoxItem Content="Date Taken" Tag="DateTaken" />
                     <ComboBoxItem Content="Date Modified" Tag="DateModified" />
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
-                    <ComboBoxItem Content="Rating" Tag="Rating" Visibility="Collapsed" />
                 </ComboBox>
                 <Button x:Name="SortOrderBtn" Click="OnToggleSortOrder" ToolTipService.ToolTip="Toggle sort order"
                         Style="{StaticResource HiTechIconButtonStyle}">
@@ -146,191 +142,33 @@
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            TextWrapping="Wrap" />
 
-                                <Grid ColumnSpacing="8" RowSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="112" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Text="Rating"
-                                               VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}"
-                                               Visibility="Collapsed" />
-                                    <ComboBox x:Name="RatingCombo"
-                                              Visibility="Collapsed"
-                                              AutomationProperties.AutomationId="FilterRating"
-                                              AutomationProperties.Name="Rating"
-                                              Grid.Column="1"
-                                              SelectedIndex="0">
-                                        <ComboBoxItem Content="Any" Tag="" />
-                                        <ComboBoxItem Content="1 star" Tag="1" />
-                                        <ComboBoxItem Content="2 stars" Tag="2" />
-                                        <ComboBoxItem Content="3 stars" Tag="3" />
-                                        <ComboBoxItem Content="4 stars" Tag="4" />
-                                        <ComboBoxItem Content="5 stars" Tag="5" />
-                                    </ComboBox>
-                                    <ComboBox x:Name="RatingModeCombo"
-                                              Visibility="Collapsed"
-                                              AutomationProperties.AutomationId="FilterRatingMode"
-                                              AutomationProperties.Name="Rating comparison"
-                                              Grid.Column="2"
-                                              SelectedIndex="0">
-                                        <ComboBoxItem Content="and higher" Tag="AndHigher" />
-                                        <ComboBoxItem Content="exactly" Tag="Exact" />
-                                        <ComboBoxItem Content="and lower" Tag="AndLower" />
-                                    </ComboBox>
-
-                                    <TextBlock Grid.Row="1"
-                                               Visibility="Collapsed"
-                                               Text="Capture date"
-                                               VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <ComboBox x:Name="DatePresetCombo"
-                                              Visibility="Collapsed"
-                                              AutomationProperties.AutomationId="FilterDatePreset"
-                                              AutomationProperties.Name="Capture date range"
-                                              Grid.Row="1"
-                                              Grid.Column="1"
-                                              Grid.ColumnSpan="2"
-                                              SelectedIndex="0"
-                                              SelectionChanged="OnDatePresetChanged">
-                                        <ComboBoxItem Content="Any date" Tag="Any" />
-                                        <ComboBoxItem Content="This year" Tag="ThisYear" />
-                                        <ComboBoxItem Content="Last 12 months" Tag="Last12Months" />
-                                        <ComboBoxItem Content="Custom range" Tag="Custom" />
-                                    </ComboBox>
-                                </Grid>
-
-                                <Grid x:Name="CustomDatePanel"
-                                      AutomationProperties.Name="Custom capture date range"
-                                      ColumnSpacing="8"
-                                      Visibility="Collapsed">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <CalendarDatePicker x:Name="DateFromPicker"
-                                                        AutomationProperties.AutomationId="FilterDateFrom"
-                                                        AutomationProperties.Name="Capture date from"
-                                                        PlaceholderText="From" />
-                                    <CalendarDatePicker x:Name="DateToPicker"
-                                                        AutomationProperties.AutomationId="FilterDateTo"
-                                                        AutomationProperties.Name="Capture date to"
-                                                        Grid.Column="1"
-                                                        PlaceholderText="To" />
-                                </Grid>
-
-                                <Grid ColumnSpacing="8" RowSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="112" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock Text="Include tags"
-                                               VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <!-- Tag-first refinement. The historical hidden rating,
+                                     date, person and flag filters were retired. -->
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Include tags" Style="{StaticResource HiTechSectionHeaderStyle}" />
                                     <TextBox x:Name="IncludeTagsBox"
                                              AutomationProperties.AutomationId="FilterIncludeTags"
-                                             AutomationProperties.Name="Tags to include"
-                                             Grid.Column="1"
-                                             PlaceholderText="Comma-separated; all must match" />
-
-                                    <TextBlock Grid.Row="1"
-                                               Text="Exclude tags"
-                                               VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                             PlaceholderText="Comma-separated tags (all must match)"
+                                             Style="{StaticResource HiTechInputStyle}" />
+                                    <TextBlock Text="Exclude tags" Style="{StaticResource HiTechSectionHeaderStyle}" />
                                     <TextBox x:Name="ExcludeTagsBox"
                                              AutomationProperties.AutomationId="FilterExcludeTags"
-                                             AutomationProperties.Name="Tags to exclude"
-                                             Grid.Row="1"
-                                             Grid.Column="1"
-                                             PlaceholderText="Comma-separated" />
-
-                                    <TextBlock Grid.Row="2"
-                                               Visibility="Collapsed"
-                                               Text="Person"
-                                               VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <ComboBox x:Name="PersonCombo"
-                                              Visibility="Collapsed"
-                                              AutomationProperties.AutomationId="FilterPerson"
-                                              AutomationProperties.Name="Person"
-                                              Grid.Row="2"
-                                              Grid.Column="1"
-                                              SelectedIndex="0">
-                                        <ComboBoxItem Content="Anyone" Tag="" />
+                                             PlaceholderText="Comma-separated tags"
+                                             Style="{StaticResource HiTechInputStyle}" />
+                                    <TextBlock Text="Media type" Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                    <ComboBox x:Name="MediaKindCombo" SelectedIndex="0"
+                                              Style="{StaticResource HiTechComboStyle}"
+                                              AutomationProperties.AutomationId="FilterMediaKind">
+                                        <ComboBoxItem Content="All media" Tag="Any" />
+                                        <ComboBoxItem Content="Photos" Tag="Photos" />
+                                        <ComboBoxItem Content="Videos" Tag="Videos" />
                                     </ComboBox>
-
-                                    <TextBlock Grid.Row="3"
-                                               Visibility="Collapsed"
-                                               Text="Flag"
-                                               VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <ComboBox x:Name="FlagCombo"
-                                              Visibility="Collapsed"
-                                              AutomationProperties.AutomationId="FilterFlag"
-                                              AutomationProperties.Name="Flag state"
-                                              Grid.Row="3"
-                                              Grid.Column="1"
-                                              SelectedIndex="0">
-                                        <ComboBoxItem Content="Any" Tag="Any" />
-                                        <ComboBoxItem Content="Flagged only" Tag="Flagged" />
-                                        <ComboBoxItem Content="Unflagged only" Tag="Unflagged" />
-                                    </ComboBox>
-
-                                    <TextBlock Grid.Row="4"
-                                               Text="Media"
-                                               VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <StackPanel Grid.Row="4"
-                                                Grid.Column="1"
-                                                Orientation="Horizontal"
-                                                Spacing="8">
-                                        <ComboBox x:Name="MediaKindCombo"
-                                                  AutomationProperties.AutomationId="FilterMediaKind"
-                                                  AutomationProperties.Name="Media kind"
-                                                  MinWidth="128"
-                                                  SelectedIndex="0">
-                                            <ComboBoxItem Content="All media" Tag="Any" />
-                                            <ComboBoxItem Content="Photos" Tag="Photos" />
-                                            <ComboBoxItem Content="Videos" Tag="Videos" />
-                                        </ComboBox>
-                                        <TextBox x:Name="ExtensionsBox"
-                                                 AutomationProperties.AutomationId="FilterExtensions"
-                                                 AutomationProperties.Name="File extensions"
-                                                 MinWidth="144"
-                                                 PlaceholderText="JPG, RAW, MP4" />
-                                    </StackPanel>
-
-                                    <TextBlock Grid.Row="5"
-                                               Text="Missing"
-                                               VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <ComboBox x:Name="MissingMetadataCombo"
-                                              AutomationProperties.AutomationId="FilterMissingMetadata"
-                                              AutomationProperties.Name="Missing metadata"
-                                              Grid.Row="5"
-                                              Grid.Column="1"
-                                              SelectedIndex="0">
-                                        <ComboBoxItem Content="Any metadata" Tag="None" />
-                                        <ComboBoxItem Content="Untagged" Tag="Tags" />
-                                        <ComboBoxItem Content="Unrated" Tag="Rating" Visibility="Collapsed" />
-                                        <ComboBoxItem Content="No capture date" Tag="CaptureDate" Visibility="Collapsed" />
-                                        <ComboBoxItem Content="No geotag" Tag="Geotag" Visibility="Collapsed" />
-                                    </ComboBox>
-                                </Grid>
+                                    <TextBlock Text="File extensions" Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                    <TextBox x:Name="ExtensionsBox"
+                                             AutomationProperties.AutomationId="FilterExtensions"
+                                             PlaceholderText="JPG, PNG, MP4"
+                                             Style="{StaticResource HiTechInputStyle}" />
+                                </StackPanel>
 
                                 <StackPanel HorizontalAlignment="Right"
                                             Orientation="Horizontal"

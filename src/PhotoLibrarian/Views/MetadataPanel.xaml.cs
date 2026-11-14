@@ -20,10 +20,6 @@ public sealed partial class MetadataPanel : UserControl
 {
     private MetadataPanelViewModel? ViewModel => App.ViewModel?.MetadataPanel;
 
-    // Star glyph codes
-    private const string StarFilled = "\uE1CF";  // FavoriteStar filled
-    private const string StarEmpty = "\uE1CE";    // FavoriteStar empty
-
     private bool _suppressCaptionSave;
     private string _lastLoadedCaption = "";
     private bool _suppressDateBoxLostFocus;
@@ -62,7 +58,6 @@ public sealed partial class MetadataPanel : UserControl
         if (ViewModel is null) return;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         TagsList.ItemsSource = ViewModel.Tags;
-        PeopleTagsList.ItemsSource = ViewModel.PeopleTags;
         RecentTagsList.ItemsSource = _visibleRecentTags;
         ViewModel.Tags.CollectionChanged += OnSelectedTagsChanged;
         EnsureRecentTagsAlbum();
@@ -86,32 +81,6 @@ public sealed partial class MetadataPanel : UserControl
             case nameof(MetadataPanelViewModel.IsDateMixed):
                 DispatcherQueue.TryEnqueue(RefreshDateDisplay);
                 break;
-            case nameof(MetadataPanelViewModel.Rating):
-            case nameof(MetadataPanelViewModel.IsRatingMixed):
-                DispatcherQueue.TryEnqueue(UpdateStars);
-                break;
-            case nameof(MetadataPanelViewModel.IsFlagged):
-            case nameof(MetadataPanelViewModel.IsFlagMixed):
-                DispatcherQueue.TryEnqueue(UpdateFlag);
-                break;
-            case nameof(MetadataPanelViewModel.IsManualFaceTaggingActive):
-                DispatcherQueue.TryEnqueue(UpdateAddPeopleTagsButtonState);
-                break;
-        }
-    }
-
-    private void UpdateAddPeopleTagsButtonState()
-    {
-        if (ViewModel is null) return;
-        if (ViewModel.IsManualFaceTaggingActive)
-        {
-            AddPeopleTagsButton.Content = "Cancel adding a face tag";
-            AddPeopleTagsButton.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
-        }
-        else
-        {
-            AddPeopleTagsButton.Content = "Add people tags";
-            AddPeopleTagsButton.ClearValue(Button.StyleProperty);
         }
     }
 
@@ -185,8 +154,6 @@ public sealed partial class MetadataPanel : UserControl
         InfoLatitude.Text = ViewModel.GpsLatitude;
         InfoLongitude.Text = ViewModel.GpsLongitude;
         InfoFilePath.Text = ViewModel.FilePath;
-        AddPeopleTagsButton.Visibility = Visibility.Collapsed;
-        UpdateAddPeopleTagsButtonState();
 
         InfoCameraRow.Visibility = string.IsNullOrEmpty(ViewModel.Camera) ? Visibility.Collapsed : Visibility.Visible;
         InfoExposureRow.Visibility = string.IsNullOrEmpty(ViewModel.Exposure) ? Visibility.Collapsed : Visibility.Visible;
@@ -197,104 +164,6 @@ public sealed partial class MetadataPanel : UserControl
         InfoLonRow.Visibility = Visibility.Collapsed;
         InfoDimensionsRow.Visibility = string.IsNullOrEmpty(ViewModel.Dimensions) ? Visibility.Collapsed : Visibility.Visible;
 
-        UpdateStars();
-        UpdateFlag();
-    }
-
-    private void OnAddPeopleTagsClick(object sender, RoutedEventArgs e) =>
-        ViewModel?.StartManualFaceTagging();
-
-    private async void OnRemoveFaceTagClick(object sender, RoutedEventArgs e)
-    {
-        var item = GetPersonTag(sender);
-        if (item is null || ViewModel is null) return;
-
-        try
-        {
-            ViewModel.SetHoveredFace(null);
-            await ViewModel.RemoveFaceTagAsync(item);
-        }
-        catch (Exception exception)
-        {
-            App.ViewModel.StatusText = $"Could not remove people tag: {exception.Message}";
-        }
-    }
-
-    private void OnPersonRowPointerEntered(object sender, PointerRoutedEventArgs e)
-    {
-        ViewModel?.SetHoveredFace(GetPersonTag(sender));
-    }
-
-    private void OnPersonRowPointerExited(object sender, PointerRoutedEventArgs e) =>
-        ViewModel?.SetHoveredFace(null);
-
-    private PersonTagDisplayItem? GetPersonTag(object sender)
-    {
-        if (ViewModel is null ||
-            sender is not FrameworkElement { Tag: long faceId })
-        {
-            return null;
-        }
-
-        return ViewModel.PeopleTags.FirstOrDefault(item => item.FaceId == faceId);
-    }
-
-    // --- Flag ---
-
-    private void UpdateFlag()
-    {
-        if (ViewModel is null) return;
-
-        bool mixed = ViewModel.IsFlagMixed;
-        bool flagged = ViewModel.IsFlagged;
-
-        FlagText.Text = mixed ? "Mixed" : flagged ? "Flagged" : "Not flagged";
-        FlagIcon.Foreground = flagged || mixed
-            ? new SolidColorBrush(Windows.UI.Color.FromArgb(mixed ? (byte)120 : (byte)255, 232, 17, 35))
-            : new SolidColorBrush(Microsoft.UI.Colors.Gray);
-
-        ToolTipService.SetToolTip(FlagButton,
-            mixed ? "Mixed flags — click to flag all (F)" : flagged ? "Click to unflag (F)" : "Click to flag (F)");
-    }
-
-    private void OnFlagClick(object sender, RoutedEventArgs e)
-    {
-        ViewModel?.ToggleFlagCommand.Execute(null);
-    }
-
-    // --- Star Rating ---
-
-    private void UpdateStars()
-    {
-        if (ViewModel is null) return;
-        int rating = ViewModel.Rating;
-        bool mixed = ViewModel.IsRatingMixed;
-
-        Star1Icon.Glyph = rating >= 1 ? StarFilled : StarEmpty;
-        Star2Icon.Glyph = rating >= 2 ? StarFilled : StarEmpty;
-        Star3Icon.Glyph = rating >= 3 ? StarFilled : StarEmpty;
-        Star4Icon.Glyph = rating >= 4 ? StarFilled : StarEmpty;
-        Star5Icon.Glyph = rating >= 5 ? StarFilled : StarEmpty;
-
-        var goldBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 185, 0));
-        var fadedBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(120, 255, 185, 0));
-        var grayBrush = new SolidColorBrush(Microsoft.UI.Colors.Gray);
-
-        Brush emptyBrush = mixed ? fadedBrush : grayBrush;
-        Star1Icon.Foreground = rating >= 1 ? goldBrush : emptyBrush;
-        Star2Icon.Foreground = rating >= 2 ? goldBrush : emptyBrush;
-        Star3Icon.Foreground = rating >= 3 ? goldBrush : emptyBrush;
-        Star4Icon.Foreground = rating >= 4 ? goldBrush : emptyBrush;
-        Star5Icon.Foreground = rating >= 5 ? goldBrush : emptyBrush;
-
-        ToolTipService.SetToolTip(StarPanel, mixed ? "Mixed ratings — click to set all" : null);
-    }
-
-    private void OnStarClick(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel is null || sender is not Button btn || btn.Tag is not string tagStr) return;
-        if (int.TryParse(tagStr, out int star))
-            ViewModel.SetRatingCommand.Execute(star);
     }
 
     // --- Caption ---
