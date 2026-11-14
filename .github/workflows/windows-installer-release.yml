@@ -1,9 +1,8 @@
 name: PhotoLibrarian Windows Build and Release
 
 on:
-  push:
-    branches: [feature/trimenor-updates-ci, master]
-  pull_request:
+  # Installer builds and publishing are deliberately manual. Pull requests
+  # and ordinary pushes are validated by windows-ci.yml instead.
   workflow_dispatch:
     inputs:
       publish_release:
