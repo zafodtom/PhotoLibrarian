@@ -448,7 +448,7 @@ public sealed partial class SettingsPanel : UserControl
             JpegConversionStatusText.Text =
                 $"Ready: {preview.ConvertCount:N0} photos to JPEG, " +
                 $"{preview.JpegMetadataCount:N0} existing JPEG XMP merges; " +
-                $"{preview.TargetConflictCount:N0} destination conflicts (will be skipped). " +
+                $"{preview.TargetConflictCount:N0} existing JPEG filenames (numbered suffix will be used). " +
                 (KeepJpegConversionBackupsCheckBox.IsChecked != false
                     ? "Originals will be retained as backups."
                     : "NO RETAINED BACKUPS: originals are deleted after verified conversion.");
