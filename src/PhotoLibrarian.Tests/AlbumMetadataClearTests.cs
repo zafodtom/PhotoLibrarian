@@ -202,6 +202,9 @@ public sealed class AlbumMetadataClearTests
             Assert.Equal(1, cleared);
             Assert.True(File.Exists(Path.Combine(result.BackupDirectory, "reset-errors.txt")));
             Assert.Contains("first.jpg", result.Errors[0]);
+            Assert.Contains("[clearing SQLite tag assignments]", result.Errors[0]);
+            Assert.Contains("IOException", result.Errors[0]);
+            Assert.Contains("0x", result.Errors[0]);
         }
         finally
         {
