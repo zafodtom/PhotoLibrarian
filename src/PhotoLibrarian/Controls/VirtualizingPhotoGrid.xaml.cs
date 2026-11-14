@@ -149,7 +149,6 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     public event EventHandler<ContextMenuRequestedEventArgs>? ContextMenuRequested;
 
     /// <summary>Raised when the user presses F to toggle the flag on the current selection.</summary>
-    public event EventHandler? FlagToggleRequested;
     public event EventHandler<IReadOnlyList<object>>? FlatSelectionChanged;
     public event EventHandler<object>? FlatItemPointerEntered;
     public event EventHandler<VirtualizingPhotoGridDragStartingEventArgs>? FlatDragStarting;
@@ -911,30 +910,6 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
             grid.Children.Add(bracket);
         }
 
-        // Flag badge (top-left) — visible only for flagged items
-        var flagBadge = new Border
-        {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-            Margin = new Thickness(4),
-            CornerRadius = new CornerRadius(3),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(180, 0, 0, 0)),
-            Padding = new Thickness(4, 2, 4, 2)
-        };
-        flagBadge.Child = new FontIcon
-        {
-            Glyph = "\uE129", // Segoe Fluent Icons: Flag
-            FontSize = 12,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 232, 17, 35)) // red
-        };
-        flagBadge.SetBinding(FrameworkElement.VisibilityProperty, new Microsoft.UI.Xaml.Data.Binding
-        {
-            Path = new PropertyPath("FlagVisibility"),
-            Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay
-        });
-        grid.Children.Add(flagBadge);
-
-
         var activeHud = new Border
         {
             Tag = SelectionHudTag,
@@ -1448,14 +1423,6 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         if (e.Key == Windows.System.VirtualKey.Escape)
         {
             ClearSelection();
-            e.Handled = true;
-            return;
-        }
-
-        // F — toggle flag on the current selection
-        if (!ctrl && !shift && e.Key == Windows.System.VirtualKey.F)
-        {
-            FlagToggleRequested?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
             return;
         }
