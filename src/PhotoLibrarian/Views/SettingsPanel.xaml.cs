@@ -26,7 +26,10 @@ public sealed partial class SettingsPanel : UserControl
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         UpdateCacheDisplay();
-        InstalledVersionText.Text = GitHubUpdateService.InstalledVersion.ToString(3);
+        InstalledVersionText.Text = GitHubUpdateService.InstalledTag.TrimStart('v');
+        _loadingUpdateChannel = true;
+        try { DevelopmentUpdatesToggle.IsOn = GitHubUpdateService.DevelopmentUpdatesEnabled; }
+        finally { _loadingUpdateChannel = false; }
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -296,6 +299,7 @@ public sealed partial class SettingsPanel : UserControl
 
     private bool _checkingUpdates;
     private TaskCompletionSource<bool>? _updateDecision;
+    private bool _loadingUpdateChannel;
 
     private Task<bool> ConfirmUpdateAsync(
         string title, string description, string acceptLabel)
@@ -327,27 +331,45 @@ public sealed partial class SettingsPanel : UserControl
     private void OnUpdateCancelClick(object sender, RoutedEventArgs e) =>
         ResolveUpdateDecision(false);
 
+    private void OnDevelopmentUpdatesToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loadingUpdateChannel) return;
+        try
+        {
+            GitHubUpdateService.DevelopmentUpdatesEnabled = DevelopmentUpdatesToggle.IsOn;
+            UpdateStatusText.Text = DevelopmentUpdatesToggle.IsOn
+                ? "Development update channel enabled (manual checks only)."
+                : "Stable update channel enabled.";
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = "Could not save update preference: " + ex.Message;
+        }
+    }
+
     private async void OnCheckForUpdatesClick(object sender, RoutedEventArgs e)
     {
         if (_checkingUpdates) return;
         _checkingUpdates = true;
         CheckUpdatesButton.IsEnabled = false;
         UpdateDownloadProgress.Visibility = Visibility.Collapsed;
-        var job = App.ViewModel?.BeginStatusJob("UPDATES // checking stable GitHub release");
+        var job = App.ViewModel?.BeginStatusJob("UPDATES // checking selected GitHub release channel");
         try
         {
             UpdateStatusText.Text = "Checking public PhotoLibrarian releases…";
             using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-            var release = await GitHubUpdateService.CheckAsync(cancellation.Token);
+            var release = await GitHubUpdateService.CheckAsync(
+                cancellation.Token, DevelopmentUpdatesToggle.IsOn);
             if (release is null)
             {
-                UpdateStatusText.Text = "You already have the latest stable version (or no stable release is published).";
+                UpdateStatusText.Text = "No newer release is available in the selected channel.";
                 return;
             }
 
-            UpdateStatusText.Text = $"Version {release.Version.ToString(3)} available.";
+            UpdateStatusText.Text = $"{release.Tag} {(release.IsDevelopment ? "(development)" : "(stable)")} available.";
             if (!await ConfirmUpdateAsync(
-                $"UPDATE AVAILABLE // {release.Version.ToString(3)}",
+                $"UPDATE AVAILABLE // {release.Tag}",
+                (release.IsDevelopment ? "This is a DEVELOPMENT BUILD and may be unstable. " : "") +
                 "Download the official PhotoLibrarian installer from GitHub and verify SHA-256? " +
                 "Your photographs, catalogs and album data will not be removed.",
                 "DOWNLOAD UPDATE"))

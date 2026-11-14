@@ -12,6 +12,12 @@ on:
         required: false
         default: false
 
+      publish_development:
+        description: Publish selected non-master branch as development prerelease
+        type: boolean
+        required: false
+        default: false
+
 permissions:
   contents: read
 
@@ -40,6 +46,37 @@ jobs:
           $version = [string]$project.Project.PropertyGroup.Version
           if ($version -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$') { throw "Invalid SemVer: $version" }
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Validate channel and prepare release version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_STABLE: ${{ inputs.publish_release }}
+          PUBLISH_DEVELOPMENT: ${{ inputs.publish_development }}
+        run: |
+          if ($env:PUBLISH_STABLE -eq 'true' -and $env:PUBLISH_DEVELOPMENT -eq 'true') {
+            throw 'Choose only one release channel.'
+          }
+          if ($env:PUBLISH_STABLE -eq 'true' -and $env:GITHUB_REF -ne 'refs/heads/master') {
+            throw 'Stable releases require master.'
+          }
+          if ($env:PUBLISH_DEVELOPMENT -eq 'true') {
+            if ($env:GITHUB_REF -eq 'refs/heads/master') {
+              throw 'Development releases must use a non-master branch.'
+            }
+            $stableTag = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq '.tag_name'
+            if ($LASTEXITCODE -ne 0) { throw 'Latest stable release lookup failed.' }
+            if (-not $stableTag.StartsWith('v')) { throw 'Invalid stable tag.' }
+            $stableVersion = [version]$stableTag.Substring(1)
+            $projectVersion = [version]$env:VERSION
+            if ($projectVersion -le $stableVersion) {
+              $version = "$($stableVersion.Major).$($stableVersion.Minor).$($stableVersion.Build + 1)"
+            } else {
+              $version = $env:VERSION
+            }
+            "VERSION=$version" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+            "DEV_RELEASE_TAG=v${version}-dev.$env:GITHUB_RUN_NUMBER" |
+              Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          }
       - name: Compile application and tests
         shell: pwsh
         run: |
@@ -73,7 +110,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Publish stable GitHub Release (manual opt-in only)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/master' }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -91,3 +128,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed.' }
           gh release edit $tag --repo $repo --draft=false --latest
           if ($LASTEXITCODE -ne 0) { throw 'Publishing failed; inspect the draft.' }
+      - name: Publish development GitHub prerelease (manual opt-in only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_development && github.ref != 'refs/heads/master' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          $isPrivate = gh api "repos/$repo" --jq '.private'
+          if ($LASTEXITCODE -ne 0 -or $isPrivate -ne 'false') { throw 'Public GitHub prerelease required.' }
+          $tag = $env:DEV_RELEASE_TAG
+          if (-not $tag.StartsWith("v$env:VERSION-dev.")) { throw 'Invalid development tag.' }
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) { throw "Prerelease $tag already exists." }
+          $installer = "artifacts/installer/PhotoLibrarian-$env:VERSION-Setup-x64.exe"
+          $notes = "Development build from branch $env:GITHUB_REF_NAME, commit $env:GITHUB_SHA. Experimental; back up the album before testing."
+          gh release create $tag $installer artifacts/installer/SHA256SUMS.txt artifacts/installer/photolibrarian-update.json --repo $repo --target $env:GITHUB_SHA --title "PhotoLibrarian $tag (development)" --notes "$notes" --prerelease
+          if ($LASTEXITCODE -ne 0) { throw 'Development prerelease creation failed.' }

@@ -34,6 +34,11 @@ New-Item $publishDir -ItemType Directory -Force | Out-Null
 New-Item $installerDir -ItemType Directory -Force | Out-Null
 
 Write-Host "Publishing PhotoLibrarian $Version (win-x64, self-contained)..."
+$informationalVersion = if ($env:DEV_RELEASE_TAG) {
+    $env:DEV_RELEASE_TAG.TrimStart('v')
+} else {
+    $Version
+}
 dotnet publish $project `
     -c $Configuration `
     -r win-x64 `
@@ -44,6 +49,7 @@ dotnet publish $project `
     -p:PublishTrimmed=false `
     -p:PublishReadyToRun=false `
     -p:Version=$Version `
+    -p:InformationalVersion=$informationalVersion `
     --output $publishDir
 
 if ($LASTEXITCODE -ne 0) {
