@@ -1418,6 +1418,50 @@ public partial class MainViewModel : ObservableObject
         return deleted;
     }
 
+    /// <summary>Clear tags and user flags across the active album.</summary>
+    public async Task<AlbumMetadataClearResult> ClearActiveAlbumTagsAndFlagsAsync(
+        IProgress<AlbumMetadataClearProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            throw new InvalidOperationException("No active album.");
+        var root = App.CurrentAlbumPath;
+        PauseBackgroundIndexing();
+        PauseRecognitionProcessing();
+        var indexed = (await _imageRepo.GetAllAsync())
+            .Where(entry => FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
+            .ToList();
+        var result = await AlbumMetadataClearService.RunAsync(
+            root, indexed,
+            async entry =>
+            {
+                if (entry.Id > 0)
+                {
+                    await _tagRepo.ClearImageTagsAsync(entry.Id);
+                    await _imageRepo.UpdateFlagAsync(entry.Id, false);
+                }
+                entry.IsFlagged = false;
+            },
+            progress, cancellationToken);
+        if (result.Failed == 0)
+        {
+            var catalog = AlbumService.LoadTagCatalog(root);
+            var catalogFile = Path.Combine(root, ".album", AlbumService.AlbumTagsName);
+            if (File.Exists(catalogFile))
+            {
+                Directory.CreateDirectory(result.BackupDirectory);
+                File.Copy(catalogFile,
+                    Path.Combine(result.BackupDirectory, "tags.json"), overwrite: false);
+            }
+            catalog.SelectedTags.Clear();
+            AlbumService.SaveTagCatalog(root, catalog);
+        }
+        await RefreshKnownLibraryStateAsync();
+        await MetadataPanel.ReloadTagsAsync();
+        await MetadataPanel.ReloadAvailableTagsAsync();
+        return result;
+    }
+
     /// <summary>
     /// Keep image IDs (and their tag/face/rating relations) when an album-wide
     /// conversion changes the source file extension to JPEG.
