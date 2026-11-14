@@ -403,7 +403,7 @@ public sealed partial class SettingsPanel : UserControl
 
     private async void OnPreviewJpegConversion(object sender, RoutedEventArgs e)
     {
-        if (!EnsureAlbumOpen(JpegConversionStatusText) || _jpegConversionBusy)
+        if (!EnsureAlbumOpen(JpegConversionStatusText) || _jpegConversionBusy || _clearAlbumBusy)
             return;
 
         var root = App.CurrentAlbumPath!;
@@ -441,7 +441,7 @@ public sealed partial class SettingsPanel : UserControl
 
     private async void OnRunJpegConversion(object sender, RoutedEventArgs e)
     {
-        if (_jpegConversionBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
+        if (_jpegConversionBusy || _clearAlbumBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
             !EnsureAlbumOpen(JpegConversionStatusText))
             return;
 
@@ -551,6 +551,98 @@ public sealed partial class SettingsPanel : UserControl
     {
         CancelJpegConversionButton.IsEnabled = false;
         _jpegConversionCancellation?.Cancel();
+    }
+
+    private CancellationTokenSource? _clearAlbumCancellation;
+    private bool _clearAlbumBusy;
+
+    private async void OnClearAlbumMetadata(object sender, RoutedEventArgs e)
+    {
+        if (_clearAlbumBusy || _jpegConversionBusy || App.ViewModel is null ||
+            !EnsureAlbumOpen(ClearAlbumStatusText))
+            return;
+        var root = App.CurrentAlbumPath!;
+        // A separate dialog avoids accidental single-click mass deletion.
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "WARNING // CLEAR ALBUM TAGS + FLAGS",
+            Content = new TextBlock
+            {
+                Text = "Remove all assigned image tags, user flags and saved tag " +
+                       "catalog names from the ACTIVE album?\n\n" +
+                       "Ratings, dates, captions, face data and photos are preserved. " +
+                       "The original image and XMP files will be backed up under " +
+                       ".album/metadata-reset-backups before each modification.\n\n" +
+                       "This is an album-wide operation and cannot be undone " +
+                       "automatically. Keep a separate backup before proceeding.",
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 500
+            },
+            PrimaryButtonText = "CLEAR TAGS AND FLAGS",
+            CloseButtonText = "ABORT",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+        if (!string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
+        {
+            ClearAlbumStatusText.Text = "Album changed; reset cancelled.";
+            return;
+        }
+        _clearAlbumBusy = true;
+        _clearAlbumCancellation = new CancellationTokenSource();
+        ClearAlbumMetadataButton.IsEnabled = false;
+        CancelClearAlbumButton.IsEnabled = true;
+        RunJpegConversionButton.IsEnabled = false;
+        PreviewJpegConversionButton.IsEnabled = false;
+        ClearAlbumProgressBar.Visibility = Visibility.Visible;
+        ClearAlbumProgressBar.Value = 0;
+        try
+        {
+            var progress = new Progress<AlbumMetadataClearProgress>(state =>
+            {
+                ClearAlbumProgressBar.Value = state.Total == 0
+                    ? 100 : 100.0 * state.Processed / state.Total;
+                ClearAlbumStatusText.Text =
+                    $"RESET // {state.Processed:N0}/{state.Total:N0} " +
+                    $"// {state.Failed:N0} failed  // {state.FileName}";
+            });
+            var result = await App.ViewModel.ClearActiveAlbumTagsAndFlagsAsync(
+                progress, _clearAlbumCancellation.Token);
+            ClearAlbumStatusText.Text =
+                $"Complete: {result.Cleaned:N0} cleaned, {result.Failed:N0} failed. " +
+                $"Backups: {result.BackupDirectory}" +
+                (result.Errors.Count > 0
+                    ? "\nErrors: " + string.Join("; ", result.Errors.Take(3))
+                    : "");
+        }
+        catch (OperationCanceledException)
+        {
+            ClearAlbumStatusText.Text =
+                "Reset cancelled; successfully cleaned photos stay cleaned. " +
+                "Keep backups for recovery.";
+        }
+        catch (Exception ex)
+        {
+            ClearAlbumStatusText.Text = "Album reset failed: " + ex.Message;
+        }
+        finally
+        {
+            _clearAlbumCancellation?.Dispose();
+            _clearAlbumCancellation = null;
+            _clearAlbumBusy = false;
+            CancelClearAlbumButton.IsEnabled = false;
+            ClearAlbumMetadataButton.IsEnabled = true;
+            PreviewJpegConversionButton.IsEnabled = true;
+            RunJpegConversionButton.IsEnabled = false;
+        }
+    }
+
+    private void OnCancelClearAlbum(object sender, RoutedEventArgs e)
+    {
+        CancelClearAlbumButton.IsEnabled = false;
+        _clearAlbumCancellation?.Cancel();
     }
 
     private async void OnRebuildCache(
