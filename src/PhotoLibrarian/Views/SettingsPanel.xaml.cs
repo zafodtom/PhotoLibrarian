@@ -499,7 +499,12 @@ public sealed partial class SettingsPanel : UserControl
             });
 
             var result = await AlbumJpegConversionService.RunAsync(
-                root, progress, _jpegConversionCancellation.Token);
+                root, progress, _jpegConversionCancellation.Token,
+                async (original, converted) =>
+                {
+                    if (App.ViewModel is { } main)
+                        await main.RemapConvertedImagePathAsync(original, converted);
+                });
             JpegConversionStatusText.Text =
                 $"Complete: {result.Converted:N0} images converted; " +
                 $"{result.EmbeddedXmp:N0} XMP packets embedded; " +
