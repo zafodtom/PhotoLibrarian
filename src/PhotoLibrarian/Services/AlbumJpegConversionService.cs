@@ -331,10 +331,23 @@ public static class AlbumJpegConversionService
             throw new InvalidDataException("Image decoder returned no frames.");
 
         var frame = await decoder.GetFrameAsync(0);
-        var pixels = await frame.GetPixelDataAsync(
-            BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
-            new BitmapTransform(), ExifOrientationMode.RespectExifOrientation,
-            ColorManagementMode.ColorManageToSRgb);
+        Windows.Graphics.Imaging.PixelDataProvider pixels;
+        try
+        {
+            pixels = await frame.GetPixelDataAsync(
+                BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
+                new BitmapTransform(), ExifOrientationMode.RespectExifOrientation,
+                ColorManagementMode.ColorManageToSRgb);
+        }
+        catch (System.Runtime.InteropServices.COMException) when (heif)
+        {
+            // Certain HEIF codecs reject their color-profile conversion. Fall
+            // back to the native decoded colors instead of losing the frame.
+            pixels = await frame.GetPixelDataAsync(
+                BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
+                new BitmapTransform(), ExifOrientationMode.RespectExifOrientation,
+                ColorManagementMode.DoNotColorManage);
+        }
         var bytes = pixels.DetachPixelData();
         // JPEG does not support transparency: composite against opaque white.
         for (int i = 0; i < bytes.Length; i += 4)
