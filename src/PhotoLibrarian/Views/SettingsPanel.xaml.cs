@@ -721,15 +721,17 @@ public sealed partial class SettingsPanel : UserControl
         var dialog = CreateAlbumMaintenanceDialog(
             retryFailedOnly ? "RETRY FAILED PHOTO RESET" : "CLEAR ALBUM TAGS + FLAGS",
             (retryFailedOnly
-                ? $"Retry metadata reset on {photoCount:N0} previously failed photo(s) only?\\n\\n"
-                : $"Remove all assigned tags and user flags from {photoCount:N0} photo(s), plus saved catalog tag names, in the ACTIVE album?\\n\\n") +
+                ? $"Retry metadata reset on {photoCount:N0} previously failed photo(s) only?\n\n"
+                : $"Remove all assigned tags and user flags from {photoCount:N0} photo(s), plus saved catalog tag names, in the ACTIVE album?\n\n") +
             "Ratings, dates, captions, face data and photos are preserved. " +
             "Automatic tagging will be switched OFF to prevent tags from returning. " +
             (keepResetBackups
                 ? "Original image and XMP files will be backed up under .album/metadata-reset-backups before each modification.\n\n"
                 : "WARNING: NO RETAINED BACKUPS. Changes to embedded tags and flags cannot be reversed; only temporary rollback files are used during each write.\n\n") +
-            "This is an album-wide operation and cannot be undone " +
-            "automatically. Keep a separate backup before proceeding.",
+            (retryFailedOnly
+                ? "Only the saved failures will be checked. The rest of the album is not rescanned. "
+                : "This is an album-wide operation and cannot be undone automatically. ") +
+            "Keep a separate backup before proceeding.",
             retryFailedOnly ? "RETRY FAILED PHOTOS" : "CLEAR TAGS AND FLAGS",
             destructive: true);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
