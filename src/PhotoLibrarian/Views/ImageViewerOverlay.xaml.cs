@@ -574,21 +574,6 @@ public sealed partial class ImageViewerOverlay : UserControl
         _zoomPan?.HandlePointerCanceled(ImageScrollViewer, e);
     }
 
-    private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        // Kept for backwards compatibility, but not used with new zoom controller
-    }
-
-    private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
-    {
-        // Kept for backwards compatibility, but not used with new zoom controller
-    }
-
-    private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
-    {
-        // Kept for backwards compatibility, but not used with new zoom controller
-    }
-
     private async void OnWindowKeyDown(
         object sender,
         KeyRoutedEventArgs e)
