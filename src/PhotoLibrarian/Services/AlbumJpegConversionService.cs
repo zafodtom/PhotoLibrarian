@@ -59,6 +59,22 @@ public static class AlbumJpegConversionService
         }
     }
 
+    // Prefer the original basename; if already occupied, allocate a stable,
+    // human-readable suffix without overwriting any existing JPEG.
+    internal static string ChooseJpegDestination(string source)
+    {
+        var first = Path.ChangeExtension(source, ".jpg");
+        if (!File.Exists(first)) return first;
+        var directory = Path.GetDirectoryName(first)!;
+        var name = Path.GetFileNameWithoutExtension(first);
+        for (int index = 1; index < 100_000; index++)
+        {
+            var candidate = Path.Combine(directory, $"{name}_{index:D3}.jpg");
+            if (!File.Exists(candidate)) return candidate;
+        }
+        throw new IOException("No free JPEG destination filename is available.");
+    }
+
     public static AlbumJpegConversionPreview Preview(string albumRoot)
     {
         ValidateAlbum(albumRoot);
@@ -79,11 +95,10 @@ public static class AlbumJpegConversionService
             bool jpg = extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase);
             bool hasXmp = File.Exists(Path.ChangeExtension(file, ".xmp"));
             if (jpg && !hasXmp) continue;
+            // Existing JPGs are preserved; a suffixed output is counted as
+            // a conversion, not as a skipped file.
             if (!jpg && File.Exists(Path.ChangeExtension(file, ".jpg")))
-            {
                 conflicts++;
-                continue;
-            }
             if (jpg) embed++; else convert++;
             bytes += new FileInfo(file).Length;
         }
@@ -123,7 +138,7 @@ public static class AlbumJpegConversionService
                 cancellationToken.ThrowIfCancellationRequested();
                 string extension = Path.GetExtension(source);
                 bool originalJpg = extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase);
-                var destination = originalJpg ? source : Path.ChangeExtension(source, ".jpg");
+                var destination = originalJpg ? source : ChooseJpegDestination(source);
                 var sidecar = Path.ChangeExtension(source, ".xmp");
                 var hasSidecar = File.Exists(sidecar);
                 string? temporary = null;
@@ -142,22 +157,9 @@ public static class AlbumJpegConversionService
                         throw new UnauthorizedAccessException(
                             "XMP sidecar is read-only; remove the Read-only attribute before conversion.");
 
-                    // A JPEG with the target basename already present is never overwritten.
-                    if (!originalJpg && File.Exists(destination))
-                    {
-                        skipped++;
-                        // A pre-existing JPEG can conceal a HEIC converter failure:
-                        // previously this collision was never present in the log.
-                        // Never overwrite the JPEG, but report the exact reason.
-                        if (extension.Equals(".heic", StringComparison.OrdinalIgnoreCase) ||
-                            extension.Equals(".heif", StringComparison.OrdinalIgnoreCase))
-                        {
-                            errors.Add(Path.GetRelativePath(albumRoot, source) +
-                                ": skipped (target JPG already exists): " +
-                                Path.GetRelativePath(albumRoot, destination));
-                        }
-                        continue;
-                    }
+                    // ChooseJpegDestination reserves the next free suffixed
+                    // name when the original JPEG name is already occupied.
+                    // File.Move without overwrite remains the final safety guard.
 
                     // Work files remain within the album volume, allowing atomic moves.
                     temporary = Path.Combine(workRoot, Guid.NewGuid().ToString("N") + ".jpg");
