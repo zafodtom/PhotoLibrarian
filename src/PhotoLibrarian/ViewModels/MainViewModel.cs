@@ -1427,7 +1427,11 @@ public partial class MainViewModel : ObservableObject
             throw new InvalidOperationException("No active album.");
         var root = App.CurrentAlbumPath;
         PauseBackgroundIndexing();
-        PauseRecognitionProcessing();
+        // Automatic tagging must remain disabled after reset, otherwise a
+        // recognition pass can repopulate the just-cleaned album.
+        Settings.IsAutoTaggingEnabled = false;
+        _autoTaggingEnabled = false;
+        await StopRecognitionAsync();
         // Before clearing, index all images belonging to this album so the
         // reset does not miss files that have not yet entered the cache.
         await _indexingService.IndexFolderAsync(root, includeSubfolders: true,
