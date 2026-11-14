@@ -42,6 +42,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
 RestartApplications=no
 ChangesAssociations=yes
+; Silent in-app upgrades reuse the previously selected optional shell task.
+UsePreviousTasks=yes
 VersionInfoVersion={#MyAppVersion}.0
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
@@ -52,6 +54,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+Name: "explorercontext"; Description: "Add Create PhotoLibrarian album here to File Explorer"; GroupDescription: "Windows Explorer integration:"
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -65,6 +68,31 @@ Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExt}\OpenWithProgids"; ValueTyp
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}"; ValueType: string; ValueName: ""; ValueData: "{#MyAppAssocName}"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+
+; Folder right-click: %1 is the selected directory path.
+Root: HKA; Subkey: "Software\Classes\Directory\shell\PhotoLibrarian.CreateAlbum"; ValueType: string; ValueName: ""; ValueData: "Create PhotoLibrarian album here"; Flags: uninsdeletekey; Tasks: explorercontext
+Root: HKA; Subkey: "Software\Classes\Directory\shell\PhotoLibrarian.CreateAlbum"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName},0"; Tasks: explorercontext
+Root: HKA; Subkey: "Software\Classes\Directory\shell\PhotoLibrarian.CreateAlbum\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --album ""%1"""; Tasks: explorercontext
+; Empty background right-click: %V resolves the directory currently viewed.
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\PhotoLibrarian.CreateAlbum"; ValueType: string; ValueName: ""; ValueData: "Create PhotoLibrarian album here"; Flags: uninsdeletekey; Tasks: explorercontext
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\PhotoLibrarian.CreateAlbum"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName},0"; Tasks: explorercontext
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\PhotoLibrarian.CreateAlbum\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --album ""%V"""; Tasks: explorercontext
+
+
+[Code]
+// Removing an optional task during an upgrade must also remove registry
+// entries created by earlier versions: skipped [Registry] entries alone would
+// leave those previous shell commands behind.
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssInstall) and not WizardIsTaskSelected('explorercontext') then
+  begin
+    RegDeleteKeyIncludingSubkeys(HKLM,
+      'Software\Classes\Directory\shell\PhotoLibrarian.CreateAlbum');
+    RegDeleteKeyIncludingSubkeys(HKLM,
+      'Software\Classes\Directory\Background\shell\PhotoLibrarian.CreateAlbum');
+  end;
+end;
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
