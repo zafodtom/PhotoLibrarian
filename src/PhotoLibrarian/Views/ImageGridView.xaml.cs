@@ -86,7 +86,7 @@ public sealed partial class ImageGridView : UserControl
 
     private async void OnFlatPhotoDragStarting(
         object? sender,
-        VirtualizingPhotoGridDragStartingEventArgs e)
+        Controls.VirtualizingPhotoGridDragStartingEventArgs e)
     {
         var drag = e.DragArguments;
         var deferral = drag.GetDeferral();
