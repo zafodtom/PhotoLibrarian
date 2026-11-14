@@ -1387,10 +1387,7 @@ public partial class MainViewModel : ObservableObject
                 async entry =>
                 {
                     if (entry.Id > 0)
-                    {
-                        await _tagRepo.ClearImageTagsAsync(entry.Id);
-                        await _imageRepo.UpdateFlagAsync(entry.Id, false);
-                    }
+                        await _tagRepo.ClearImageTagsAndFlagAsync(entry.Id);
                     entry.IsFlagged = false;
                 },
                 progress, cancellationToken);
@@ -1416,6 +1413,7 @@ public partial class MainViewModel : ObservableObject
             await RefreshKnownLibraryStateAsync();
             await MetadataPanel.ReloadTagsAsync();
             await MetadataPanel.ReloadAvailableTagsAsync();
+            await RefreshTagsTreeAsync();
         }
     }
 
