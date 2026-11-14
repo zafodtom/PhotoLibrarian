@@ -535,7 +535,7 @@ public partial class MainViewModel : ObservableObject
             _recognitionRescanRequested = false;
 
             var request = new RecognitionRequest(
-                _faceDetectionEnabled,
+                false,
                 _autoTaggingEnabled ? Settings.CurrentAutoTaggingSettings : null);
 
             IsRecognitionRunning = true;
@@ -689,54 +689,21 @@ public partial class MainViewModel : ObservableObject
         }, ct);
     }
 
+    // Face recognition is retired from the album workflow. These entry points
+    // are retained temporarily for callers while the old UI is unwired.
+    // Unlike before, none can activate face inference.
     [RelayCommand]
-    private void ToggleFaceDetection()
-    {
-        if (IsFaceDetectionRunning)
-        {
-            StopBackgroundFaceDetection();
-            return;
-        }
+    private void ToggleFaceDetection() { }
 
-        _faceDetectionEnabled = true;
-        StartBackgroundFaceDetection();
-    }
+    public void StartBackgroundFaceDetection() { }
 
-    public void StartBackgroundFaceDetection()
-    {
-        if (_isShuttingDown || !_faceDetectionEnabled || TotalImages == 0)
-        {
-            return;
-        }
-
-        StartRecognitionProcessing();
-    }
-
-    private void StopBackgroundFaceDetection()
-    {
+    private void StopBackgroundFaceDetection() =>
         _faceDetectionEnabled = false;
-        StatusText = "Stopping face detection…";
-        RestartRecognitionAfterStageChange();
-    }
 
-    public async Task<bool> PauseFaceDetectionAsync()
-    {
-        var shouldResume = _faceDetectionEnabled;
-        _faceDetectionEnabled = false;
-        await StopRecognitionAsync();
-        return shouldResume;
-    }
+    public Task<bool> PauseFaceDetectionAsync() =>
+        Task.FromResult(false);
 
-    public void ResumeFaceDetection(bool shouldResume)
-    {
-        if (!shouldResume)
-        {
-            return;
-        }
-
-        _faceDetectionEnabled = true;
-        StartBackgroundFaceDetection();
-    }
+    public void ResumeFaceDetection(bool shouldResume) { }
 
     /// <summary>
     /// Cancels the single recognition job and waits for it to unwind, so both
