@@ -157,8 +157,10 @@ public static class AlbumMetadataClearService
 
                     if (updateSidecar)
                     {
-                        packet!.DeleteProperty(DcNs, "dc:subject");
-                        packet.DeleteProperty(PlibNs, FlagName);
+                        if (packet!.DoesPropertyExist(DcNs, "dc:subject"))
+                            packet.DeleteProperty(DcNs, "dc:subject");
+                        if (packet.DoesPropertyExist(PlibNs, FlagName))
+                            packet.DeleteProperty(PlibNs, FlagName);
                         var updated = XmpMetaFactory.SerializeToString(packet,
                             new XmpCore.Options.SerializeOptions());
                         string temp = sidecar + ".reset-" + Guid.NewGuid().ToString("N") + ".tmp";
