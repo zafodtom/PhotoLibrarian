@@ -1436,35 +1436,43 @@ public partial class MainViewModel : ObservableObject
             .Where(entry => entry.MediaType == MediaType.Image &&
                 FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
             .ToList();
-        var result = await AlbumMetadataClearService.RunAsync(
-            root, indexed,
-            async entry =>
-            {
-                if (entry.Id > 0)
-                {
-                    await _tagRepo.ClearImageTagsAsync(entry.Id);
-                    await _imageRepo.UpdateFlagAsync(entry.Id, false);
-                }
-                entry.IsFlagged = false;
-            },
-            progress, cancellationToken);
-        if (result.Failed == 0)
+        try
         {
-            var catalog = AlbumService.LoadTagCatalog(root);
-            var catalogFile = Path.Combine(root, ".album", AlbumService.AlbumTagsName);
-            if (File.Exists(catalogFile))
+            var result = await AlbumMetadataClearService.RunAsync(
+                root, indexed,
+                async entry =>
+                {
+                    if (entry.Id > 0)
+                    {
+                        await _tagRepo.ClearImageTagsAsync(entry.Id);
+                        await _imageRepo.UpdateFlagAsync(entry.Id, false);
+                    }
+                    entry.IsFlagged = false;
+                },
+                progress, cancellationToken);
+            if (result.Failed == 0)
             {
-                Directory.CreateDirectory(result.BackupDirectory);
-                File.Copy(catalogFile,
-                    Path.Combine(result.BackupDirectory, "tags.json"), overwrite: false);
+                var catalog = AlbumService.LoadTagCatalog(root);
+                var catalogFile = Path.Combine(root, ".album", AlbumService.AlbumTagsName);
+                if (File.Exists(catalogFile))
+                {
+                    Directory.CreateDirectory(result.BackupDirectory);
+                    File.Copy(catalogFile,
+                        Path.Combine(result.BackupDirectory, "tags.json"), overwrite: false);
+                }
+                catalog.SelectedTags.Clear();
+                AlbumService.SaveTagCatalog(root, catalog);
             }
-            catalog.SelectedTags.Clear();
-            AlbumService.SaveTagCatalog(root, catalog);
+            return result;
         }
-        await RefreshKnownLibraryStateAsync();
-        await MetadataPanel.ReloadTagsAsync();
-        await MetadataPanel.ReloadAvailableTagsAsync();
-        return result;
+        finally
+        {
+            // Even after cancellation, previous items were committed. Always
+            // refresh the active gallery and tag/flag navigation.
+            await RefreshKnownLibraryStateAsync();
+            await MetadataPanel.ReloadTagsAsync();
+            await MetadataPanel.ReloadAvailableTagsAsync();
+        }
     }
 
     /// <summary>
