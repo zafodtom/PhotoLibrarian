@@ -52,10 +52,26 @@ public static class AlbumMetadataClearService
         // packet wrapping unsuitable for a round-trip through a JPEG APP1
         // payload. Edit the XML tree instead and validate the serialized result
         // before touching the original file.
-        var xml = new System.Text.UTF8Encoding(false, true).GetString(packetBytes)
-            .TrimEnd('\0');
-        var document = System.Xml.Linq.XDocument.Parse(xml,
-            System.Xml.Linq.LoadOptions.PreserveWhitespace);
+        // Some JPEGs expose an APP1 packet with an invalid/non-XML payload.
+        // The XMP fast-path is optional: leave such bytes untouched and let
+        // the independent Windows keyword check decide whether tags remain.
+        System.Xml.Linq.XDocument document;
+        try
+        {
+            var xml = new System.Text.UTF8Encoding(false, true).GetString(packetBytes)
+                .TrimStart('\uFEFF', '\0', ' ', '\r', '\n', '\t')
+                .TrimEnd('\0');
+            document = System.Xml.Linq.XDocument.Parse(xml,
+                System.Xml.Linq.LoadOptions.PreserveWhitespace);
+        }
+        catch (System.Xml.XmlException)
+        {
+            return false;
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            return false;
+        }
         System.Xml.Linq.XName subject = System.Xml.Linq.XName.Get("subject", DcNs);
         System.Xml.Linq.XName flagged = System.Xml.Linq.XName.Get("Flagged", PlibNs);
         var targets = document.Descendants().Where(node =>
@@ -106,14 +122,21 @@ public static class AlbumMetadataClearService
         IReadOnlyCollection<ImageEntry> images,
         Func<ImageEntry, Task> clearDatabaseEntry,
         IProgress<AlbumMetadataClearProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool keepBackups = true)
     {
         if (string.IsNullOrWhiteSpace(albumRoot) ||
             !Directory.Exists(Path.Combine(albumRoot, ".album")))
             throw new InvalidOperationException("No active PhotoLibrarian album.");
 
-        string backupRoot = Path.Combine(albumRoot, ".album", "metadata-reset-backups",
-            DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N")[..8]);
+        string runId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" +
+            Guid.NewGuid().ToString("N")[..8];
+        string backupRoot = Path.Combine(albumRoot, ".album",
+            keepBackups ? "metadata-reset-backups" : "metadata-reset-reports", runId);
+        // Even in no-backup mode a temporary rollback copy is mandatory while
+        // changing bytes. Successful changes discard it immediately.
+        string rollbackRoot = keepBackups ? backupRoot :
+            Path.Combine(albumRoot, ".album", "metadata-reset-work", runId);
 
         // Freeze the input count, including non-writable RAW files. The UI must
         // not report a successful album reset after processing only a subset.
@@ -176,7 +199,7 @@ public static class AlbumMetadataClearService
                 var relative = Path.GetRelativePath(albumRoot, source);
                 if (updateImage || updateSidecar)
                 {
-                    imageBackup = Path.Combine(backupRoot, relative);
+                    imageBackup = Path.Combine(rollbackRoot, relative);
                     Directory.CreateDirectory(Path.GetDirectoryName(imageBackup)!);
                 }
                 if (updateImage)
@@ -202,6 +225,7 @@ public static class AlbumMetadataClearService
                         // dc:subject/our flag directly where possible, preserving
                         // encoded JPEG pixels, EXIF and unrelated APP segments.
                         // Other embedded keyword formats remain fail-closed.
+                        stage = "inspecting JPEG XMP";
                         await TryClearJpegXmpAsync(source, cancellationToken);
 
                         // System.Keywords is a merged view over XMP, IPTC and
@@ -209,6 +233,10 @@ public static class AlbumMetadataClearService
                         // when the other containers still hold old tags. Use the
                         // Windows Shell deletion policy, not a zero-length WIC
                         // StringArray (which fails with E_INVALIDARG).
+                        stage = "checking remaining Windows photo keywords";
+                        var remainingBeforeShell = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
+                        if (remainingBeforeShell.Count > 0)
+                        {
                         stage = "removing Windows photo keywords";
                         for (int attempt = 0; ; attempt++)
                         {
@@ -228,6 +256,8 @@ public static class AlbumMetadataClearService
                             {
                                 await Task.Delay(150 * (attempt + 1), cancellationToken);
                             }
+                        }
+
                         }
 
                         if (embeddedFlag && metadataReader.ReadMetadata(source).IsFlagged &&
@@ -278,6 +308,13 @@ public static class AlbumMetadataClearService
                     await clearDatabaseEntry(entry);
                     entry.IsFlagged = false;
                     cleaned++;
+                    if (!keepBackups)
+                    {
+                        if (imageBackup is not null && File.Exists(imageBackup))
+                            File.Delete(imageBackup);
+                        if (sidecarBackup is not null && File.Exists(sidecarBackup))
+                            File.Delete(sidecarBackup);
+                    }
                 }
                 catch
                 {
@@ -288,6 +325,13 @@ public static class AlbumMetadataClearService
                         File.Copy(imageBackup, source, overwrite: true);
                     if (sidecarModified && sidecarBackup is not null && File.Exists(sidecarBackup))
                         File.Copy(sidecarBackup, sidecar, overwrite: true);
+                    if (!keepBackups)
+                    {
+                        if (imageBackup is not null && File.Exists(imageBackup))
+                            File.Delete(imageBackup);
+                        if (sidecarBackup is not null && File.Exists(sidecarBackup))
+                            File.Delete(sidecarBackup);
+                    }
                     throw;
                 }
             }
@@ -310,6 +354,17 @@ public static class AlbumMetadataClearService
             Directory.CreateDirectory(backupRoot);
             await File.WriteAllLinesAsync(Path.Combine(backupRoot, "reset-errors.txt"),
                 errors, CancellationToken.None);
+        }
+        if (!keepBackups)
+        {
+            try
+            {
+                if (Directory.Exists(rollbackRoot) &&
+                    !Directory.EnumerateFiles(rollbackRoot, "*", SearchOption.AllDirectories).Any())
+                    Directory.Delete(rollbackRoot, recursive: true);
+            }
+            catch (IOException) { /* Preserve any pending recovery artifacts. */ }
+            catch (UnauthorizedAccessException) { /* Never remove failed recovery data. */ }
         }
         return new AlbumMetadataClearResult(cleaned, failed, backupRoot, errors);
     }

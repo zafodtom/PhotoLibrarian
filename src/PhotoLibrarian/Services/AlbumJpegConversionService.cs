@@ -94,7 +94,8 @@ public static class AlbumJpegConversionService
         string albumRoot,
         IProgress<AlbumJpegConversionProgress>? progress,
         CancellationToken cancellationToken = default,
-        Func<string, string, Task>? onConverted = null)
+        Func<string, string, Task>? onConverted = null,
+        bool keepBackups = true)
     {
         ValidateAlbum(albumRoot);
         var candidates = EnumerateImages(albumRoot)
@@ -105,7 +106,10 @@ public static class AlbumJpegConversionService
 
         string runId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" +
                        Guid.NewGuid().ToString("N")[..8];
-        var backupRoot = Path.Combine(albumRoot, ".album", "jpeg-conversion-backups", runId);
+        var backupRoot = Path.Combine(albumRoot, ".album",
+            keepBackups ? "jpeg-conversion-backups" : "jpeg-conversion-reports", runId);
+        var rollbackRoot = keepBackups ? backupRoot :
+            Path.Combine(albumRoot, ".album", "jpeg-conversion-rollback", runId);
         var workRoot = Path.Combine(albumRoot, ".album", "jpeg-conversion-work", runId);
         Directory.CreateDirectory(workRoot);
         int converted = 0, embedded = 0, skipped = 0, failed = 0, processed = 0;
@@ -177,7 +181,7 @@ public static class AlbumJpegConversionService
                     }
 
                     var relative = Path.GetRelativePath(albumRoot, source);
-                    sourceBackup = Path.Combine(backupRoot, relative);
+                    sourceBackup = Path.Combine(rollbackRoot, relative);
                     Directory.CreateDirectory(Path.GetDirectoryName(sourceBackup)!);
                     if (File.Exists(sourceBackup))
                         throw new IOException("Backup filename already exists.");
@@ -204,6 +208,16 @@ public static class AlbumJpegConversionService
                         if (File.Exists(sourceBackup) && !File.Exists(source))
                             File.Move(sourceBackup, source);
                         throw;
+                    }
+                    if (!keepBackups)
+                    {
+                        // Stage-and-rollback is used during the operation, but
+                        // a successful conversion deliberately retains no
+                        // source or sidecar copy when the user opts out.
+                        if (sourceBackup is not null && File.Exists(sourceBackup))
+                            File.Delete(sourceBackup);
+                        if (sidecarBackup is not null && File.Exists(sidecarBackup))
+                            File.Delete(sidecarBackup);
                     }
                     if (!originalJpg)
                     {
@@ -259,6 +273,23 @@ public static class AlbumJpegConversionService
         System.Diagnostics.Debug.WriteLine(
             $"[JPEG] Album conversion: {processed} files in {overall.Elapsed.TotalSeconds:F2}s " +
             $"({converted} converted, {embedded} XMP merged, {failed} failed, {skipped} skipped).");
+        if (errors.Count > 0)
+        {
+            Directory.CreateDirectory(backupRoot);
+            await File.WriteAllLinesAsync(Path.Combine(backupRoot, "conversion-errors.txt"),
+                errors, CancellationToken.None);
+        }
+        if (!keepBackups)
+        {
+            try
+            {
+                if (Directory.Exists(rollbackRoot) &&
+                    !Directory.EnumerateFiles(rollbackRoot, "*", SearchOption.AllDirectories).Any())
+                    Directory.Delete(rollbackRoot, recursive: true);
+            }
+            catch (IOException) { /* Keep recovery files if cleanup is blocked. */ }
+            catch (UnauthorizedAccessException) { /* Do not risk deleting recoverable originals. */ }
+        }
         return new AlbumJpegConversionResult(converted, embedded, failed, skipped, backupRoot, errors);
     }
 
@@ -274,14 +305,49 @@ public static class AlbumJpegConversionService
     {
         var input = await StorageFile.GetFileFromPathAsync(source);
         using var inputStream = await input.OpenReadAsync();
-        var decoder = await BitmapDecoder.CreateAsync(inputStream);
-        if (decoder.FrameCount != 1)
+        BitmapDecoder decoder;
+        try
+        {
+            decoder = await BitmapDecoder.CreateAsync(inputStream);
+        }
+        catch (Exception ex) when (
+            Path.GetExtension(source).Equals(".heic", StringComparison.OrdinalIgnoreCase) ||
+            Path.GetExtension(source).Equals(".heif", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NotSupportedException(
+                "HEIC/HEIF decoding failed. This converter uses the Windows HEIF codec. " +
+                "Install or enable Microsoft HEIF Image Extensions (and HEVC Video Extensions " +
+                "where required), then verify the image opens in Windows Photos. " +
+                "Original file is unchanged. Decoder: " + ex.Message, ex);
+        }
+        // HEIC may carry auxiliary depth, thumbnail or burst frames. Convert
+        // the primary image (frame 0) rather than rejecting the entire file.
+        // Other multipage formats are not silently collapsed.
+        bool heif = Path.GetExtension(source).Equals(".heic", StringComparison.OrdinalIgnoreCase) ||
+                    Path.GetExtension(source).Equals(".heif", StringComparison.OrdinalIgnoreCase);
+        if (decoder.FrameCount != 1 && !heif)
             throw new NotSupportedException("Multi-frame images require an explicit frame choice.");
+        if (decoder.FrameCount == 0)
+            throw new InvalidDataException("Image decoder returned no frames.");
 
-        var pixels = await decoder.GetPixelDataAsync(
-            BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
-            new BitmapTransform(), ExifOrientationMode.RespectExifOrientation,
-            ColorManagementMode.ColorManageToSRgb);
+        var frame = await decoder.GetFrameAsync(0);
+        Windows.Graphics.Imaging.PixelDataProvider pixels;
+        try
+        {
+            pixels = await frame.GetPixelDataAsync(
+                BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
+                new BitmapTransform(), ExifOrientationMode.RespectExifOrientation,
+                ColorManagementMode.ColorManageToSRgb);
+        }
+        catch (System.Runtime.InteropServices.COMException) when (heif)
+        {
+            // Certain HEIF codecs reject their color-profile conversion. Fall
+            // back to the native decoded colors instead of losing the frame.
+            pixels = await frame.GetPixelDataAsync(
+                BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
+                new BitmapTransform(), ExifOrientationMode.RespectExifOrientation,
+                ColorManagementMode.DoNotColorManage);
+        }
         var bytes = pixels.DetachPixelData();
         // JPEG does not support transparency: composite against opaque white.
         for (int i = 0; i < bytes.Length; i += 4)
@@ -305,8 +371,8 @@ public static class AlbumJpegConversionService
         var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId,
             outputStream, options);
         encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied,
-            decoder.OrientedPixelWidth, decoder.OrientedPixelHeight,
-            decoder.DpiX, decoder.DpiY, bytes);
+            frame.OrientedPixelWidth, frame.OrientedPixelHeight,
+            frame.DpiX, frame.DpiY, bytes);
         await encoder.FlushAsync();
     }
 }

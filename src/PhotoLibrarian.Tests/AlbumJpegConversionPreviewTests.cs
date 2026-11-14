@@ -89,4 +89,32 @@ public sealed class AlbumJpegConversionPreviewTests
             Directory.Delete(root, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task Convert_WithoutRetainedBackups_RemovesOriginalButLeavesVerifiedJpeg()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PhotoLibrarian-jpeg-no-backups-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var original = Path.Combine(root, "photo.png");
+            await WicTestImage.CreateAsync(original, 8, 6);
+            var result = await AlbumJpegConversionService.RunAsync(
+                root, null, keepBackups: false);
+
+            Assert.Equal(1, result.Converted);
+            Assert.Equal(0, result.Failed);
+            Assert.False(File.Exists(original));
+            Assert.True(File.Exists(Path.Combine(root, "photo.jpg")));
+            Assert.False(File.Exists(Path.Combine(result.BackupDirectory, "photo.png")));
+            var rollback = Path.Combine(root, ".album", "jpeg-conversion-rollback");
+            Assert.False(Directory.Exists(rollback) &&
+                Directory.EnumerateFiles(rollback, "*", SearchOption.AllDirectories).Any());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }

@@ -321,4 +321,36 @@ public sealed class AlbumMetadataClearTests
             File.Delete(other);
         }
     }
+
+    [Fact]
+    public async Task Reset_WithoutRetainedBackups_DeletesTemporaryCopies()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-no-backups-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var photo = Path.Combine(root, "image.jpg");
+            await WicTestImage.CreateAsync(photo, 12, 9, jpeg: true);
+            await EmbeddedMetadataWriter.WriteAsync(photo,
+                keywords: ["Remove"], flagged: true, rating: 4);
+
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [new ImageEntry { Id = 9, FilePath = photo, FileName = "image.jpg" }],
+                _ => Task.CompletedTask, keepBackups: false);
+
+            Assert.Equal(0, result.Failed);
+            Assert.Equal(1, result.Cleaned);
+            Assert.True(File.Exists(photo));
+            Assert.Empty(await EmbeddedMetadataWriter.ReadKeywordsAsync(photo));
+            Assert.False(File.Exists(Path.Combine(result.BackupDirectory, "image.jpg")));
+            var rollback = Path.Combine(root, ".album", "metadata-reset-work");
+            Assert.False(Directory.Exists(rollback) &&
+                Directory.EnumerateFiles(rollback, "*", SearchOption.AllDirectories).Any());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }
