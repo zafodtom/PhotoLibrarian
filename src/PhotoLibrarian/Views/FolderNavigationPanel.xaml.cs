@@ -20,7 +20,6 @@ public sealed partial class FolderNavigationPanel : UserControl
     private bool _isRefreshingTagTree;
     private bool _requireAllTags = true;
     private ImageGridViewModel? _subscribedTagGrid;
-    private bool _isRefreshingPeopleTree;
     private readonly HashSet<string> _selectedTagPaths =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _excludedTagPaths =
@@ -38,38 +37,15 @@ public sealed partial class FolderNavigationPanel : UserControl
     public async Task RefreshAllTreesAsync()
     {
         RefreshLibraryTree();
-        await RefreshDateTreeAsync();
-        await RefreshPeopleTreeAsync();
         await RefreshTagsTreeAsync();
-        RefreshFlagTree();
     }
 
-    public async Task RefreshMetadataTreesAsync()
-    {
-        await RefreshDateTreeAsync();
-        await RefreshPeopleTreeAsync();
-        await RefreshTagsTreeAsync();
-        RefreshFlagTree();
-    }
+    public Task RefreshMetadataTreesAsync() => RefreshTagsTreeAsync();
 
-    /// <summary>
-    /// Ensures the single "Flagged" node exists. The node's label is data-bound to
-    /// <see cref="FlagNavigationViewModel.Label"/>, so the count repaints on its own.
-    /// </summary>
-    public void RefreshFlagTree()
-    {
-        var flagNav = App.ViewModel?.FlagNav;
-        if (flagNav is null) return;
-
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            // Never rebuild the node: clearing RootNodes would drop (and re-fire) the selection,
-            // which would momentarily clear an active flag filter.
-            if (FlagsTree.RootNodes.Any(n => n.Content is FlagNavigationViewModel)) return;
-
-            FlagsTree.RootNodes.Add(new TreeViewNode { Content = flagNav });
-        });
-    }
+    // Compatibility endpoints for MainWindow callers. The date, person and
+    // flag trees have been removed, but album data remains untouched.
+    public Task RefreshPeopleTreeAsync() => Task.CompletedTask;
+    public void RefreshFlagTree() { }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -83,10 +59,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         RefreshLibraryTree();
         
         // Initial metadata trees load (don't bind to CollectionChanged to avoid recursion)
-        _ = RefreshDateTreeAsync();
-        _ = RefreshPeopleTreeAsync();
         _ = RefreshTagsTreeAsync();
-        RefreshFlagTree();
     }
 
     private void RefreshLibraryTree()
@@ -159,166 +132,6 @@ public sealed partial class FolderNavigationPanel : UserControl
             if (node.Children.Count > 0)
                 RestoreFolderExpansionState(node.Children, expandedPaths);
         }
-    }
-
-    private async Task RefreshDateTreeAsync()
-    {
-        if (App.ViewModel?.DateNav is null) return;
-
-        await App.ViewModel.DateNav.LoadDatesAsync();
-        
-        // Must update UI on dispatcher queue
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            // Snapshot expansion + selection so editing date taken (or any other refresh trigger)
-            // doesn't collapse the user's open year/month and doesn't drop the active filter.
-            var expandedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var selectedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            CollectDateTreeState(DateTree.RootNodes, expandedKeys, selectedKeys);
-
-            DateTree.RootNodes.Clear();
-
-            foreach (var rootNode in App.ViewModel.DateNav.RootNodes)
-            {
-                var treeNode = BuildDateNode(rootNode);
-                DateTree.RootNodes.Add(treeNode);
-            }
-
-            RestoreDateTreeState(DateTree.RootNodes, expandedKeys, selectedKeys);
-        });
-    }
-
-    private static string GetDateNodeKey(DateNode n)
-    {
-        if (n.IsRoot) return "__root__";
-        if (n.Month.HasValue) return $"{n.Year:D4}-{n.Month.Value:D2}";
-        return $"{n.Year:D4}";
-    }
-
-    private void CollectDateTreeState(
-        IList<TreeViewNode> nodes,
-        HashSet<string> expanded,
-        HashSet<string> selected)
-    {
-        foreach (var n in nodes)
-        {
-            if (n.Content is DateNodeWrapper w)
-            {
-                var key = GetDateNodeKey(w.DateNode);
-                if (n.IsExpanded) expanded.Add(key);
-                if (DateTree.SelectedNodes.Contains(n)) selected.Add(key);
-            }
-            if (n.Children.Count > 0)
-                CollectDateTreeState(n.Children, expanded, selected);
-        }
-    }
-
-    private void RestoreDateTreeState(
-        IList<TreeViewNode> nodes,
-        HashSet<string> expanded,
-        HashSet<string> selected)
-    {
-        foreach (var n in nodes)
-        {
-            if (n.Content is DateNodeWrapper w)
-            {
-                var key = GetDateNodeKey(w.DateNode);
-                if (expanded.Contains(key))
-                    n.IsExpanded = true;
-                if (selected.Contains(key))
-                    DateTree.SelectedNodes.Add(n);
-            }
-            if (n.Children.Count > 0)
-                RestoreDateTreeState(n.Children, expanded, selected);
-        }
-    }
-
-    private TreeViewNode BuildDateNode(DateNode dateNode)
-    {
-        var treeNode = new TreeViewNode
-        {
-            Content = new DateNodeWrapper(dateNode),
-            IsExpanded = false
-        };
-
-        foreach (var child in dateNode.Children)
-        {
-            treeNode.Children.Add(BuildDateNode(child));
-        }
-
-        return treeNode;
-    }
-
-    public async Task RefreshPeopleTreeAsync()
-    {
-        if (App.ViewModel?.PeopleNav is null) return;
-
-        await App.ViewModel.PeopleNav.LoadPeopleAsync();
-
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            _isRefreshingPeopleTree = true;
-            bool rootSelected = false;
-            HashSet<long?> selectedIds = [];
-            try
-            {
-                selectedIds = PeopleTree.SelectedNodes
-                    .Select(node => node.Content)
-                    .OfType<PersonNodeWrapper>()
-                    .Select(wrapper => wrapper.PersonNode.PersonId)
-                    .ToHashSet();
-                rootSelected = PeopleTree.SelectedNodes.Any(
-                    node => node.Content is PersonNodeWrapper { PersonNode.IsRoot: true });
-
-                PeopleTree.SelectedNodes.Clear();
-                PeopleTree.RootNodes.Clear();
-                foreach (var personNode in App.ViewModel.PeopleNav.RootNodes)
-                {
-                    PeopleTree.RootNodes.Add(BuildPersonNode(personNode));
-                }
-
-                foreach (var rootNode in PeopleTree.RootNodes)
-                {
-                    if (rootSelected &&
-                        rootNode.Content is PersonNodeWrapper { PersonNode.IsRoot: true })
-                    {
-                        PeopleTree.SelectedNodes.Add(rootNode);
-                    }
-
-                    foreach (var child in rootNode.Children)
-                    {
-                        if (child.Content is PersonNodeWrapper wrapper &&
-                            selectedIds.Contains(wrapper.PersonNode.PersonId))
-                        {
-                            PeopleTree.SelectedNodes.Add(child);
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                _isRefreshingPeopleTree = false;
-            }
-
-            if (rootSelected || selectedIds.Any(id => id.HasValue))
-                UpdateGridFromSelection();
-        });
-    }
-
-    private static TreeViewNode BuildPersonNode(PersonNode personNode)
-    {
-        var treeNode = new TreeViewNode
-        {
-            Content = new PersonNodeWrapper(personNode),
-            IsExpanded = personNode.IsRoot
-        };
-
-        foreach (var child in personNode.Children)
-        {
-            treeNode.Children.Add(BuildPersonNode(child));
-        }
-
-        return treeNode;
     }
 
     private IReadOnlyCollection<string>? GetSelectedFolderScope()
@@ -1659,38 +1472,6 @@ public sealed partial class FolderNavigationPanel : UserControl
         UpdateGridFromSelection();
     }
 
-    private void OnDateItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
-    {
-        if (args.InvokedItem is TreeViewNode node)
-        {
-            DebugLog.WriteLine($"OnDateItemInvoked: Node={node.Content}, IsSelected={sender.SelectedNodes.Contains(node)}");
-            
-            if (sender.SelectedNodes.Contains(node))
-            {
-                sender.SelectedNodes.Remove(node);
-            }
-            else
-            {
-                sender.SelectedNodes.Add(node);
-            }
-            
-            DebugLog.WriteLine($"  After toggle: IsSelected={sender.SelectedNodes.Contains(node)}, TotalSelected={sender.SelectedNodes.Count}");
-            UpdateGridFromSelection();
-        }
-    }
-
-    private void OnPeopleItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
-    {
-        if (args.InvokedItem is not TreeViewNode node) return;
-
-        if (sender.SelectedNodes.Contains(node))
-            sender.SelectedNodes.Remove(node);
-        else
-            sender.SelectedNodes.Add(node);
-
-        UpdateGridFromSelection();
-    }
-
     private void OnLibraryExpanding(TreeView sender, TreeViewExpandingEventArgs args)
     {
         if (args.Node.Content is not FolderNodeWrapper wrapper || wrapper.FolderNode is null) return;
@@ -1720,39 +1501,6 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
     }
 
-    private void OnDateSelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
-    {
-        DebugLog.WriteLine($"OnDateSelectionChanged: AddedItems={args.AddedItems.Count}, RemovedItems={args.RemovedItems.Count}, TotalSelected={sender.SelectedNodes.Count}");
-        UpdateGridFromSelection();
-    }
-
-    private void OnPeopleSelectionChanged(
-        TreeView sender,
-        TreeViewSelectionChangedEventArgs args)
-    {
-        if (_isRefreshingPeopleTree)
-            return;
-
-        UpdateGridFromSelection();
-    }
-
-    private void OnFlagsItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
-    {
-        if (args.InvokedItem is TreeViewNode node)
-        {
-            if (sender.SelectedNodes.Contains(node))
-                sender.SelectedNodes.Remove(node);
-            else
-                sender.SelectedNodes.Add(node);
-            UpdateGridFromSelection();
-        }
-    }
-
-    private void OnFlagsSelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
-    {
-        UpdateGridFromSelection();
-    }
-
     private void UpdateGridFromSelection()
     {
         if (App.ViewModel?.ImageGrid is null) return;
@@ -1769,34 +1517,6 @@ public sealed partial class FolderNavigationPanel : UserControl
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // Collect selected date ranges (year/month/root)
-        var selectedYears = new List<int>();
-        var selectedMonths = new List<(int Year, int Month)>();
-        bool dateRootSelected = false;
-        foreach (var node in DateTree.SelectedNodes)
-        {
-            if (node.Content is DateNodeWrapper wrapper)
-            {
-                DebugLog.WriteLine($"  Date node selected: IsRoot={wrapper.DateNode.IsRoot}, Year={wrapper.DateNode.Year}, Month={wrapper.DateNode.Month}, Count={wrapper.DateNode.Count}");
-                
-                if (wrapper.DateNode.IsRoot)
-                {
-                    // Root "Dates" node - show all dated images
-                    dateRootSelected = true;
-                }
-                else if (wrapper.DateNode.Month.HasValue)
-                {
-                    // Specific month
-                    selectedMonths.Add((wrapper.DateNode.Year, wrapper.DateNode.Month.Value));
-                }
-                else
-                {
-                    // Whole year
-                    selectedYears.Add(wrapper.DateNode.Year);
-                }
-            }
-        }
-
         // Tag filtering uses an independent selection set rather than
         // TreeView's hierarchical multiple-selection semantics.
         bool tagRootSelected = _selectedTagPaths.Contains("");
@@ -1811,31 +1531,11 @@ public sealed partial class FolderNavigationPanel : UserControl
             .ToList();
         var excludedTags = _excludedTagPaths.ToList();
 
-        var selectedPeople = new List<long>();
-        bool peopleRootSelected = false;
-        foreach (var node in PeopleTree.SelectedNodes)
+        // If no folder and no tag conditions are selected, show an empty grid.
+        if (!photoLibraryRootSelected && selectedFolders.Count == 0 &&
+            !tagRootSelected && !untaggedSelected && selectedTags.Count == 0 &&
+            excludedTags.Count == 0)
         {
-            if (node.Content is not PersonNodeWrapper wrapper) continue;
-
-            if (wrapper.PersonNode.IsRoot)
-                peopleRootSelected = true;
-            else if (wrapper.PersonNode.PersonId is long personId)
-                selectedPeople.Add(personId);
-        }
-
-        DebugLog.WriteLine($"UpdateGridFromSelection: PhotoLibraryRoot={photoLibraryRootSelected}, Folders={selectedFolders.Count}, DateRoot={dateRootSelected}, Years={selectedYears.Count}, Months={selectedMonths.Count}, PeopleRoot={peopleRootSelected}, People={selectedPeople.Count}, TagRoot={tagRootSelected}, Untagged={untaggedSelected}, Tags={selectedTags.Count}");
-
-        // Flagged working set
-        bool flaggedSelected = FlagsTree.SelectedNodes.Any(n => n.Content is FlagNavigationViewModel);
-
-        // If nothing selected anywhere, clear filters to show empty grid
-        if (!photoLibraryRootSelected && !dateRootSelected && !peopleRootSelected &&
-            !tagRootSelected && !untaggedSelected && !flaggedSelected &&
-            selectedFolders.Count == 0 && selectedYears.Count == 0 && 
-            selectedMonths.Count == 0 && selectedPeople.Count == 0 &&
-            selectedTags.Count == 0 && excludedTags.Count == 0)
-        {
-            DebugLog.WriteLine("  No selections - clearing filter");
             App.ViewModel.ImageGrid.ClearFilterCommand.Execute(null);
             return;
         }
@@ -1847,20 +1547,16 @@ public sealed partial class FolderNavigationPanel : UserControl
             selectedFolders.AddRange(ViewModel?.RootFolders.Select(f => f.Path) ?? []);
         }
 
-        // Apply multi-criteria filter
         _ = App.ViewModel.ImageGrid.FilterByMultipleCriteriaAsync(
             selectedFolders.Count > 0 ? selectedFolders : null,
-            dateRootSelected,
-            selectedYears.Count > 0 ? selectedYears : null,
-            selectedMonths.Count > 0 ? selectedMonths : null,
-            peopleRootSelected,
-            selectedPeople.Count > 0 ? selectedPeople : null,
-            tagRootSelected,
-            selectedTags.Count > 0 ? selectedTags : null,
-            untaggedSelected,
-            flaggedSelected,
-            excludedTags.Count > 0 ? excludedTags : null,
-            _requireAllTags);
+            dateRootSelected: false, years: null, months: null,
+            peopleRootSelected: false, personIds: null,
+            tagRootSelected: tagRootSelected,
+            tags: selectedTags.Count > 0 ? selectedTags : null,
+            untaggedSelected: untaggedSelected,
+            flaggedSelected: false,
+            excludedTags: excludedTags.Count > 0 ? excludedTags : null,
+            requireAllIncludedTags: _requireAllTags);
     }
 
     // ============================================================================
@@ -1976,44 +1672,6 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
 
         public override string ToString() => DisplayText;
-    }
-
-    // Helper class to wrap DateNode for TreeView
-    private class DateNodeWrapper
-    {
-        public DateNode DateNode { get; }
-
-        public DateNodeWrapper(DateNode dateNode)
-        {
-            DateNode = dateNode;
-        }
-
-        public override string ToString()
-        {
-            // Root node already has emoji in DisplayName, others need the calendar icon
-            if (DateNode.IsRoot)
-                return $"{DateNode.DisplayName} ({DateNode.Count})";
-            else
-                return $"📅 {DateNode.DisplayName} ({DateNode.Count})";
-        }
-    }
-
-    private sealed class PersonNodeWrapper
-    {
-        public PersonNode PersonNode { get; }
-
-        public PersonNodeWrapper(PersonNode personNode)
-        {
-            PersonNode = personNode;
-        }
-
-        public override string ToString()
-        {
-            if (PersonNode.IsRoot)
-                return $"{PersonNode.DisplayName} ({PersonNode.Count})";
-
-            return $"👤 {PersonNode.DisplayName} ({PersonNode.Count})";
-        }
     }
 
     private sealed class CatalogManagerRow
