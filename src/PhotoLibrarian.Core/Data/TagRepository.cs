@@ -107,6 +107,32 @@ public sealed class TagRepository : IAutoTagStore
     }
 
     /// <summary>
+    /// Clears tag assignments and the obsolete user flag together. A single
+    /// transaction prevents partial database cleanup if SQLite reports an error.
+    /// Does not alter ratings, captions, face records or tag catalog definitions.
+    /// </summary>
+    public async Task ClearImageTagsAndFlagAsync(long imageId)
+    {
+        using var conn = _db.CreateConnection();
+        using var transaction = (SqliteTransaction)await conn.BeginTransactionAsync();
+        using (var tags = conn.CreateCommand())
+        {
+            tags.Transaction = transaction;
+            tags.CommandText = "DELETE FROM tags WHERE image_id = $id";
+            tags.Parameters.AddWithValue("$id", imageId);
+            await tags.ExecuteNonQueryAsync();
+        }
+        using (var image = conn.CreateCommand())
+        {
+            image.Transaction = transaction;
+            image.CommandText = "UPDATE images SET is_flagged = 0 WHERE id = $id";
+            image.Parameters.AddWithValue("$id", imageId);
+            await image.ExecuteNonQueryAsync();
+        }
+        await transaction.CommitAsync();
+    }
+
+    /// <summary>
     /// Gets all unique tags with their usage count, optionally scoped to selected album folders.
     /// </summary>
     public async Task<List<(string Tag, int Count)>> GetAllTagsWithCountAsync(
