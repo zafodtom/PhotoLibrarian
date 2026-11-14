@@ -250,21 +250,13 @@ public sealed partial class MainWindow : Window
 
         // Top-ribbon events
         TopRibbon.CropClicked += OnRibbonCropClicked;
-        TopRibbon.MakeCopyClicked += OnRibbonMakeCopyClicked;
-        TopRibbon.StraightenClicked += OnRibbonStraightenClicked;
         TopRibbon.CloseViewerClicked += (_, _) => ViewModel.ImageViewer.CloseCommand.Execute(null);
         TopRibbon.AdjustClicked += OnRibbonAdjustClicked;
-        TopRibbon.RedEyeClicked += OnRibbonRedEyeClicked;
         TopRibbon.ApplyCropClicked += OnRibbonApplyCropClicked;
         TopRibbon.CancelCropClicked += OnRibbonCancelCropClicked;
         TopRibbon.CropAspectChanged += OnRibbonCropAspectChanged;
-        TopRibbon.ApplyStraightenClicked += OnRibbonApplyStraightenClicked;
-        TopRibbon.CancelStraightenClicked += OnRibbonCancelStraightenClicked;
         ViewerOverlay.CropApplyRequested += OnRibbonApplyCropClicked;
         ViewerOverlay.CropCancelRequested += OnRibbonCancelCropClicked;
-        ViewerOverlay.StraightenApplyRequested += OnRibbonApplyStraightenClicked;
-        ViewerOverlay.StraightenCancelRequested += OnRibbonCancelStraightenClicked;
-        ViewerOverlay.RedEyeSelectionCompleted += OnRedEyeSelectionCompleted;
         ViewerOverlay.ManualFaceTaggingExited += (_, _) => ViewModel.OnManualFaceTaggingExited();
 
         // Cleanup on window close
@@ -510,14 +502,12 @@ public sealed partial class MainWindow : Window
                 if (!_isClosing)
                 {
                     TopRibbon.SetContextLabel(ViewModel.ImageViewer.Title ?? "");
-                    TopRibbon.SetMakeCopyEnabled(!ViewModel.ImageViewer.IsVideo);
                 }
             });
         if (e.PropertyName == nameof(ImageViewerViewModel.IsVideo))
             DispatcherQueue.TryEnqueue(() =>
             {
                 if (!_isClosing)
-                    TopRibbon.SetMakeCopyEnabled(!ViewModel.ImageViewer.IsVideo);
             });
     }
 
@@ -621,58 +611,10 @@ public sealed partial class MainWindow : Window
     {
         if (!ViewModel.ImageViewer.IsOpen) return;
         if (ViewModel.ImageViewer.IsVideo) return;
-        if (ViewerOverlay.IsStraightening)
-        {
-            ViewerOverlay.ExitStraightenMode();
-            TopRibbon.ExitStraightenMode();
-        }
+
         ViewerOverlay.EnterCropMode();
         ViewerOverlay.CropOverlay.AspectRatio = _pendingAspect;
         TopRibbon.EnterCropMode();
-    }
-
-    private async void OnRibbonMakeCopyClicked(object? sender, EventArgs e)
-    {
-        var entry = ViewModel.ImageViewer.CurrentEntry;
-        if (entry is null || entry.MediaType != Core.Models.MediaType.Image) return;
-
-        TopRibbon.IsEnabled = false;
-        ViewModel.StatusText = "Creating a copy…";
-        try
-        {
-            await ViewModel.MakeCopyForEditingAsync(entry);
-        }
-        catch (Exception ex)
-        {
-            ViewModel.StatusText = $"Make a copy failed: {ex.Message}";
-        }
-        finally
-        {
-            TopRibbon.IsEnabled = true;
-        }
-    }
-
-    private void OnRibbonStraightenClicked(object? sender, EventArgs e)
-    {
-        var entry = ViewModel.ImageViewer.CurrentEntry;
-        if (entry is null || ViewModel.ImageViewer.IsVideo) return;
-        if (ViewerOverlay.CurrentImagePixelWidth == 0 || ViewerOverlay.CurrentImagePixelHeight == 0)
-            return;
-        if (!ImageEditRenderer.IsSupported(entry.FilePath))
-        {
-            ViewModel.StatusText =
-                $"Editing not supported for {System.IO.Path.GetExtension(entry.FilePath)}";
-            return;
-        }
-
-        if (ViewerOverlay.IsCropping)
-        {
-            ViewerOverlay.ExitCropMode();
-            TopRibbon.ExitCropMode();
-        }
-
-        ViewerOverlay.EnterStraightenMode();
-        TopRibbon.EnterStraightenMode();
     }
 
     private async void OnRibbonAdjustClicked(object? sender, EventArgs e)
@@ -690,76 +632,16 @@ public sealed partial class MainWindow : Window
             ViewerOverlay.ExitCropMode();
             TopRibbon.ExitCropMode();
         }
-        if (ViewerOverlay.IsStraightening)
-        {
-            ViewerOverlay.ExitStraightenMode();
-            TopRibbon.ExitStraightenMode();
-        }
-        if (ViewerOverlay.IsRedEyeRemoving)
-        {
-            ViewerOverlay.ExitRedEyeMode();
-            TopRibbon.ExitRedEyeMode();
-        }
+
+
 
         await ViewModel.ImageEditor.OpenForEditAsync(entry);
-    }
-
-    private void OnRibbonRedEyeClicked(object? sender, EventArgs e)
-    {
-        var entry = ViewModel.ImageViewer.CurrentEntry;
-        if (entry is null || ViewModel.ImageViewer.IsVideo) return;
-        if (!ImageEditRenderer.IsSupported(entry.FilePath))
-        {
-            ViewModel.StatusText =
-                $"Editing not supported for {System.IO.Path.GetExtension(entry.FilePath)}";
-            return;
-        }
-
-        if (ViewerOverlay.IsCropping) OnRibbonCancelCropClicked(sender, e);
-        if (ViewerOverlay.IsStraightening) OnRibbonCancelStraightenClicked(sender, e);
-        ViewerOverlay.EnterRedEyeMode();
-        TopRibbon.EnterRedEyeMode();
-    }
-
-    private async void OnRedEyeSelectionCompleted(object? sender, RedEyeBounds bounds)
-    {
-        var entry = ViewModel.ImageViewer.CurrentEntry;
-        if (entry is null) return;
-
-        TopRibbon.IsEnabled = false;
-        try
-        {
-            await ViewModel.BackupService.BackupOriginalAsync(entry.FilePath);
-            ViewModel.StatusText = "Removing red eye…";
-            var changed = await ImageEditRenderer.RemoveRedEyeAsync(entry.FilePath, bounds);
-            await ViewModel.RefreshAfterPixelEditAsync(
-                entry.FilePath,
-                ViewerOverlay.CurrentImagePixelWidth,
-                ViewerOverlay.CurrentImagePixelHeight,
-                changed == 0 ? "No red eye found in selection" : "Removed red eye from");
-        }
-        catch (Exception ex)
-        {
-            ViewModel.StatusText = $"Red-eye removal failed: {ex.Message}";
-        }
-        finally
-        {
-            ViewerOverlay.ExitRedEyeMode();
-            TopRibbon.ExitRedEyeMode();
-            TopRibbon.IsEnabled = true;
-        }
     }
 
     private void OnRibbonCancelCropClicked(object? sender, EventArgs e)
     {
         ViewerOverlay.ExitCropMode();
         TopRibbon.ExitCropMode();
-    }
-
-    private void OnRibbonCancelStraightenClicked(object? sender, EventArgs e)
-    {
-        ViewerOverlay.ExitStraightenMode();
-        TopRibbon.ExitStraightenMode();
     }
 
     private void OnRibbonCropAspectChanged(object? sender, CropAspectRatio ratio)
@@ -798,46 +680,6 @@ public sealed partial class MainWindow : Window
             ViewModel.ResumeFaceDetection(resumeFaceDetection);
             ViewerOverlay.ExitCropMode();
             TopRibbon.ExitCropMode();
-            TopRibbon.IsEnabled = true;
-        }
-    }
-
-    private async void OnRibbonApplyStraightenClicked(object? sender, EventArgs e)
-    {
-        if (!ViewerOverlay.IsStraightening) return;
-
-        var entry = ViewModel.ImageViewer.CurrentEntry;
-        if (entry is null)
-        {
-            OnRibbonCancelStraightenClicked(sender, e);
-            return;
-        }
-
-        var angle = ViewerOverlay.StraightenAngle;
-        if (Math.Abs(angle) < 0.05)
-        {
-            ViewModel.StatusText = "No straighten adjustment to apply";
-            OnRibbonCancelStraightenClicked(sender, e);
-            return;
-        }
-
-        TopRibbon.IsEnabled = false;
-        ViewModel.StatusText = "Applying straighten…";
-        try
-        {
-            await ViewModel.BackupService.BackupOriginalAsync(entry.FilePath);
-            var (width, height) =
-                await ImageEditRenderer.RenderStraightenedAsync(entry.FilePath, angle);
-            await ViewModel.RefreshAfterStraightenAsync(entry.FilePath, width, height);
-        }
-        catch (Exception ex)
-        {
-            ViewModel.StatusText = $"Straighten failed: {ex.Message}";
-        }
-        finally
-        {
-            ViewerOverlay.ExitStraightenMode();
-            TopRibbon.ExitStraightenMode();
             TopRibbon.IsEnabled = true;
         }
     }
