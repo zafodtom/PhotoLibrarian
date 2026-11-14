@@ -71,12 +71,13 @@ public static class AlbumMetadataClearService
     /// if verification fails.
     /// </summary>
     private static async Task<bool> TryClearJpegXmpAsync(
-        string source, CancellationToken cancellationToken)
+        string source, CancellationToken cancellationToken, Action<string>? setStage = null)
     {
         if (!new[] { ".jpg", ".jpeg", ".jpe", ".jfif" }.Contains(
             Path.GetExtension(source), StringComparer.OrdinalIgnoreCase))
             return false;
 
+        setStage?.Invoke("reading JPEG bytes for XMP");
         var original = await WithAccessRetryAsync(
             () => File.ReadAllBytesAsync(source, cancellationToken), cancellationToken);
         var packetBytes = JpegXmpPacket.ExtractStandardPacket(original);
@@ -128,6 +129,7 @@ public static class AlbumMetadataClearService
         if (verifiedPacket.DoesPropertyExist(DcNs, "dc:subject") ||
             verifiedPacket.DoesPropertyExist(PlibNs, FlagName))
             throw new InvalidDataException("Embedded XMP still contains tags or flags.");
+        setStage?.Invoke("preparing modified JPEG XMP");
         var updated = JpegXmpPacket.Embed(original, rewrittenXmp);
         if (!JpegXmpPacket.ContainsExactPacket(updated, rewrittenXmp))
             throw new InvalidDataException("Updated embedded XMP packet could not be verified.");
@@ -135,9 +137,11 @@ public static class AlbumMetadataClearService
         string temp = source + ".reset-" + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
+            setStage?.Invoke("writing temporary JPEG XMP");
             await File.WriteAllBytesAsync(temp, updated, cancellationToken);
             // Only retry the atomic replacement; the fully verified temporary
             // image is kept untouched between attempts.
+            setStage?.Invoke("replacing JPEG after XMP update");
             await WithAccessRetryAsync(() =>
             {
                 File.Move(temp, source, overwrite: true);
@@ -281,7 +285,8 @@ public static class AlbumMetadataClearService
                         // encoded JPEG pixels, EXIF and unrelated APP segments.
                         // Other embedded keyword formats remain fail-closed.
                         stage = "inspecting and updating JPEG XMP";
-                        await TryClearJpegXmpAsync(source, cancellationToken);
+                        await TryClearJpegXmpAsync(
+                            source, cancellationToken, value => stage = value);
 
                         // System.Keywords is a merged view over XMP, IPTC and
                         // EXIF keyword fields. Cleaning only XMP is insufficient
