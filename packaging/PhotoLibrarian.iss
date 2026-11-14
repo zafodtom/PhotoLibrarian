@@ -78,5 +78,21 @@ Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\PhotoLibrarian.C
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\PhotoLibrarian.CreateAlbum"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#MyAppExeName},0"; Tasks: explorercontext
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\PhotoLibrarian.CreateAlbum\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" --album ""%V"""; Tasks: explorercontext
 
+
+[Code]
+// Removing an optional task during an upgrade must also remove registry
+// entries created by earlier versions: skipped [Registry] entries alone would
+// leave those previous shell commands behind.
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssInstall) and not WizardIsTaskSelected('explorercontext') then
+  begin
+    RegDeleteKeyIncludingSubkeys(HKLM,
+      'Software\Classes\Directory\shell\PhotoLibrarian.CreateAlbum');
+    RegDeleteKeyIncludingSubkeys(HKLM,
+      'Software\Classes\Directory\Background\shell\PhotoLibrarian.CreateAlbum');
+  end;
+end;
+
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
