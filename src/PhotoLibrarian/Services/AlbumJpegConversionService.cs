@@ -233,16 +233,6 @@ public static class AlbumJpegConversionService
                             File.Move(sourceBackup, source);
                         throw;
                     }
-                    if (!keepBackups)
-                    {
-                        // Stage-and-rollback is used during the operation, but
-                        // a successful conversion deliberately retains no
-                        // source or sidecar copy when the user opts out.
-                        if (sourceBackup is not null && File.Exists(sourceBackup))
-                            File.Delete(sourceBackup);
-                        if (sidecarBackup is not null && File.Exists(sidecarBackup))
-                            File.Delete(sidecarBackup);
-                    }
                     if (!originalJpg)
                     {
                         converted++;
@@ -263,6 +253,25 @@ public static class AlbumJpegConversionService
                         }
                     }
                     if (hasSidecar) embedded++;
+                    if (!keepBackups)
+                    {
+                        // The JPEG has been committed and the catalog remapped.
+                        // Failure to delete a rollback original is not a
+                        // failed conversion: preserve it and report the cleanup
+                        // warning, avoiding a misleading partial failure.
+                        foreach (var retained in new[] { sourceBackup, sidecarBackup })
+                        {
+                            if (retained is null || !File.Exists(retained)) continue;
+                            try { File.Delete(retained); }
+                            catch (Exception cleanupError) when (cleanupError is
+                                IOException or UnauthorizedAccessException)
+                            {
+                                errors.Add(Path.GetRelativePath(albumRoot, source) +
+                                    ": converted, but original rollback cleanup failed: " +
+                                    cleanupError.Message);
+                            }
+                        }
+                    }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
