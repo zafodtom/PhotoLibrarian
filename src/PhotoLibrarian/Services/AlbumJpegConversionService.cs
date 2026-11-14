@@ -49,7 +49,7 @@ public static class AlbumJpegConversionService
                 var info = new DirectoryInfo(sub);
                 // A nested album is a separate library: never cross its marker.
                 if (info.Name.Equals(".album", StringComparison.OrdinalIgnoreCase) ||
-                    info.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
+                    info.Attributes.HasFlag(System.IO.FileAttributes.ReparsePoint) ||
                     Directory.Exists(Path.Combine(sub, ".album")))
                     continue;
                 pending.Push(sub);
