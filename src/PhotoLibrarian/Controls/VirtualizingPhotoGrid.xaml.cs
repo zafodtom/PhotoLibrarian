@@ -1160,7 +1160,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
 
             await PhotoLibrarian.Services.PhotoOperationsService.PopulateDragDataAsync(
                 args.Data, paths);
-            args.AllowedOperations = DataPackageOperation.Copy | DataPackageOperation.Move;
+            args.AllowedOperations = DataPackageOperation.Copy;
             args.Data.Properties[PhotoLibrarian.Services.PhotoOperationsService.TagDropFormatId] = "1";
         }
         catch (Exception ex)
