@@ -1358,67 +1358,6 @@ public partial class MainViewModel : ObservableObject
               string.Join("; ", errors.Take(3));
     }
 
-    public async Task<IReadOnlyList<string>> DeleteEntriesAsync(
-        IEnumerable<ImageEntry> entries)
-    {
-        var materialized = entries
-            .Where(entry => entry is not null)
-            .DistinctBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (materialized.Count == 0)
-            return [];
-
-        StatusText = materialized.Count == 1
-            ? $"Deleting {materialized[0].FileName}…"
-            : $"Deleting {materialized.Count:N0} items…";
-
-        var deleted = await PhotoOps.DeleteToRecycleBinAsync(materialized);
-        if (deleted.Count == 0)
-        {
-            StatusText = "Nothing was deleted";
-            return deleted;
-        }
-
-        // PhotoOperationsService already removed the exact DB rows. Do not run
-        // RefreshFilesystemUiAsync here: that method intentionally rescans every
-        // watched folder and is far too expensive for a known single-file change.
-        await ImageViewer.RemoveDeletedPathsAsync(deleted);
-        await ImageGrid.RemoveDeletedPathsAsync(deleted);
-
-        // The viewer may have advanced to the next image. The grid still holds
-        // its own (possibly old) selection, so do not let it replace the
-        // metadata of the image actually on screen.
-        if (ImageViewer.IsOpen && ImageViewer.CurrentEntry is { } shown)
-            MetadataPanel.ShowMetadata(shown);
-        else
-            ImageGrid.RefreshMetadataFromSelection();
-
-        TotalImages = await _imageRepo.GetCountAsync();
-        await DateNav.LoadDatesAsync();
-        await PeopleNav.LoadPeopleAsync();
-        await FlagNav.LoadAsync();
-
-        // The navigation panel knows the selected folder scope. Loading the
-        // TagNav globally first briefly swaps in album-wide tags and races
-        // with its scoped tree rebuild.
-        if (App.MainWindow is MainWindow window)
-            await window.RefreshMetadataTreesAsync();
-        else
-            await TagNav.LoadTagsAsync();
-
-        // ShowMetadata refreshes the new selection's tag assignments after
-        // its debounce. ReloadTagsAsync here would instead query the deleted
-        // image still held by the previous selection snapshot.
-        await MetadataPanel.ReloadAvailableTagsAsync();
-
-        StatusText = deleted.Count == 1
-            ? "Moved 1 item to Recycle Bin"
-            : $"Moved {deleted.Count:N0} items to Recycle Bin";
-
-        return deleted;
-    }
-
     /// <summary>Clear tags and user flags across the active album.</summary>
     public async Task<AlbumMetadataClearResult> ClearActiveAlbumTagsAndFlagsAsync(
         IProgress<AlbumMetadataClearProgress>? progress = null,
@@ -1478,6 +1417,67 @@ public partial class MainViewModel : ObservableObject
             await MetadataPanel.ReloadTagsAsync();
             await MetadataPanel.ReloadAvailableTagsAsync();
         }
+    }
+
+    public async Task<IReadOnlyList<string>> DeleteEntriesAsync(
+        IEnumerable<ImageEntry> entries)
+    {
+        var materialized = entries
+            .Where(entry => entry is not null)
+            .DistinctBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (materialized.Count == 0)
+            return [];
+
+        StatusText = materialized.Count == 1
+            ? $"Deleting {materialized[0].FileName}…"
+            : $"Deleting {materialized.Count:N0} items…";
+
+        var deleted = await PhotoOps.DeleteToRecycleBinAsync(materialized);
+        if (deleted.Count == 0)
+        {
+            StatusText = "Nothing was deleted";
+            return deleted;
+        }
+
+        // PhotoOperationsService already removed the exact DB rows. Do not run
+        // RefreshFilesystemUiAsync here: that method intentionally rescans every
+        // watched folder and is far too expensive for a known single-file change.
+        await ImageViewer.RemoveDeletedPathsAsync(deleted);
+        await ImageGrid.RemoveDeletedPathsAsync(deleted);
+
+        // The viewer may have advanced to the next image. The grid still holds
+        // its own (possibly old) selection, so do not let it replace the
+        // metadata of the image actually on screen.
+        if (ImageViewer.IsOpen && ImageViewer.CurrentEntry is { } shown)
+            MetadataPanel.ShowMetadata(shown);
+        else
+            ImageGrid.RefreshMetadataFromSelection();
+
+        TotalImages = await _imageRepo.GetCountAsync();
+        await DateNav.LoadDatesAsync();
+        await PeopleNav.LoadPeopleAsync();
+        await FlagNav.LoadAsync();
+
+        // The navigation panel knows the selected folder scope. Loading the
+        // TagNav globally first briefly swaps in album-wide tags and races
+        // with its scoped tree rebuild.
+        if (App.MainWindow is MainWindow window)
+            await window.RefreshMetadataTreesAsync();
+        else
+            await TagNav.LoadTagsAsync();
+
+        // ShowMetadata refreshes the new selection's tag assignments after
+        // its debounce. ReloadTagsAsync here would instead query the deleted
+        // image still held by the previous selection snapshot.
+        await MetadataPanel.ReloadAvailableTagsAsync();
+
+        StatusText = deleted.Count == 1
+            ? "Moved 1 item to Recycle Bin"
+            : $"Moved {deleted.Count:N0} items to Recycle Bin";
+
+        return deleted;
     }
 
     /// <summary>
