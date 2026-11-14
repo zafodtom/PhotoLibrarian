@@ -7,30 +7,35 @@ namespace PhotoLibrarian.Tests;
 public sealed class AlbumJpegConversionPreviewTests
 {
     [Fact]
-    public async Task Convert_HeicWithExistingJpeg_ExplainsSkipAndKeepsBothFiles()
+    public async Task Convert_PngWithExistingJpg_CreatesNumberedJpegAndPreservesOriginal()
     {
         var root = Path.Combine(Path.GetTempPath(),
-            "PL-heic-conflict-" + Guid.NewGuid().ToString("N"));
+            "PL-jpeg-collision-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, ".album"));
         try
         {
-            var heic = Path.Combine(root, "photo.heic");
+            var png = Path.Combine(root, "photo.png");
             var jpeg = Path.Combine(root, "photo.jpg");
-            await File.WriteAllBytesAsync(heic, [1, 2, 3]);
-            await File.WriteAllBytesAsync(jpeg, [4, 5, 6]);
-            var result = await AlbumJpegConversionService.RunAsync(
-                root, null, keepBackups: false);
+            var suffixed = Path.Combine(root, "photo_001.jpg");
+            await WicTestImage.CreateAsync(png, 8, 6);
+            await WicTestImage.CreateAsync(jpeg, 4, 4, jpeg: true);
+            var originalJpeg = await File.ReadAllBytesAsync(jpeg);
+            var originalPng = await File.ReadAllBytesAsync(png);
+            var preview = AlbumJpegConversionService.Preview(root);
+            Assert.Equal(1, preview.ConvertCount);
+            Assert.Equal(1, preview.TargetConflictCount);
+            Assert.Equal(1, preview.PendingCount);
 
-            Assert.Equal(1, result.Skipped);
+            var result = await AlbumJpegConversionService.RunAsync(root, null);
+            Assert.Equal(1, result.Converted);
+            Assert.Equal(0, result.Skipped);
             Assert.Equal(0, result.Failed);
-            Assert.Equal(0, result.Converted);
-            Assert.Contains(result.Errors, error =>
-                error.Contains("photo.heic", StringComparison.OrdinalIgnoreCase) &&
-                error.Contains("target JPG already exists", StringComparison.Ordinal));
-            Assert.Equal(new byte[] { 1, 2, 3 },
-                await File.ReadAllBytesAsync(heic));
-            Assert.Equal(new byte[] { 4, 5, 6 },
-                await File.ReadAllBytesAsync(jpeg));
+            Assert.True(File.Exists(suffixed));
+            Assert.Equal((8u, 6u), await WicTestImage.ReadSizeAsync(suffixed));
+            Assert.Equal(originalJpeg, await File.ReadAllBytesAsync(jpeg));
+            Assert.False(File.Exists(png));
+            Assert.Equal(originalPng, await File.ReadAllBytesAsync(
+                Path.Combine(result.BackupDirectory, "photo.png")));
         }
         finally
         {
@@ -38,6 +43,27 @@ public sealed class AlbumJpegConversionPreviewTests
         }
     }
 
+    [Fact]
+    public void Convert_ChoosesNextFreeSuffixForHeicAndDoesNotTouchOriginal()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-heic-suffix-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var heic = Path.Combine(root, "photo.heic");
+            File.WriteAllBytes(heic, [1, 2, 3]);
+            File.WriteAllBytes(Path.Combine(root, "photo.jpg"), [4]);
+            File.WriteAllBytes(Path.Combine(root, "photo_001.jpg"), [5]);
+            Assert.Equal(Path.Combine(root, "photo_002.jpg"),
+                AlbumJpegConversionService.ChooseJpegDestination(heic));
+            Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(heic));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 
     [Fact]
     public void Preview_DoesNotOverwriteJpegsOrTraverseAlbumBackups()
@@ -57,11 +83,11 @@ public sealed class AlbumJpegConversionPreviewTests
             File.WriteAllBytes(Path.Combine(root, "different-album", "foreign.png"), [1]);
 
             var preview = AlbumJpegConversionService.Preview(root);
-            Assert.Equal(1, preview.ConvertCount);
+            Assert.Equal(2, preview.ConvertCount);
             Assert.Equal(1, preview.JpegMetadataCount);
             Assert.Equal(1, preview.TargetConflictCount);
             Assert.Equal(1, preview.UnsupportedCount);
-            Assert.Equal(2, preview.PendingCount);
+            Assert.Equal(3, preview.PendingCount);
         }
         finally
         {
