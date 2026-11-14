@@ -37,6 +37,10 @@ public sealed class FolderScannerService : IDisposable
         var root = Path.GetFullPath(folderPath)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
+        // Never expose .album files even when scanned directly.
+        if (ContainsAlbumMetadataComponent(root))
+            yield break;
+
         int count = 0;
         await Task.Yield();
 
@@ -173,6 +177,27 @@ public sealed class FolderScannerService : IDisposable
         Directory.Exists(directoryPath) &&
         Directory.Exists(Path.Combine(directoryPath, ".album"));
 
+    /// <summary>
+    /// Rejects every .album subtree, regardless of nesting or case.
+    /// Used by all scanning, watcher and indexing entry points.
+    /// </summary>
+    public static bool ContainsAlbumMetadataComponent(string path)
+    {
+        var current = Path.GetFullPath(path)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        while (!string.IsNullOrEmpty(current))
+        {
+            if (IsAlbumMetadataDirectory(current))
+                return true;
+            var parent = Path.GetDirectoryName(current);
+            if (string.IsNullOrEmpty(parent) ||
+                string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+                return false;
+            current = parent;
+        }
+        return false;
+    }
+
     public static bool IsAlbumMetadataDirectory(string directoryPath) =>
         string.Equals(
             Path.GetFileName(
@@ -189,6 +214,11 @@ public sealed class FolderScannerService : IDisposable
         var root = Path.GetFullPath(albumRoot)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var fullPath = Path.GetFullPath(path);
+
+        // Backups, temporary conversion files and thumbnails belong to
+        // internal metadata, not to the user's media library.
+        if (ContainsAlbumMetadataComponent(fullPath))
+            return false;
 
         var candidateDirectory = Directory.Exists(fullPath)
             ? fullPath
