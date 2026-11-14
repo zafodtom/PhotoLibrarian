@@ -18,6 +18,8 @@ public sealed partial class FolderNavigationPanel : UserControl
     private FolderNavigationViewModel? ViewModel => App.ViewModel?.FolderNav;
     private readonly SemaphoreSlim _tagRefreshGate = new(1, 1);
     private bool _isRefreshingTagTree;
+    private bool _requireAllTags = true;
+    private ImageGridViewModel? _subscribedTagGrid;
     private bool _isRefreshingPeopleTree;
     private readonly HashSet<string> _selectedTagPaths =
         new(StringComparer.OrdinalIgnoreCase);
@@ -72,6 +74,11 @@ public sealed partial class FolderNavigationPanel : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null) return;
+        if (_subscribedTagGrid is null && App.ViewModel?.ImageGrid is { } grid)
+        {
+            _subscribedTagGrid = grid;
+            grid.ResultsChanged += OnTagFacetResultsChanged;
+        }
         ViewModel.RootFolders.CollectionChanged += (s, args) => RefreshLibraryTree();
         RefreshLibraryTree();
         
@@ -384,11 +391,13 @@ public sealed partial class FolderNavigationPanel : UserControl
                     TagsTree.RootNodes.Clear();
                     foreach (var tagNode in App.ViewModel.TagNav.RootTags)
                     {
-                        TagsTree.RootNodes.Add(BuildTagNode(
-                            tagNode,
-                            _selectedTagPaths,
-                            _excludedTagPaths));
+                        var node = BuildTagNode(
+                            tagNode, _selectedTagPaths, _excludedTagPaths,
+                            TagSearchBox.Text);
+                        if (node is not null)
+                            TagsTree.RootNodes.Add(node);
                     }
+                    UpdateTagFacetCounts();
 
                     RestoreTagTreeState(
                         TagsTree.RootNodes,
@@ -460,11 +469,18 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
     }
 
-    private static TreeViewNode BuildTagNode(
+    private static TreeViewNode? BuildTagNode(
         TagNode tagNode,
         ISet<string> selectedPaths,
-        ISet<string> excludedPaths)
+        ISet<string> excludedPaths,
+        string? search = null,
+        bool parentMatched = false)
     {
+        bool searching = !string.IsNullOrWhiteSpace(search);
+        bool selfMatches = !searching || parentMatched ||
+            (!tagNode.IsRoot &&
+             (tagNode.Name.Contains(search!, StringComparison.OrdinalIgnoreCase) ||
+              tagNode.FullPath.Contains(search!, StringComparison.OrdinalIgnoreCase)));
         var treeNode = new TreeViewNode
         {
             Content = new TagNodeWrapper(
@@ -472,13 +488,111 @@ public sealed partial class FolderNavigationPanel : UserControl
                 selectedPaths.Contains(tagNode.FullPath) ? 1 :
                     excludedPaths.Contains(tagNode.FullPath) ? -1 : 0),
             HasUnrealizedChildren = false,
-            IsExpanded = tagNode.IsRoot
+            IsExpanded = searching || tagNode.IsRoot
         };
-
         foreach (var child in tagNode.Children)
-            treeNode.Children.Add(BuildTagNode(child, selectedPaths, excludedPaths));
-
+        {
+            var childNode = BuildTagNode(child, selectedPaths, excludedPaths,
+                search, selfMatches && !tagNode.IsRoot);
+            if (childNode is not null)
+                treeNode.Children.Add(childNode);
+        }
+        // Search is a presentation-only view: no tags or filters are deleted.
+        if (searching && !selfMatches && treeNode.Children.Count == 0 && !tagNode.IsRoot)
+            return null;
         return treeNode;
+    }
+
+    private void OnIncludeTagClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: TagNodeWrapper wrapper })
+            ApplyTagNavigationSelection(wrapper, include: true);
+    }
+
+    private void OnExcludeTagClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: TagNodeWrapper wrapper })
+            ApplyTagNavigationSelection(wrapper, include: false);
+    }
+
+    private void OnTagCombinationChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TagCombinationMode is null || TagsTree is null) return;
+        _requireAllTags = TagCombinationMode.SelectedIndex != 1;
+        UpdateGridFromSelection();
+    }
+
+    private void OnClearTagFiltersClick(object sender, RoutedEventArgs e)
+    {
+        _selectedTagPaths.Clear();
+        _excludedTagPaths.Clear();
+        foreach (var node in TagsTree.RootNodes)
+            ClearTagNodeSelection(node);
+        UpdateTagSummary();
+        UpdateGridFromSelection();
+    }
+
+    private static void ClearTagNodeSelection(TreeViewNode node)
+    {
+        if (node.Content is TagNodeWrapper wrapper)
+            wrapper.FilterState = 0;
+        foreach (var child in node.Children)
+            ClearTagNodeSelection(child);
+    }
+
+    private void OnTagSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (App.ViewModel?.TagNav is null) return;
+        var expanded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectTagTreeState(TagsTree.RootNodes, expanded);
+        TagsTree.RootNodes.Clear();
+        foreach (var tag in App.ViewModel.TagNav.RootTags)
+        {
+            var node = BuildTagNode(tag, _selectedTagPaths, _excludedTagPaths,
+                TagSearchBox.Text);
+            if (node is not null) TagsTree.RootNodes.Add(node);
+        }
+        if (string.IsNullOrWhiteSpace(TagSearchBox.Text))
+            RestoreTagTreeState(TagsTree.RootNodes, expanded);
+        UpdateTagFacetCounts();
+    }
+
+    private void OnTagFacetResultsChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(UpdateTagFacetCounts);
+    }
+
+    private void UpdateTagFacetCounts()
+    {
+        var grid = App.ViewModel?.ImageGrid;
+        if (grid is null) return;
+        foreach (var node in TagsTree.RootNodes)
+            UpdateTagNodeFacetCount(node, grid.TagFacetCounts);
+        TagMatchesText.Text = $"{grid.Images.Count:N0} matched photos";
+        UpdateTagSummary();
+    }
+
+    private static void UpdateTagNodeFacetCount(
+        TreeViewNode node, IReadOnlyDictionary<string, int> counts)
+    {
+        if (node.Content is TagNodeWrapper wrapper)
+            wrapper.ResultCount = counts.TryGetValue(wrapper.TagNode.FullPath, out var count)
+                ? count : 0;
+        foreach (var child in node.Children)
+            UpdateTagNodeFacetCount(child, counts);
+    }
+
+    private void UpdateTagSummary()
+    {
+        if (ActiveTagFiltersText is null) return;
+        var positive = _selectedTagPaths.OrderBy(x => x).Select(x =>
+            "+ " + (x == "" ? "Tags" : x == "__untagged__" ? "Untagged" : x));
+        var negative = _excludedTagPaths.OrderBy(x => x).Select(x =>
+            "− " + (x == "" ? "Tags" : x == "__untagged__" ? "Untagged" : x));
+        var active = positive.Concat(negative).ToArray();
+        ActiveTagFiltersText.Text = active.Length == 0
+            ? "No tag conditions"
+            : string.Join("  |  ", active);
     }
 
     private void OnTagRowTapped(object sender, TappedRoutedEventArgs e)
@@ -512,7 +626,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         else if (next == -1)
             _excludedTagPaths.Add(path);
         wrapper.FilterState = next;
-
+        UpdateTagSummary();
         UpdateGridFromSelection();
     }
 
@@ -1745,7 +1859,8 @@ public sealed partial class FolderNavigationPanel : UserControl
             selectedTags.Count > 0 ? selectedTags : null,
             untaggedSelected,
             flaggedSelected,
-            excludedTags.Count > 0 ? excludedTags : null);
+            excludedTags.Count > 0 ? excludedTags : null,
+            _requireAllTags);
     }
 
     // ============================================================================
@@ -1925,6 +2040,22 @@ public sealed partial class FolderNavigationPanel : UserControl
     {
         public TagNode TagNode { get; }
         private int _filterState;
+        private int _resultCount;
+        public int ResultCount
+        {
+            get => _resultCount;
+            set
+            {
+                if (_resultCount == value) return;
+                _resultCount = value;
+                PropertyChanged?.Invoke(this,
+                    new System.ComponentModel.PropertyChangedEventArgs(nameof(DisplayText)));
+                PropertyChanged?.Invoke(this,
+                    new System.ComponentModel.PropertyChangedEventArgs(nameof(DisplayOpacity)));
+            }
+        }
+        public string DisplayText => $"{TagNode.Name} ({ResultCount})";
+        public double DisplayOpacity => ResultCount == 0 && FilterState == 0 ? 0.46 : 1.0;
         public int FilterState
         {
             get => _filterState;
@@ -1934,6 +2065,8 @@ public sealed partial class FolderNavigationPanel : UserControl
                 _filterState = value;
                 PropertyChanged?.Invoke(this,
                     new System.ComponentModel.PropertyChangedEventArgs(nameof(FilterMarker)));
+                PropertyChanged?.Invoke(this,
+                    new System.ComponentModel.PropertyChangedEventArgs(nameof(DisplayOpacity)));
             }
         }
 
@@ -1950,6 +2083,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         {
             TagNode = tagNode;
             _filterState = filterState;
+            _resultCount = tagNode.Count;
         }
 
         public override string ToString() => $"{TagNode.Name} ({TagNode.Count})";

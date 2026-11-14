@@ -165,6 +165,39 @@
                             </Button>
                         </StackPanel>
                     </Grid>
+                    <StackPanel Spacing="6" Margin="0,0,0,8">
+                        <TextBox x:Name="TagSearchBox"
+                                 Style="{StaticResource HiTechInputStyle}"
+                                 PlaceholderText="Search tags..."
+                                 TextChanged="OnTagSearchTextChanged"
+                                 AutomationProperties.Name="Search tag tree" />
+                        <Grid ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="TagCombinationMode" Grid.Column="0"
+                                      SelectedIndex="0"
+                                      SelectionChanged="OnTagCombinationChanged"
+                                      HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="Included tags combination">
+                                <ComboBoxItem Content="ALL (AND)" />
+                                <ComboBoxItem Content="ANY (OR)" />
+                            </ComboBox>
+                            <Button Grid.Column="1" Content="CLEAR"
+                                    Click="OnClearTagFiltersClick"
+                                    Padding="8,4"
+                                    Style="{StaticResource HiTechIconButtonStyle}"
+                                    ToolTipService.ToolTip="Clear included and excluded tag filters" />
+                        </Grid>
+                        <TextBlock x:Name="ActiveTagFiltersText"
+                                   Text="No tag conditions"
+                                   Style="{StaticResource HiTechTinyLabelStyle}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="TagMatchesText"
+                                   Text="0 matched photos"
+                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                    </StackPanel>
                     <TreeView x:Name="TagsTree"
                               Style="{StaticResource HiTechTreeViewStyle}"
                               SelectionMode="None"
@@ -175,22 +208,33 @@
                               Drop="OnTagsTreeDrop">
                         <TreeView.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="4"
-                                            Tag="{Binding Content}"
-                                            Tapped="OnTagRowTapped"
-                                            RightTapped="OnTagRowRightTapped"
-                                            ToolTipService.ToolTip="Left-click: include (+); right-click: exclude (-). Click again to clear."
-                                            Background="Transparent">
-                                    <TextBlock Text="{Binding Content.FilterMarker}"
-                                               Width="20"
-                                               TextAlignment="Center"
+                                <Grid ColumnSpacing="3" Background="Transparent">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Content.DisplayText}"
+                                               Opacity="{Binding Content.DisplayOpacity}"
                                                VerticalAlignment="Center"
-                                               FontFamily="Consolas"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource HiTechAccentBrush}" />
-                                    <TextBlock Text="{Binding Content}"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
+                                               TextTrimming="CharacterEllipsis" />
+                                    <Button Grid.Column="1"
+                                            Content="+"
+                                            Tag="{Binding Content}"
+                                            Click="OnIncludeTagClick"
+                                            Padding="5,1"
+                                            MinWidth="26"
+                                            ToolTipService.ToolTip="Include this tag; click again to clear"
+                                            AutomationProperties.Name="Include tag" />
+                                    <Button Grid.Column="2"
+                                            Content="−"
+                                            Tag="{Binding Content}"
+                                            Click="OnExcludeTagClick"
+                                            Padding="5,1"
+                                            MinWidth="26"
+                                            ToolTipService.ToolTip="Exclude this tag; click again to clear"
+                                            AutomationProperties.Name="Exclude tag" />
+                                </Grid>
                             </DataTemplate>
                         </TreeView.ItemTemplate>
                     </TreeView>
