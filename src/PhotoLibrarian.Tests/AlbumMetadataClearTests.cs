@@ -8,6 +8,72 @@ namespace PhotoLibrarian.Tests;
 public sealed class AlbumMetadataClearTests
 {
     [Fact]
+    public async Task FailedReset_CanRetryOnlyFailedFiles_AndClearsCheckpointAfterSuccess()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-retry-reset-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var failed = Path.Combine(root, "failed.jpg");
+            var succeeded = Path.Combine(root, "succeeded.jpg");
+            await WicTestImage.CreateAsync(failed, 8, 8, jpeg: true);
+            await WicTestImage.CreateAsync(succeeded, 8, 8, jpeg: true);
+            var entries = new[]
+            {
+                new ImageEntry { Id = 1, FilePath = failed, FileName = "failed.jpg" },
+                new ImageEntry { Id = 2, FilePath = succeeded, FileName = "succeeded.jpg" }
+            };
+            var first = await AlbumMetadataClearService.RunAsync(root, entries,
+                entry => entry.Id == 1
+                    ? Task.FromException(new IOException("test write failure"))
+                    : Task.CompletedTask);
+            Assert.Equal(1, first.Failed);
+            Assert.Equal(1, first.Cleaned);
+            Assert.Equal([failed], AlbumMetadataClearService.ReadPendingFailures(root));
+
+            int retried = 0;
+            var second = await AlbumMetadataClearService.RunAsync(root,
+                entries.Where(e => AlbumMetadataClearService.ReadPendingFailures(root)
+                    .Contains(e.FilePath)).ToArray(),
+                _ => { retried++; return Task.CompletedTask; });
+            Assert.Equal(1, second.Cleaned);
+            Assert.Equal(0, second.Failed);
+            Assert.Equal(1, retried);
+            Assert.Empty(AlbumMetadataClearService.ReadPendingFailures(root));
+            Assert.True(File.Exists(Path.Combine(root, ".album", "metadata-reset-pending.json")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RetryList_ImportsLegacyErrorReportWithoutScanningPhotos()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-legacy-reset-" + Guid.NewGuid().ToString("N"));
+        var reportDir = Path.Combine(root, ".album", "metadata-reset-reports",
+            "20261114-220000-12345678");
+        Directory.CreateDirectory(reportDir);
+        try
+        {
+            var image = Path.Combine(root, "photo.jpg");
+            File.WriteAllLines(Path.Combine(reportDir, "reset-errors.txt"),
+                ["photo.jpg: [removing Windows photo keywords] UnauthorizedAccessException (0x80070005): denied"]);
+            Assert.Equal([image], AlbumMetadataClearService.ReadPendingFailures(root));
+            File.WriteAllText(Path.Combine(root, ".album", "metadata-reset-pending.json"), "[]");
+            Assert.Empty(AlbumMetadataClearService.ReadPendingFailures(root));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+
+    [Fact]
     public async Task KeywordRead_StrictModeDoesNotSwallowMissingFileErrors()
     {
         var missing = Path.Combine(Path.GetTempPath(),

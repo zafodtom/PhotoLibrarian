@@ -663,31 +663,54 @@ public sealed partial class SettingsPanel : UserControl
     private CancellationTokenSource? _clearAlbumCancellation;
     private bool _clearAlbumBusy;
 
-    private async void OnClearAlbumMetadata(object sender, RoutedEventArgs e)
+    private async void OnClearAlbumMetadata(object sender, RoutedEventArgs e) =>
+        await ClearAlbumMetadataAsync(retryFailedOnly: false);
+
+    private async void OnRetryFailedAlbumMetadata(object sender, RoutedEventArgs e) =>
+        await ClearAlbumMetadataAsync(retryFailedOnly: true);
+
+    private async Task ClearAlbumMetadataAsync(bool retryFailedOnly)
     {
         if (_clearAlbumBusy || _jpegConversionBusy || App.ViewModel is null ||
             !EnsureAlbumOpen(ClearAlbumStatusText))
             return;
         var root = App.CurrentAlbumPath!;
         ClearAlbumMetadataButton.IsEnabled = false;
+        RetryFailedAlbumMetadataButton.IsEnabled = false;
         int photoCount = 0;
-        ClearAlbumStatusText.Text = "Scanning all album folders for image files…";
+        ClearAlbumStatusText.Text = retryFailedOnly
+            ? "Reading previous failed-photo list…"
+            : "Scanning all album folders for image files…";
         try
         {
-            using var scanner = new FolderScannerService();
-            await foreach (var path in scanner.ScanFolderAsync(root, includeSubfolders: true))
+            if (retryFailedOnly)
             {
-                if (!FolderScannerService.IsVideoFile(path))
-                    photoCount++;
+                photoCount = AlbumMetadataClearService.ReadPendingFailures(root).Count;
+                if (photoCount == 0)
+                {
+                    ClearAlbumStatusText.Text =
+                        "No saved failed photos. Run the full album reset first.";
+                    return;
+                }
+            }
+            else
+            {
+                using var scanner = new FolderScannerService();
+                await foreach (var path in scanner.ScanFolderAsync(root, includeSubfolders: true))
+                    if (!FolderScannerService.IsVideoFile(path))
+                        photoCount++;
             }
         }
         catch (Exception ex)
         {
-            ClearAlbumStatusText.Text = "Album scan failed: " + ex.Message;
-            ClearAlbumMetadataButton.IsEnabled = true;
+            ClearAlbumStatusText.Text = "Album scan / retry list failed: " + ex.Message;
             return;
         }
-        ClearAlbumMetadataButton.IsEnabled = true;
+        finally
+        {
+            ClearAlbumMetadataButton.IsEnabled = true;
+            RetryFailedAlbumMetadataButton.IsEnabled = true;
+        }
         if (!string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
         {
             ClearAlbumStatusText.Text = "Active album changed; scan again.";
@@ -696,17 +719,20 @@ public sealed partial class SettingsPanel : UserControl
         // A separate dialog avoids accidental single-click mass deletion.
         bool keepResetBackups = KeepAlbumResetBackupsCheckBox.IsChecked != false;
         var dialog = CreateAlbumMaintenanceDialog(
-            "CLEAR ALBUM TAGS + FLAGS",
-            $"Remove all assigned tags and user flags from {photoCount:N0} " +
-            "photo(s), plus saved catalog tag names, in the ACTIVE album?\n\n" +
+            retryFailedOnly ? "RETRY FAILED PHOTO RESET" : "CLEAR ALBUM TAGS + FLAGS",
+            (retryFailedOnly
+                ? $"Retry metadata reset on {photoCount:N0} previously failed photo(s) only?\n\n"
+                : $"Remove all assigned tags and user flags from {photoCount:N0} photo(s), plus saved catalog tag names, in the ACTIVE album?\n\n") +
             "Ratings, dates, captions, face data and photos are preserved. " +
             "Automatic tagging will be switched OFF to prevent tags from returning. " +
             (keepResetBackups
                 ? "Original image and XMP files will be backed up under .album/metadata-reset-backups before each modification.\n\n"
                 : "WARNING: NO RETAINED BACKUPS. Changes to embedded tags and flags cannot be reversed; only temporary rollback files are used during each write.\n\n") +
-            "This is an album-wide operation and cannot be undone " +
-            "automatically. Keep a separate backup before proceeding.",
-            "CLEAR TAGS AND FLAGS",
+            (retryFailedOnly
+                ? "Only the saved failures will be checked. The rest of the album is not rescanned. "
+                : "This is an album-wide operation and cannot be undone automatically. ") +
+            "Keep a separate backup before proceeding.",
+            retryFailedOnly ? "RETRY FAILED PHOTOS" : "CLEAR TAGS AND FLAGS",
             destructive: true);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
@@ -716,6 +742,7 @@ public sealed partial class SettingsPanel : UserControl
             return;
         }
         _clearAlbumBusy = true;
+        RetryFailedAlbumMetadataButton.IsEnabled = false;
         _clearAlbumCancellation = new CancellationTokenSource();
         ClearAlbumMetadataButton.IsEnabled = false;
         CancelClearAlbumButton.IsEnabled = true;
@@ -734,7 +761,8 @@ public sealed partial class SettingsPanel : UserControl
                     $"// {state.Failed:N0} failed  // {state.FileName}";
             });
             var result = await App.ViewModel.ClearActiveAlbumTagsAndFlagsAsync(
-                progress, _clearAlbumCancellation.Token, keepBackups: keepResetBackups);
+                progress, _clearAlbumCancellation.Token, keepBackups: keepResetBackups,
+                retryFailedOnly: retryFailedOnly);
             ClearAlbumStatusText.Text =
                 $"Finished: {result.Cleaned:N0} photos cleaned, {result.Failed:N0} failed. " +
                 (result.Failed > 0
@@ -767,6 +795,7 @@ public sealed partial class SettingsPanel : UserControl
             _clearAlbumBusy = false;
             CancelClearAlbumButton.IsEnabled = false;
             ClearAlbumMetadataButton.IsEnabled = true;
+            RetryFailedAlbumMetadataButton.IsEnabled = true;
             PreviewJpegConversionButton.IsEnabled = true;
             RunJpegConversionButton.IsEnabled = false;
         }
