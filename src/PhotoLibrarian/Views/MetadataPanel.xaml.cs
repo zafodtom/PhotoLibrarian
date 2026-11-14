@@ -84,10 +84,6 @@ public sealed partial class MetadataPanel : UserControl
         }
     }
 
-    // Retired rating/flag/person controls have no associated UI updates.
-        }
-    }
-
     private void UpdateDisplay()
     {
         EnsureRecentTagsAlbum();
