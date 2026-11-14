@@ -93,7 +93,8 @@ public static class AlbumJpegConversionService
     public static async Task<AlbumJpegConversionResult> RunAsync(
         string albumRoot,
         IProgress<AlbumJpegConversionProgress>? progress,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<string, string, Task>? onConverted = null)
     {
         ValidateAlbum(albumRoot);
         var candidates = EnumerateImages(albumRoot)
@@ -196,7 +197,25 @@ public static class AlbumJpegConversionService
                             File.Move(sourceBackup, source);
                         throw;
                     }
-                    if (!originalJpg) converted++;
+                    if (!originalJpg)
+                    {
+                        converted++;
+                        if (onConverted is not null)
+                        {
+                            try
+                            {
+                                await onConverted(source, destination);
+                            }
+                            catch (Exception indexError)
+                            {
+                                // The JPEG is already committed and its original backed
+                                // up; report the index warning rather than claiming the
+                                // original conversion was rolled back.
+                                errors.Add(Path.GetFileName(source) +
+                                    ": image database remap failed: " + indexError.Message);
+                            }
+                        }
+                    }
                     if (hasSidecar) embedded++;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
