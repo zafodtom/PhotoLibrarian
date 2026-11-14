@@ -232,7 +232,9 @@ public static class AlbumMetadataClearService
                 var embeddedTags = metadataReader.ReadTags(source);
                 if (canWriteEmbedded)
                 {
-                    var systemTags = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
+                    var systemTags = await WithAccessRetryAsync(
+                        () => EmbeddedMetadataWriter.ReadKeywordsAsync(source, throwOnError: true),
+                        cancellationToken);
                     embeddedTags.AddRange(systemTags);
                 }
                 var embeddedFlag = metadataReader.ReadMetadata(source).IsFlagged &&
@@ -294,7 +296,9 @@ public static class AlbumMetadataClearService
                         // Windows Shell deletion policy, not a zero-length WIC
                         // StringArray (which fails with E_INVALIDARG).
                         stage = "checking remaining Windows photo keywords";
-                        var remainingBeforeShell = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
+                        var remainingBeforeShell = await WithAccessRetryAsync(
+                        () => EmbeddedMetadataWriter.ReadKeywordsAsync(source, throwOnError: true),
+                        cancellationToken);
                         if (remainingBeforeShell.Count > 0)
                         {
                         stage = "removing Windows photo keywords";
@@ -312,7 +316,9 @@ public static class AlbumMetadataClearService
                         }
                         stage = "verifying embedded metadata";
                         var remaining = metadataReader.ReadTags(source);
-                        var remainingWic = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
+                        var remainingWic = await WithAccessRetryAsync(
+                        () => EmbeddedMetadataWriter.ReadKeywordsAsync(source, throwOnError: true),
+                        cancellationToken);
                         if (remaining.Count > 0 || remainingWic.Count > 0)
                             throw new InvalidDataException("Embedded keywords remained after reset.");
                         if (embeddedFlag && metadataReader.ReadMetadata(source).IsFlagged &&
