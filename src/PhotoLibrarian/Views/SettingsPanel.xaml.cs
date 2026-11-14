@@ -37,6 +37,7 @@ public sealed partial class SettingsPanel : UserControl
         if (ViewModel is not null)
             ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ResolveUpdateDecision(false);
+        _thumbnailGenerationCancellation?.Cancel();
     }
 
     private void OnViewModelPropertyChanged(
@@ -49,6 +50,18 @@ public sealed partial class SettingsPanel : UserControl
             DispatcherQueue.TryEnqueue(UpdateCacheDisplay);
         }
     }
+
+    private void OnNavigateImport(object sender, RoutedEventArgs e) =>
+        ImportSectionHeader.StartBringIntoView();
+
+    private void OnNavigateCache(object sender, RoutedEventArgs e) =>
+        CacheSectionHeader.StartBringIntoView();
+
+    private void OnNavigateAlbum(object sender, RoutedEventArgs e) =>
+        AlbumSectionHeader.StartBringIntoView();
+
+    private void OnNavigateAbout(object sender, RoutedEventArgs e) =>
+        AboutSectionHeader.StartBringIntoView();
 
     private void UpdateCacheDisplay()
     {
@@ -805,6 +818,67 @@ public sealed partial class SettingsPanel : UserControl
     {
         CancelClearAlbumButton.IsEnabled = false;
         _clearAlbumCancellation?.Cancel();
+    }
+
+    private CancellationTokenSource? _thumbnailGenerationCancellation;
+    private bool _thumbnailGenerationBusy;
+
+    private async void OnGenerateMissingThumbnails(object sender, RoutedEventArgs e)
+    {
+        if (_thumbnailGenerationBusy || _jpegConversionBusy || _clearAlbumBusy ||
+            !EnsureAlbumOpen(ThumbnailGenerationStatusText))
+            return;
+
+        var albumRoot = App.CurrentAlbumPath!;
+        _thumbnailGenerationBusy = true;
+        _thumbnailGenerationCancellation = new CancellationTokenSource();
+        GenerateMissingThumbnailsButton.IsEnabled = false;
+        CancelThumbnailGenerationButton.IsEnabled = true;
+        ThumbnailGenerationProgressBar.Value = 0;
+        ThumbnailGenerationProgressBar.Visibility = Visibility.Visible;
+        ThumbnailGenerationStatusText.Text = "Scanning album for missing 256px thumbnails…";
+        try
+        {
+            var progress = new Progress<AlbumThumbnailProgress>(value =>
+            {
+                ThumbnailGenerationProgressBar.Value = value.Total == 0
+                    ? 100 : 100d * value.Processed / value.Total;
+                ThumbnailGenerationStatusText.Text =
+                    $"THUMBNAILS // {value.Processed:N0}/{value.Total:N0} missing " +
+                    $"// {value.Generated:N0} generated // {value.Failed:N0} failed " +
+                    $"// {value.AlreadyCached:N0} already cached // {value.FileName}";
+            });
+            var result = await WindowsThumbnailService.GenerateMissingAlbumThumbnailsAsync(
+                albumRoot, progress, _thumbnailGenerationCancellation.Token);
+            ThumbnailGenerationStatusText.Text =
+                $"Finished: {result.Generated:N0} generated, " +
+                $"{result.AlreadyCached:N0} already cached, {result.Failed:N0} failed. " +
+                "Only missing thumbnails were generated. Cache has a 1 GB size limit.";
+            UpdateCacheDisplay();
+        }
+        catch (OperationCanceledException)
+        {
+            ThumbnailGenerationStatusText.Text =
+                "Thumbnail generation canceled. Already created thumbnails are retained.";
+        }
+        catch (Exception ex)
+        {
+            ThumbnailGenerationStatusText.Text = "Thumbnail generation failed: " + ex.Message;
+        }
+        finally
+        {
+            _thumbnailGenerationCancellation?.Dispose();
+            _thumbnailGenerationCancellation = null;
+            _thumbnailGenerationBusy = false;
+            GenerateMissingThumbnailsButton.IsEnabled = true;
+            CancelThumbnailGenerationButton.IsEnabled = false;
+        }
+    }
+
+    private void OnCancelThumbnailGeneration(object sender, RoutedEventArgs e)
+    {
+        CancelThumbnailGenerationButton.IsEnabled = false;
+        _thumbnailGenerationCancellation?.Cancel();
     }
 
     private async void OnRebuildCache(
