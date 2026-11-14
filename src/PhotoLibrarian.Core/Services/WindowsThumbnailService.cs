@@ -79,7 +79,8 @@ public static class WindowsThumbnailService
         var expectedCache = Path.Combine(root, ".album", "thumbnails");
         if (!Directory.Exists(Path.Combine(root, ".album")))
             throw new InvalidOperationException("No active PhotoLibrarian album.");
-        if (!string.Equals(Path.GetFullPath(_albumCacheDirectory ?? ""),
+        if (_albumCacheDirectory is null ||
+            !string.Equals(Path.GetFullPath(_albumCacheDirectory),
                 Path.GetFullPath(expectedCache), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
                 "The thumbnail cache is not configured for this album.");
