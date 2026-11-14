@@ -321,10 +321,21 @@ public static class AlbumMetadataClearService
                     cleaned++;
                     if (!keepBackups)
                     {
-                        if (imageBackup is not null && File.Exists(imageBackup))
-                            File.Delete(imageBackup);
-                        if (sidecarBackup is not null && File.Exists(sidecarBackup))
-                            File.Delete(sidecarBackup);
+                        // Metadata and SQLite changes have committed. Backup
+                        // cleanup must never trigger a rollback of committed
+                        // database work; keep recovery data if deletion fails.
+                        foreach (var retained in new[] { imageBackup, sidecarBackup })
+                        {
+                            if (retained is null || !File.Exists(retained)) continue;
+                            try { File.Delete(retained); }
+                            catch (Exception cleanupError) when (cleanupError is
+                                IOException or UnauthorizedAccessException)
+                            {
+                                System.Diagnostics.Debug.WriteLine(
+                                    "[RESET] Temporary rollback retained: " +
+                                    retained + ": " + cleanupError.Message);
+                            }
+                        }
                     }
                 }
                 catch
