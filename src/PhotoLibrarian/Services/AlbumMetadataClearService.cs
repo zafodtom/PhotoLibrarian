@@ -66,6 +66,7 @@ public static class AlbumMetadataClearService
             string? imageBackup = null;
             string? sidecarBackup = null;
             bool imageModified = false, sidecarModified = false;
+            string stage = "validating photo";
             try
             {
                 if (!File.Exists(source))
@@ -75,6 +76,7 @@ public static class AlbumMetadataClearService
                 if (!FolderScannerService.IsPathOwnedByAlbumRoot(albumRoot, source))
                     throw new InvalidOperationException("Photo is outside the active album.");
 
+                stage = "reading sidecar XMP";
                 var sidecar = Path.ChangeExtension(source, ".xmp");
                 bool hasSidecar = File.Exists(sidecar);
                 IXmpMeta? packet = null;
@@ -90,6 +92,7 @@ public static class AlbumMetadataClearService
                 // Most records have DB-only tags or an XMP sidecar. Rewriting
                 // every JPEG/PNG was unnecessarily slow and often failed due to
                 // WIC file locks, leaving all later album tags untouched.
+                stage = "reading embedded metadata";
                 bool canWriteEmbedded = EmbeddedMetadataWriter.IsSupported(source);
                 var embeddedTags = metadataReader.ReadTags(source);
                 if (canWriteEmbedded)
@@ -105,6 +108,7 @@ public static class AlbumMetadataClearService
                     throw new NotSupportedException(
                         "Embedded tags or flags cannot safely be removed from this format.");
 
+                stage = "preparing backups";
                 var relative = Path.GetRelativePath(albumRoot, source);
                 if (updateImage || updateSidecar)
                 {
@@ -127,6 +131,7 @@ public static class AlbumMetadataClearService
                         // (XMP dc:subject, EXIF XPKeywords, IPTC Keywords).
                         // A failed WIC transcode can partially touch its source.
                         // Mark this before writing so the backup is restored.
+                        stage = "writing embedded metadata (WIC)";
                         imageModified = true;
                         for (int attempt = 0; ; attempt++)
                         {
@@ -149,6 +154,7 @@ public static class AlbumMetadataClearService
                                 await Task.Delay(150 * (attempt + 1), cancellationToken);
                             }
                         }
+                        stage = "verifying embedded metadata";
                         var remaining = metadataReader.ReadTags(source);
                         var remainingWic = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
                         if (remaining.Count > 0 || remainingWic.Count > 0)
@@ -157,6 +163,7 @@ public static class AlbumMetadataClearService
 
                     if (updateSidecar)
                     {
+                        stage = "writing sidecar XMP";
                         if (packet!.DoesPropertyExist(DcNs, "dc:subject"))
                             packet.DeleteProperty(DcNs, "dc:subject");
                         if (packet.DoesPropertyExist(PlibNs, FlagName))
@@ -182,6 +189,7 @@ public static class AlbumMetadataClearService
                     }
 
                     // A DB-only tag needs NO WIC write and NO XMP sidecar.
+                    stage = "clearing SQLite tag assignments";
                     await clearDatabaseEntry(entry);
                     entry.IsFlagged = false;
                     cleaned++;
@@ -201,7 +209,8 @@ public static class AlbumMetadataClearService
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 failed++;
-                errors.Add(Path.GetRelativePath(albumRoot, source) + ": " + ex.Message);
+                var hresult = $"0x{ex.HResult:X8}";
+                errors.Add($"{Path.GetRelativePath(albumRoot, source)}: [{stage}] {ex.GetType().Name} ({hresult}): {ex.Message}");
             }
             finally
             {
