@@ -108,7 +108,7 @@ public static class EmbeddedMetadataWriter
     /// <summary>
     /// Reads currently-stored keywords from the image. Used to merge tag adds/removes.
     /// </summary>
-    public static async Task<IReadOnlyList<string>> ReadKeywordsAsync(string filePath)
+    public static async Task<IReadOnlyList<string>> ReadKeywordsAsync(string filePath, bool throwOnError = false)
     {
         if (!IsSupported(filePath)) return Array.Empty<string>();
         try
@@ -120,7 +120,7 @@ public static class EmbeddedMetadataWriter
             if (view.TryGetValue("System.Keywords", out var val) && val?.Value is string[] arr)
                 return arr;
         }
-        catch { }
+        catch when (!throwOnError) { }
         return Array.Empty<string>();
     }
 
