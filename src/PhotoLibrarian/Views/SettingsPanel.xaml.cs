@@ -636,10 +636,14 @@ public sealed partial class SettingsPanel : UserControl
             var result = await App.ViewModel.ClearActiveAlbumTagsAndFlagsAsync(
                 progress, _clearAlbumCancellation.Token);
             ClearAlbumStatusText.Text =
-                $"Complete: {result.Cleaned:N0} cleaned, {result.Failed:N0} failed. " +
-                $"Backups: {result.BackupDirectory}" +
+                $"Finished: {result.Cleaned:N0} photos cleaned, {result.Failed:N0} failed. " +
+                (result.Failed > 0
+                    ? "PARTIAL RESET: tag catalog was preserved. " +
+                      "Review reset-errors.txt in the backup directory. "
+                    : "All processed photos passed; tag catalog cleared. ") +
+                $"Backup: {result.BackupDirectory}" +
                 (result.Errors.Count > 0
-                    ? "\nErrors: " + string.Join("; ", result.Errors.Take(3))
+                    ? "\nFirst errors: " + string.Join("; ", result.Errors.Take(3))
                     : "");
         }
         catch (OperationCanceledException)

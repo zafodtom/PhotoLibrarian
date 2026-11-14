@@ -1,4 +1,3 @@
-using System.Text;
 using PhotoLibrarian.Core.Models;
 using PhotoLibrarian.Core.Services;
 using XmpCore;
@@ -10,9 +9,9 @@ public sealed record AlbumMetadataClearResult(
     int Cleaned, int Failed, string BackupDirectory, IReadOnlyList<string> Errors);
 
 /// <summary>
-/// Removes image keywords and PhotoLibrarian flags, never ratings/captions/dates.
-/// Full originals or sidecars are backed up before each write. The caller is
-/// responsible for clearing corresponding database rows AFTER successful writes.
+/// Removes tag assignments and PhotoLibrarian flags from each indexed photo.
+/// Only writes an image when it actually has embedded keywords or flags.
+/// Backups are retained and the caller updates SQLite after metadata succeeds.
 /// </summary>
 public static class AlbumMetadataClearService
 {
@@ -23,7 +22,19 @@ public static class AlbumMetadataClearService
     static AlbumMetadataClearService()
     {
         try { XmpMetaFactory.SchemaRegistry.RegisterNamespace(PlibNs, "plib"); }
-        catch { /* Namespace was already registered by metadata writers. */ }
+        catch { /* Already registered by metadata services. */ }
+    }
+
+    /// <summary>
+    /// Defensive filter for backups created by older versions which may have
+    /// slipped into the SQLite index. This also protects reset runs on installs
+    /// that do not yet include the common scanner fix.
+    /// </summary>
+    public static bool IsInternalAlbumPath(string albumRoot, string candidate)
+    {
+        var relative = Path.GetRelativePath(albumRoot, candidate);
+        return relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Any(component => component.Equals(".album", StringComparison.OrdinalIgnoreCase));
     }
 
     public static async Task<AlbumMetadataClearResult> RunAsync(
@@ -33,62 +44,120 @@ public static class AlbumMetadataClearService
         IProgress<AlbumMetadataClearProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(albumRoot) || !Directory.Exists(
-                Path.Combine(albumRoot, ".album")))
+        if (string.IsNullOrWhiteSpace(albumRoot) ||
+            !Directory.Exists(Path.Combine(albumRoot, ".album")))
             throw new InvalidOperationException("No active PhotoLibrarian album.");
+
         string backupRoot = Path.Combine(albumRoot, ".album", "metadata-reset-backups",
             DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N")[..8]);
+
+        // Freeze the input count, including non-writable RAW files. The UI must
+        // not report a successful album reset after processing only a subset.
+        var candidates = images.DistinctBy(e => e.FilePath,
+            StringComparer.OrdinalIgnoreCase).ToArray();
         int cleaned = 0, failed = 0, processed = 0;
         var errors = new List<string>();
-        foreach (var entry in images.DistinctBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase))
+        var metadataReader = new MetadataReaderService();
+
+        foreach (var entry in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
             string source = entry.FilePath;
+            string? imageBackup = null;
+            string? sidecarBackup = null;
+            bool imageModified = false, sidecarModified = false;
             try
             {
                 if (!File.Exists(source))
                     throw new FileNotFoundException("Indexed photo no longer exists.", source);
-                if (!PhotoLibrarian.Core.Services.FolderScannerService.IsPathOwnedByAlbumRoot(
-                        albumRoot, source))
+                if (IsInternalAlbumPath(albumRoot, source))
+                    throw new InvalidOperationException("Internal .album backup must not be modified.");
+                if (!FolderScannerService.IsPathOwnedByAlbumRoot(albumRoot, source))
                     throw new InvalidOperationException("Photo is outside the active album.");
 
                 var sidecar = Path.ChangeExtension(source, ".xmp");
                 bool hasSidecar = File.Exists(sidecar);
-                bool embedded = EmbeddedMetadataWriter.IsSupported(source);
-                // Do not silently clear only the database for files that may
-                // still have embedded tags in an unsupported format.
-                if (!embedded && !hasSidecar && entry.Id > 0)
+                IXmpMeta? packet = null;
+                bool updateSidecar = false;
+                if (hasSidecar)
+                {
+                    packet = XmpMetaFactory.ParseFromString(
+                        await File.ReadAllTextAsync(sidecar, cancellationToken));
+                    updateSidecar = packet.DoesPropertyExist(DcNs, "dc:subject") ||
+                                    packet.DoesPropertyExist(PlibNs, FlagName);
+                }
+
+                // Most records have DB-only tags or an XMP sidecar. Rewriting
+                // every JPEG/PNG was unnecessarily slow and often failed due to
+                // WIC file locks, leaving all later album tags untouched.
+                bool canWriteEmbedded = EmbeddedMetadataWriter.IsSupported(source);
+                var embeddedTags = metadataReader.ReadTags(source);
+                if (canWriteEmbedded)
+                {
+                    var systemTags = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
+                    embeddedTags.AddRange(systemTags);
+                }
+                var embeddedFlag = metadataReader.ReadMetadata(source).IsFlagged &&
+                    MetadataWriterService.ReadFlagFromSidecar(source) != true;
+                bool updateImage = embeddedTags.Count > 0 || embeddedFlag;
+
+                if (updateImage && !canWriteEmbedded)
                     throw new NotSupportedException(
-                        "Cannot safely remove embedded tags from this image format.");
+                        "Embedded tags or flags cannot safely be removed from this format.");
 
                 var relative = Path.GetRelativePath(albumRoot, source);
-                var originalBackup = Path.Combine(backupRoot, relative);
-                var sidecarBackup = Path.ChangeExtension(originalBackup, ".xmp");
-                Directory.CreateDirectory(Path.GetDirectoryName(originalBackup)!);
-                if (embedded)
-                    File.Copy(source, originalBackup, overwrite: false);
-                if (hasSidecar)
+                if (updateImage || updateSidecar)
+                {
+                    imageBackup = Path.Combine(backupRoot, relative);
+                    Directory.CreateDirectory(Path.GetDirectoryName(imageBackup)!);
+                }
+                if (updateImage)
+                    File.Copy(source, imageBackup!, overwrite: false);
+                if (updateSidecar)
+                {
+                    sidecarBackup = Path.ChangeExtension(imageBackup!, ".xmp");
                     File.Copy(sidecar, sidecarBackup, overwrite: false);
+                }
 
                 try
                 {
-                    if (embedded)
+                    if (updateImage)
                     {
-                        await EmbeddedMetadataWriter.WriteAsync(
-                            source, keywords: Array.Empty<string>(), flagged: false);
-                        // Verify that the file remains decodable and no
-                        // keywords survive in its in-file property representation.
-                        var remaining = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
-                        if (remaining.Count > 0)
-                            throw new InvalidDataException(
-                                "Embedded keywords remained after clearing.");
+                        // This explicitly clears the System.Keywords fan-out
+                        // (XMP dc:subject, EXIF XPKeywords, IPTC Keywords).
+                        // A failed WIC transcode can partially touch its source.
+                        // Mark this before writing so the backup is restored.
+                        imageModified = true;
+                        for (int attempt = 0; ; attempt++)
+                        {
+                            try
+                            {
+                                await EmbeddedMetadataWriter.WriteAsync(
+                                    source, keywords: Array.Empty<string>(),
+                                    flagged: embeddedFlag ? false : null);
+                                break;
+                            }
+                            catch (IOException) when (attempt < 4)
+                            {
+                                await Task.Delay(150 * (attempt + 1), cancellationToken);
+                            }
+                            catch (System.Runtime.InteropServices.COMException ex)
+                                when (attempt < 4 &&
+                                      (ex.HResult == unchecked((int)0x80070020) ||
+                                       ex.HResult == unchecked((int)0x80070021)))
+                            {
+                                await Task.Delay(150 * (attempt + 1), cancellationToken);
+                            }
+                        }
+                        var remaining = metadataReader.ReadTags(source);
+                        var remainingWic = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
+                        if (remaining.Count > 0 || remainingWic.Count > 0)
+                            throw new InvalidDataException("Embedded keywords remained after reset.");
                     }
 
-                    if (hasSidecar)
+                    if (updateSidecar)
                     {
-                        var xml = await File.ReadAllTextAsync(sidecar, cancellationToken);
-                        var packet = XmpMetaFactory.ParseFromString(xml);
-                        if (packet.DoesPropertyExist(DcNs, "dc:subject"))
+                        if (packet!.DoesPropertyExist(DcNs, "dc:subject"))
                             packet.DeleteProperty(DcNs, "dc:subject");
                         if (packet.DoesPropertyExist(PlibNs, FlagName))
                             packet.DeleteProperty(PlibNs, FlagName);
@@ -98,29 +167,33 @@ public static class AlbumMetadataClearService
                         try
                         {
                             await File.WriteAllTextAsync(temp, updated, cancellationToken);
-                            // Avoid losing unrelated XMP namespaces and properties.
-                            var verification = XmpMetaFactory.ParseFromString(
+                            var check = XmpMetaFactory.ParseFromString(
                                 await File.ReadAllTextAsync(temp, cancellationToken));
-                            if (verification.DoesPropertyExist(DcNs, "dc:subject") ||
-                                verification.DoesPropertyExist(PlibNs, FlagName))
+                            if (check.DoesPropertyExist(DcNs, "dc:subject") ||
+                                check.DoesPropertyExist(PlibNs, FlagName))
                                 throw new InvalidDataException("XMP reset verification failed.");
                             File.Move(temp, sidecar, overwrite: true);
+                            sidecarModified = true;
                         }
                         finally
                         {
                             if (File.Exists(temp)) File.Delete(temp);
                         }
                     }
+
+                    // A DB-only tag needs NO WIC write and NO XMP sidecar.
                     await clearDatabaseEntry(entry);
+                    entry.IsFlagged = false;
                     cleaned++;
                 }
                 catch
                 {
-                    // Restore image and sidecar if file metadata or database
-                    // updates fail. Backups are also retained for manual recovery.
-                    if (embedded && File.Exists(originalBackup))
-                        File.Copy(originalBackup, source, overwrite: true);
-                    if (hasSidecar && File.Exists(sidecarBackup))
+                    // Never restore a backup for a file we didn't modify; this
+                    // also prevents a failed DB operation from overwriting a
+                    // concurrent external edit to an unmodified photo.
+                    if (imageModified && imageBackup is not null && File.Exists(imageBackup))
+                        File.Copy(imageBackup, source, overwrite: true);
+                    if (sidecarModified && sidecarBackup is not null && File.Exists(sidecarBackup))
                         File.Copy(sidecarBackup, sidecar, overwrite: true);
                     throw;
                 }
@@ -128,16 +201,22 @@ public static class AlbumMetadataClearService
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 failed++;
-                errors.Add(Path.GetFileName(source) + ": " + ex.Message);
+                errors.Add(Path.GetRelativePath(albumRoot, source) + ": " + ex.Message);
             }
             finally
             {
                 processed++;
                 progress?.Report(new AlbumMetadataClearProgress(
-                    processed, images.Count, failed, Path.GetFileName(source)));
+                    processed, candidates.Length, failed, Path.GetFileName(source)));
             }
         }
 
+        if (errors.Count > 0)
+        {
+            Directory.CreateDirectory(backupRoot);
+            await File.WriteAllLinesAsync(Path.Combine(backupRoot, "reset-errors.txt"),
+                errors, CancellationToken.None);
+        }
         return new AlbumMetadataClearResult(cleaned, failed, backupRoot, errors);
     }
 }

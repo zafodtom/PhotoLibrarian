@@ -1378,8 +1378,31 @@ public partial class MainViewModel : ObservableObject
             cancellationToken);
         var indexed = (await _imageRepo.GetAllAsync())
             .Where(entry => entry.MediaType == MediaType.Image &&
+                !AlbumMetadataClearService.IsInternalAlbumPath(root, entry.FilePath) &&
                 FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
             .ToList();
+
+        // Indexing is best-effort and may fail for an individual format.
+        // Such files must still have their external XMP metadata processed.
+        var indexedPaths = indexed.Select(entry => entry.FilePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        using (var resetScanner = new FolderScannerService())
+        {
+            await foreach (var path in resetScanner.ScanFolderAsync(
+                root, includeSubfolders: true, cancellationToken))
+            {
+                if (FolderScannerService.IsVideoFile(path) ||
+                    AlbumMetadataClearService.IsInternalAlbumPath(root, path) ||
+                    !indexedPaths.Add(path))
+                    continue;
+                indexed.Add(new ImageEntry
+                {
+                    FilePath = path,
+                    FileName = Path.GetFileName(path),
+                    MediaType = MediaType.Image
+                });
+            }
+        }
         try
         {
             var result = await AlbumMetadataClearService.RunAsync(
@@ -1387,10 +1410,7 @@ public partial class MainViewModel : ObservableObject
                 async entry =>
                 {
                     if (entry.Id > 0)
-                    {
-                        await _tagRepo.ClearImageTagsAsync(entry.Id);
-                        await _imageRepo.UpdateFlagAsync(entry.Id, false);
-                    }
+                        await _tagRepo.ClearImageTagsAndFlagAsync(entry.Id);
                     entry.IsFlagged = false;
                 },
                 progress, cancellationToken);
@@ -1416,6 +1436,7 @@ public partial class MainViewModel : ObservableObject
             await RefreshKnownLibraryStateAsync();
             await MetadataPanel.ReloadTagsAsync();
             await MetadataPanel.ReloadAvailableTagsAsync();
+            await RefreshTagsTreeAsync();
         }
     }
 

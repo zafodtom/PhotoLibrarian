@@ -84,6 +84,160 @@ public sealed class AlbumMetadataClearTests
     }
 
     [Fact]
+    public async Task Reset_ClearsDatabaseOnlyTagsWithoutRewritingJpeg()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-db-only-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var photo = Path.Combine(root, "photo.jpg");
+            await WicTestImage.CreateAsync(photo, 12, 9, jpeg: true);
+            var before = await File.ReadAllBytesAsync(photo);
+            int cleared = 0;
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [new ImageEntry { Id = 23, FilePath = photo, FileName = "photo.jpg" }],
+                _ => { cleared++; return Task.CompletedTask; });
+            Assert.Equal(1, result.Cleaned);
+            Assert.Equal(0, result.Failed);
+            Assert.Equal(1, cleared);
+            Assert.Equal(before, await File.ReadAllBytesAsync(photo));
+            Assert.False(File.Exists(Path.Combine(result.BackupDirectory, "photo.jpg")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Reset_ClearsRawDatabaseOnlyTagWithoutCreatingSidecar()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-raw-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var photo = Path.Combine(root, "photo.cr3");
+            await File.WriteAllBytesAsync(photo, [1, 2, 3]);
+            int cleared = 0;
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [new ImageEntry { Id = 24, FilePath = photo, FileName = "photo.cr3" }],
+                _ => { cleared++; return Task.CompletedTask; });
+            Assert.Equal(1, result.Cleaned);
+            Assert.Equal(0, result.Failed);
+            Assert.Equal(1, cleared);
+            Assert.False(File.Exists(Path.ChangeExtension(photo, ".xmp")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Reset_RemovesRawSidecarTagsWithoutTouchingRawPixels()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-raw-xmp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var raw = Path.Combine(root, "portrait.cr3");
+            var sidecar = Path.ChangeExtension(raw, ".xmp");
+            var original = new byte[] { 1, 2, 3, 4 };
+            await File.WriteAllBytesAsync(raw, original);
+            var xml = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">" +
+                "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">" +
+                "<rdf:Description rdf:about=\"\" " +
+                "xmlns:dc=\"http://purl.org/dc/elements/1.1/\">" +
+                "<dc:subject><rdf:Bag><rdf:li>Person/Portrait</rdf:li>" +
+                "</rdf:Bag></dc:subject></rdf:Description></rdf:RDF></x:xmpmeta>";
+            await File.WriteAllTextAsync(sidecar, xml);
+            int dbCleared = 0;
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [new ImageEntry { Id = 7, FilePath = raw, FileName = "portrait.cr3" }],
+                _ => { dbCleared++; return Task.CompletedTask; });
+            Assert.Equal(1, result.Cleaned);
+            Assert.Equal(0, result.Failed);
+            Assert.Equal(1, dbCleared);
+            Assert.Equal(original, await File.ReadAllBytesAsync(raw));
+            Assert.Empty(TagWriterService.ReadTagsFromSidecar(raw));
+            Assert.True(File.Exists(Path.Combine(result.BackupDirectory, "portrait.xmp")));
+            Assert.False(File.Exists(Path.Combine(result.BackupDirectory, "portrait.cr3")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Reset_ContinuesAfterFailedDatabaseWriteAndLogsError()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-failure-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var first = Path.Combine(root, "first.jpg");
+            var second = Path.Combine(root, "second.jpg");
+            await WicTestImage.CreateAsync(first, 5, 5, jpeg: true);
+            await WicTestImage.CreateAsync(second, 6, 6, jpeg: true);
+            int cleared = 0;
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [
+                    new ImageEntry { Id = 1, FilePath = first, FileName = "first.jpg" },
+                    new ImageEntry { Id = 2, FilePath = second, FileName = "second.jpg" }
+                ],
+                image =>
+                {
+                    if (image.Id == 1)
+                        throw new IOException("Simulated database lock");
+                    cleared++;
+                    return Task.CompletedTask;
+                });
+            Assert.Equal(1, result.Cleaned);
+            Assert.Equal(1, result.Failed);
+            Assert.Equal(1, cleared);
+            Assert.True(File.Exists(Path.Combine(result.BackupDirectory, "reset-errors.txt")));
+            Assert.Contains("first.jpg", result.Errors[0]);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Reset_DoesNotTouchInternalBackupPhotos()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-backups-" + Guid.NewGuid().ToString("N"));
+        var backupDir = Path.Combine(root, ".album", "metadata-reset-backups", "old");
+        Directory.CreateDirectory(backupDir);
+        try
+        {
+            var backupPhoto = Path.Combine(backupDir, "old.jpg");
+            await WicTestImage.CreateAsync(backupPhoto, 5, 5, jpeg: true);
+            var original = await File.ReadAllBytesAsync(backupPhoto);
+            Assert.True(AlbumMetadataClearService.IsInternalAlbumPath(root, backupPhoto));
+            int changed = 0;
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [new ImageEntry { Id = 1, FilePath = backupPhoto, FileName = "old.jpg" }],
+                _ => { changed++; return Task.CompletedTask; });
+            Assert.Equal(0, result.Cleaned);
+            Assert.Equal(1, result.Failed);
+            Assert.Equal(0, changed);
+            Assert.Equal(original, await File.ReadAllBytesAsync(backupPhoto));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Reset_LeavesUnknownOrOutOfAlbumFilesUntouched()
     {
         var root = Path.Combine(Path.GetTempPath(),
