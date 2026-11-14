@@ -46,6 +46,13 @@
     <None Include="..\PhotoLibrarian\Views\SettingsPanel.xaml"
           Link="TestAssets\SettingsPanel.xaml"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\SettingsPanel.xaml.cs"
+          Link="TestAssets\SettingsPanel.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Services\AlbumJpegConversionService.cs"
+          Link="TestAssets\AlbumJpegConversionService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+
     <None Include="..\PhotoLibrarian\Views\ImageViewerOverlay.xaml"
           Link="TestAssets\ImageViewerOverlay.xaml"
           CopyToOutputDirectory="PreserveNewest" />
