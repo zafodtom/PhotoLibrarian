@@ -261,7 +261,7 @@ public static class AlbumJpegConversionService
             throw new NotSupportedException("Multi-frame images require an explicit frame choice.");
 
         var pixels = await decoder.GetPixelDataAsync(
-            BitmapPixelFormat.Rgba8, BitmapAlphaMode.Straight,
+            BitmapPixelFormat.Bgra8, BitmapAlphaMode.Straight,
             new BitmapTransform(), ExifOrientationMode.RespectExifOrientation,
             ColorManagementMode.ColorManageToSRgb);
         var bytes = pixels.DetachPixelData();
@@ -286,7 +286,7 @@ public static class AlbumJpegConversionService
         };
         var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId,
             outputStream, options);
-        encoder.SetPixelData(BitmapPixelFormat.Rgba8, BitmapAlphaMode.Ignore,
+        encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied,
             decoder.OrientedPixelWidth, decoder.OrientedPixelHeight,
             decoder.DpiX, decoder.DpiY, bytes);
         await encoder.FlushAsync();
