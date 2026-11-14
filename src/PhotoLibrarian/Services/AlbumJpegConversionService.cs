@@ -59,6 +59,22 @@ public static class AlbumJpegConversionService
         }
     }
 
+    // Prefer the original basename; if already occupied, allocate a stable,
+    // human-readable suffix without overwriting any existing JPEG.
+    internal static string ChooseJpegDestination(string source)
+    {
+        var first = Path.ChangeExtension(source, ".jpg");
+        if (!File.Exists(first)) return first;
+        var directory = Path.GetDirectoryName(first)!;
+        var name = Path.GetFileNameWithoutExtension(first);
+        for (int index = 1; index < 100_000; index++)
+        {
+            var candidate = Path.Combine(directory, $"{name}_{index:D3}.jpg");
+            if (!File.Exists(candidate)) return candidate;
+        }
+        throw new IOException("No free JPEG destination filename is available.");
+    }
+
     public static AlbumJpegConversionPreview Preview(string albumRoot)
     {
         ValidateAlbum(albumRoot);
@@ -79,11 +95,10 @@ public static class AlbumJpegConversionService
             bool jpg = extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase);
             bool hasXmp = File.Exists(Path.ChangeExtension(file, ".xmp"));
             if (jpg && !hasXmp) continue;
+            // Existing JPGs are preserved; a suffixed output is counted as
+            // a conversion, not as a skipped file.
             if (!jpg && File.Exists(Path.ChangeExtension(file, ".jpg")))
-            {
                 conflicts++;
-                continue;
-            }
             if (jpg) embed++; else convert++;
             bytes += new FileInfo(file).Length;
         }
@@ -123,7 +138,7 @@ public static class AlbumJpegConversionService
                 cancellationToken.ThrowIfCancellationRequested();
                 string extension = Path.GetExtension(source);
                 bool originalJpg = extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase);
-                var destination = originalJpg ? source : Path.ChangeExtension(source, ".jpg");
+                var destination = originalJpg ? source : ChooseJpegDestination(source);
                 var sidecar = Path.ChangeExtension(source, ".xmp");
                 var hasSidecar = File.Exists(sidecar);
                 string? temporary = null;
@@ -142,12 +157,9 @@ public static class AlbumJpegConversionService
                         throw new UnauthorizedAccessException(
                             "XMP sidecar is read-only; remove the Read-only attribute before conversion.");
 
-                    // A JPEG with the target basename already present is never overwritten.
-                    if (!originalJpg && File.Exists(destination))
-                    {
-                        skipped++;
-                        continue;
-                    }
+                    // ChooseJpegDestination reserves the next free suffixed
+                    // name when the original JPEG name is already occupied.
+                    // File.Move without overwrite remains the final safety guard.
 
                     // Work files remain within the album volume, allowing atomic moves.
                     temporary = Path.Combine(workRoot, Guid.NewGuid().ToString("N") + ".jpg");
@@ -156,7 +168,23 @@ public static class AlbumJpegConversionService
                         extension.Equals(".jfif", StringComparison.OrdinalIgnoreCase))
                         await Task.Run(() => File.Copy(source, temporary), cancellationToken);
                     else
-                        await EncodeJpegAsync(source, temporary);
+                    {
+                        try
+                        {
+                            await EncodeJpegAsync(source, temporary);
+                        }
+                        catch (Exception encodeError) when (
+                            extension.Equals(".heic", StringComparison.OrdinalIgnoreCase) ||
+                            extension.Equals(".heif", StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new InvalidOperationException(
+                                "HEIC/HEIF conversion failed during Windows image decoding or JPEG encoding. " +
+                                "Verify that this file opens in Windows Photos, and that the " +
+                                "Microsoft HEIF Image Extensions and, if necessary, HEVC Video Extensions " +
+                                "are installed. Original remains unchanged. Cause: " +
+                                encodeError.Message, encodeError);
+                        }
+                    }
 
                     byte[]? xmpBytes = null;
                     if (hasSidecar)

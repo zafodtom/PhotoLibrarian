@@ -7,6 +7,75 @@ namespace PhotoLibrarian.Tests;
 public sealed class AlbumJpegConversionPreviewTests
 {
     [Fact]
+    public async Task Convert_PngWithExistingJpg_CreatesNumberedJpegAndPreservesOriginal()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-jpeg-collision-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var png = Path.Combine(root, "photo.png");
+            var jpeg = Path.Combine(root, "photo.jpg");
+            var suffixed = Path.Combine(root, "photo_001.jpg");
+            await WicTestImage.CreateAsync(png, 8, 6);
+            await WicTestImage.CreateAsync(jpeg, 4, 4, jpeg: true);
+            var originalJpeg = await File.ReadAllBytesAsync(jpeg);
+            var originalPng = await File.ReadAllBytesAsync(png);
+            var preview = AlbumJpegConversionService.Preview(root);
+            Assert.Equal(1, preview.ConvertCount);
+            Assert.Equal(1, preview.TargetConflictCount);
+            Assert.Equal(1, preview.PendingCount);
+
+            var result = await AlbumJpegConversionService.RunAsync(root, null);
+            Assert.Equal(1, result.Converted);
+            Assert.Equal(0, result.Skipped);
+            Assert.Equal(0, result.Failed);
+            Assert.True(File.Exists(suffixed));
+            Assert.Equal((8u, 6u), await WicTestImage.ReadSizeAsync(suffixed));
+            Assert.Equal(originalJpeg, await File.ReadAllBytesAsync(jpeg));
+            Assert.False(File.Exists(png));
+            Assert.Equal(originalPng, await File.ReadAllBytesAsync(
+                Path.Combine(result.BackupDirectory, "photo.png")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Convert_CollisionSkipsOccupiedSuffixAndUsesNextFreeName()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-jpeg-suffix-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var source = Path.Combine(root, "photo.png");
+            var existing = Path.Combine(root, "photo.jpg");
+            var occupiedSuffix = Path.Combine(root, "photo_001.jpg");
+            var newDestination = Path.Combine(root, "photo_002.jpg");
+            await WicTestImage.CreateAsync(source, 8, 6);
+            await WicTestImage.CreateAsync(existing, 4, 4, jpeg: true);
+            await WicTestImage.CreateAsync(occupiedSuffix, 5, 5, jpeg: true);
+            var originalJpeg = await File.ReadAllBytesAsync(existing);
+            var originalSuffix = await File.ReadAllBytesAsync(occupiedSuffix);
+
+            var result = await AlbumJpegConversionService.RunAsync(root, null);
+            Assert.Equal(1, result.Converted);
+            Assert.Equal(0, result.Failed);
+            Assert.True(File.Exists(newDestination));
+            Assert.Equal((8u, 6u), await WicTestImage.ReadSizeAsync(newDestination));
+            Assert.Equal(originalJpeg, await File.ReadAllBytesAsync(existing));
+            Assert.Equal(originalSuffix, await File.ReadAllBytesAsync(occupiedSuffix));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Preview_DoesNotOverwriteJpegsOrTraverseAlbumBackups()
     {
         var root = Path.Combine(Path.GetTempPath(), "PhotoLibrarian-jpeg-preview-" + Guid.NewGuid().ToString("N"));
@@ -24,11 +93,11 @@ public sealed class AlbumJpegConversionPreviewTests
             File.WriteAllBytes(Path.Combine(root, "different-album", "foreign.png"), [1]);
 
             var preview = AlbumJpegConversionService.Preview(root);
-            Assert.Equal(1, preview.ConvertCount);
+            Assert.Equal(2, preview.ConvertCount);
             Assert.Equal(1, preview.JpegMetadataCount);
             Assert.Equal(1, preview.TargetConflictCount);
             Assert.Equal(1, preview.UnsupportedCount);
-            Assert.Equal(2, preview.PendingCount);
+            Assert.Equal(3, preview.PendingCount);
         }
         finally
         {
