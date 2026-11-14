@@ -1418,6 +1418,19 @@ public partial class MainViewModel : ObservableObject
         return deleted;
     }
 
+    /// <summary>
+    /// Keep image IDs (and their tag/face/rating relations) when an album-wide
+    /// conversion changes the source file extension to JPEG.
+    /// </summary>
+    public async Task RemapConvertedImagePathAsync(string originalPath, string jpegPath)
+    {
+        if (string.Equals(originalPath, jpegPath, StringComparison.OrdinalIgnoreCase))
+            return;
+        var original = await _imageRepo.GetByPathAsync(originalPath);
+        if (original is not null)
+            await _imageRepo.UpdatePathAsync(original.Id, jpegPath);
+    }
+
     public async Task RefreshKnownLibraryStateAsync(
         bool refreshFolderTree = false)
     {
