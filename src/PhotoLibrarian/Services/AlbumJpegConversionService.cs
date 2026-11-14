@@ -146,6 +146,16 @@ public static class AlbumJpegConversionService
                     if (!originalJpg && File.Exists(destination))
                     {
                         skipped++;
+                        // A pre-existing JPEG can conceal a HEIC converter failure:
+                        // previously this collision was never present in the log.
+                        // Never overwrite the JPEG, but report the exact reason.
+                        if (extension.Equals(".heic", StringComparison.OrdinalIgnoreCase) ||
+                            extension.Equals(".heif", StringComparison.OrdinalIgnoreCase))
+                        {
+                            errors.Add(Path.GetRelativePath(albumRoot, source) +
+                                ": skipped (target JPG already exists): " +
+                                Path.GetRelativePath(albumRoot, destination));
+                        }
                         continue;
                     }
 
@@ -156,7 +166,23 @@ public static class AlbumJpegConversionService
                         extension.Equals(".jfif", StringComparison.OrdinalIgnoreCase))
                         await Task.Run(() => File.Copy(source, temporary), cancellationToken);
                     else
-                        await EncodeJpegAsync(source, temporary);
+                    {
+                        try
+                        {
+                            await EncodeJpegAsync(source, temporary);
+                        }
+                        catch (Exception encodeError) when (
+                            extension.Equals(".heic", StringComparison.OrdinalIgnoreCase) ||
+                            extension.Equals(".heif", StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new InvalidOperationException(
+                                "HEIC/HEIF conversion failed during Windows image decoding or JPEG encoding. " +
+                                "Verify that this file opens in Windows Photos, and that the " +
+                                "Microsoft HEIF Image Extensions and, if necessary, HEVC Video Extensions " +
+                                "are installed. Original remains unchanged. Cause: " +
+                                encodeError.Message, encodeError);
+                        }
+                    }
 
                     byte[]? xmpBytes = null;
                     if (hasSidecar)
