@@ -442,6 +442,49 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Album-wide cleanup: only keywords, flags and tag vocabulary. -->
+                    <Grid Height="34" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Width="4" Height="22"
+                                   Fill="{StaticResource HiTechAccentBrush}"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                            <TextBlock Text="ALBUM // RESET TAGS"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                            <TextBlock Text="CLEAR TAGS, FLAGS AND TAG CATALOG"
+                                       Style="{StaticResource HiTechTinyLabelStyle}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Remove all image tags, user flags and catalog tag names in the active album. Photos, ratings, captions and capture dates are preserved. Originals and XMP are backed up before changes."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="ClearAlbumMetadataButton"
+                                        Content="CLEAR ALBUM TAGS + FLAGS"
+                                        Click="OnClearAlbumMetadata"
+                                        AutomationProperties.AutomationId="ClearAlbumMetadataButton"
+                                        Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                                <Button x:Name="CancelClearAlbumButton"
+                                        Content="CANCEL"
+                                        Click="OnCancelClearAlbum"
+                                        IsEnabled="False"
+                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                            </StackPanel>
+                            <ProgressBar x:Name="ClearAlbumProgressBar"
+                                         Minimum="0" Maximum="100"
+                                         Visibility="Collapsed" />
+                            <TextBlock x:Name="ClearAlbumStatusText"
+                                       Text="Album cleanup has not been run."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechAccentBrush}" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- About section -->
                     <Grid Height="34" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
