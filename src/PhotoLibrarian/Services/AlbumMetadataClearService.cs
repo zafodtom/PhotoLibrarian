@@ -230,7 +230,8 @@ public static class AlbumMetadataClearService
                             }
                         }
 
-                        if (embeddedFlag)
+                        if (embeddedFlag && metadataReader.ReadMetadata(source).IsFlagged &&
+                            MetadataWriterService.ReadFlagFromSidecar(source) != true)
                         {
                             stage = "clearing embedded PhotoLibrarian flag";
                             await EmbeddedMetadataWriter.WriteAsync(source, flagged: false);
