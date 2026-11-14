@@ -25,6 +25,18 @@ public static class AlbumMetadataClearService
         catch { /* Already registered by metadata services. */ }
     }
 
+    /// <summary>
+    /// Defensive filter for backups created by older versions which may have
+    /// slipped into the SQLite index. This also protects reset runs on installs
+    /// that do not yet include the common scanner fix.
+    /// </summary>
+    public static bool IsInternalAlbumPath(string albumRoot, string candidate)
+    {
+        var relative = Path.GetRelativePath(albumRoot, candidate);
+        return relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Any(component => component.Equals(".album", StringComparison.OrdinalIgnoreCase));
+    }
+
     public static async Task<AlbumMetadataClearResult> RunAsync(
         string albumRoot,
         IReadOnlyCollection<ImageEntry> images,
@@ -58,6 +70,8 @@ public static class AlbumMetadataClearService
             {
                 if (!File.Exists(source))
                     throw new FileNotFoundException("Indexed photo no longer exists.", source);
+                if (IsInternalAlbumPath(albumRoot, source))
+                    throw new InvalidOperationException("Internal .album backup must not be modified.");
                 if (!FolderScannerService.IsPathOwnedByAlbumRoot(albumRoot, source))
                     throw new InvalidOperationException("Photo is outside the active album.");
 
