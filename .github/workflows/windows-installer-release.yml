@@ -63,9 +63,8 @@ jobs:
             if ($env:GITHUB_REF -eq 'refs/heads/master') {
               throw 'Development releases must use a non-master branch.'
             }
-            $latestJson = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest"
+            $stableTag = gh api "repos/$env:GITHUB_REPOSITORY/releases/latest" --jq '.tag_name'
             if ($LASTEXITCODE -ne 0) { throw 'Latest stable release lookup failed.' }
-            $stableTag = [string]($latestJson | ConvertFrom-Json).tag_name
             if (-not $stableTag.StartsWith('v')) { throw 'Invalid stable tag.' }
             $stableVersion = [version]$stableTag.Substring(1)
             $projectVersion = [version]$env:VERSION
