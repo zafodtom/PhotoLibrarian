@@ -173,6 +173,34 @@ public sealed class AlbumMetadataClearTests
     }
 
     [Fact]
+    public async Task Reset_DoesNotTouchInternalBackupPhotos()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-backups-" + Guid.NewGuid().ToString("N"));
+        var backupDir = Path.Combine(root, ".album", "metadata-reset-backups", "old");
+        Directory.CreateDirectory(backupDir);
+        try
+        {
+            var backupPhoto = Path.Combine(backupDir, "old.jpg");
+            await WicTestImage.CreateAsync(backupPhoto, 5, 5, jpeg: true);
+            var original = await File.ReadAllBytesAsync(backupPhoto);
+            Assert.True(AlbumMetadataClearService.IsInternalAlbumPath(root, backupPhoto));
+            int changed = 0;
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [new ImageEntry { Id = 1, FilePath = backupPhoto, FileName = "old.jpg" }],
+                _ => { changed++; return Task.CompletedTask; });
+            Assert.Equal(0, result.Cleaned);
+            Assert.Equal(1, result.Failed);
+            Assert.Equal(0, changed);
+            Assert.Equal(original, await File.ReadAllBytesAsync(backupPhoto));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Reset_LeavesUnknownOrOutOfAlbumFilesUntouched()
     {
         var root = Path.Combine(Path.GetTempPath(),
