@@ -255,13 +255,15 @@ public partial class ImageGridViewModel : ObservableObject
             !hasTagFilter && !hasFlagFilter && !hasExcludedTags)
         {
             DebugLog.WriteLine($"LoadImagesAsync: No filters active, showing empty grid");
+            TagFacetCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            ResultsChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
-        var includePaths = (_currentTagFilters ?? [])
-            .Concat(_currentTagRootSelected ? [""] : [])
-            .Concat(_currentUntaggedSelected ? ["__untagged__"] : [])
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var includePaths = new List<string>(_currentTagFilters ?? []);
+        if (_currentTagRootSelected) includePaths.Add("");
+        if (_currentUntaggedSelected) includePaths.Add("__untagged__");
+        includePaths = includePaths.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         // Prepare folder filters with separators for correct prefix matching
         var folderFilters = _currentFolderFilters?.Select(f => 
@@ -488,8 +490,8 @@ public partial class ImageGridViewModel : ObservableObject
         _thumbnailsLoaded = 0;
 
         TagFacetCounts = TagFacetFilter.CountFacets(Images.Select(vm =>
-            (IReadOnlyCollection<string>)(tagsByImageId.TryGetValue(vm.Entry.Id, out var tags)
-                ? tags : Array.Empty<string>())));
+            tagsByImageId.TryGetValue(vm.Entry.Id, out var tags)
+                ? (IReadOnlyCollection<string>)tags : Array.Empty<string>()));
 
         await ApplyGroupingAsync();
         RestoreSelectionAfterLoad();
