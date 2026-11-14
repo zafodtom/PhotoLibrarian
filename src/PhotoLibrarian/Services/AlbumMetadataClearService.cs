@@ -28,10 +28,41 @@ public static class AlbumMetadataClearService
     public static IReadOnlyList<string> ReadPendingFailures(string albumRoot)
     {
         var manifest = PendingPath(albumRoot);
-        if (!File.Exists(manifest)) return [];
-        // A damaged manifest must be reported, not treated as successful reset.
-        var paths = System.Text.Json.JsonSerializer.Deserialize<string[]>(
-            File.ReadAllText(manifest)) ?? [];
+        // Older releases wrote reset-errors.txt but did not have a checkpoint.
+        // Import the most recent legacy error report once, without rescanning
+        // user photos. A subsequently completed reset always writes a
+        // checkpoint (even an empty one), so stale reports cannot reappear.
+        string[] paths;
+        if (File.Exists(manifest))
+        {
+            // A damaged manifest is an error, not a successful reset.
+            paths = System.Text.Json.JsonSerializer.Deserialize<string[]>(
+                File.ReadAllText(manifest)) ?? [];
+        }
+        else
+        {
+            var reports = new[] { "metadata-reset-backups", "metadata-reset-reports" }
+                .Select(folder => Path.Combine(albumRoot, ".album", folder))
+                .Where(Directory.Exists)
+                .SelectMany(folder => Directory.EnumerateDirectories(folder))
+                .Select(folder => new
+                {
+                    Folder = folder,
+                    Report = Path.Combine(folder, "reset-errors.txt")
+                })
+                .Where(item => File.Exists(item.Report))
+                .OrderByDescending(item => Path.GetFileName(item.Folder), StringComparer.Ordinal)
+                .ToArray();
+            if (reports.Length == 0) return [];
+            paths = File.ReadAllLines(reports[0].Report)
+                .Select(line =>
+                {
+                    var separator = line.IndexOf(": [", StringComparison.Ordinal);
+                    return separator > 0 ? line[..separator] : "";
+                })
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .ToArray();
+        }
         var root = Path.GetFullPath(albumRoot);
         return paths.Select(relative => Path.GetFullPath(Path.Combine(root, relative)))
             .Where(path => !IsInternalAlbumPath(root, path) &&
@@ -43,11 +74,6 @@ public static class AlbumMetadataClearService
         string albumRoot, IReadOnlyCollection<string> failedPaths)
     {
         var destination = PendingPath(albumRoot);
-        if (failedPaths.Count == 0)
-        {
-            if (File.Exists(destination)) File.Delete(destination);
-            return;
-        }
         var relative = failedPaths.Select(path => Path.GetRelativePath(albumRoot, path))
             .ToArray();
         var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
