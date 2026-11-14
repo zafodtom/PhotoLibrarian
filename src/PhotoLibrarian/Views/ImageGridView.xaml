@@ -65,7 +65,7 @@
                            Margin="4,0"
                            Style="{StaticResource HiTechSectionHeaderStyle}" />
                 <ComboBox x:Name="SortByCombo" 
-                          SelectedIndex="1" 
+                          SelectedIndex="0" 
                           MinWidth="120"
                           SelectionChanged="OnSortByChanged">
                     <ComboBoxItem Content="File Name" Tag="FileName" />
