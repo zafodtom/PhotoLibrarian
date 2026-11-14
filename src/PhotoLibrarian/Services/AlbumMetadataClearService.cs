@@ -30,6 +30,56 @@ public static class AlbumMetadataClearService
     /// slipped into the SQLite index. This also protects reset runs on installs
     /// that do not yet include the common scanner fix.
     /// </summary>
+    /// <summary>
+    /// Clears only recognized standard XMP keywords / PhotoLibrarian flags in
+    /// JPEG APP1. JPEG image data and unrelated EXIF/IPTC segments are retained.
+    /// The caller checks for remaining non-XMP keywords and restores its backup
+    /// if verification fails.
+    /// </summary>
+    private static async Task<bool> TryClearJpegXmpAsync(
+        string source, CancellationToken cancellationToken)
+    {
+        if (!new[] { ".jpg", ".jpeg", ".jpe", ".jfif" }.Contains(
+            Path.GetExtension(source), StringComparer.OrdinalIgnoreCase))
+            return false;
+
+        var original = await File.ReadAllBytesAsync(source, cancellationToken);
+        var packetBytes = JpegXmpPacket.ExtractStandardPacket(original);
+        if (packetBytes is null)
+            return false;
+
+        var packet = XmpMetaFactory.ParseFromString(
+            System.Text.Encoding.UTF8.GetString(packetBytes));
+        bool hasKeywords = packet.DoesPropertyExist(DcNs, "dc:subject");
+        bool hasFlag = packet.DoesPropertyExist(PlibNs, FlagName);
+        if (!hasKeywords && !hasFlag)
+            return false;
+
+        if (hasKeywords)
+            packet.DeleteProperty(DcNs, "dc:subject");
+        if (hasFlag)
+            packet.DeleteProperty(PlibNs, FlagName);
+
+        var rewrittenXmp = System.Text.Encoding.UTF8.GetBytes(
+            XmpMetaFactory.SerializeToString(packet,
+                new XmpCore.Options.SerializeOptions()));
+        var updated = JpegXmpPacket.Embed(original, rewrittenXmp);
+        if (!JpegXmpPacket.ContainsExactPacket(updated, rewrittenXmp))
+            throw new InvalidDataException("Updated embedded XMP packet could not be verified.");
+
+        string temp = source + ".reset-" + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await File.WriteAllBytesAsync(temp, updated, cancellationToken);
+            File.Move(temp, source, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temp)) File.Delete(temp);
+        }
+        return true;
+    }
+
     public static bool IsInternalAlbumPath(string albumRoot, string candidate)
     {
         var relative = Path.GetRelativePath(albumRoot, candidate);
@@ -133,25 +183,34 @@ public static class AlbumMetadataClearService
                         // Mark this before writing so the backup is restored.
                         stage = "writing embedded metadata (WIC)";
                         imageModified = true;
-                        for (int attempt = 0; ; attempt++)
+                        // A zero-length System.Keywords value is rejected by many
+                        // WIC JPEG metadata handlers (E_INVALIDARG). Remove XMP
+                        // dc:subject/our flag directly where possible, preserving
+                        // encoded JPEG pixels, EXIF and unrelated APP segments.
+                        // Other embedded keyword formats remain fail-closed.
+                        bool clearedJpegXmp = await TryClearJpegXmpAsync(source, cancellationToken);
+                        if (!clearedJpegXmp)
                         {
-                            try
+                            for (int attempt = 0; ; attempt++)
                             {
-                                await EmbeddedMetadataWriter.WriteAsync(
-                                    source, keywords: Array.Empty<string>(),
-                                    flagged: embeddedFlag ? false : null);
-                                break;
-                            }
-                            catch (IOException) when (attempt < 4)
-                            {
-                                await Task.Delay(150 * (attempt + 1), cancellationToken);
-                            }
-                            catch (System.Runtime.InteropServices.COMException ex)
-                                when (attempt < 4 &&
-                                      (ex.HResult == unchecked((int)0x80070020) ||
-                                       ex.HResult == unchecked((int)0x80070021)))
-                            {
-                                await Task.Delay(150 * (attempt + 1), cancellationToken);
+                                try
+                                {
+                                    await EmbeddedMetadataWriter.WriteAsync(
+                                        source, keywords: Array.Empty<string>(),
+                                        flagged: embeddedFlag ? false : null);
+                                    break;
+                                }
+                                catch (IOException) when (attempt < 4)
+                                {
+                                    await Task.Delay(150 * (attempt + 1), cancellationToken);
+                                }
+                                catch (System.Runtime.InteropServices.COMException ex)
+                                    when (attempt < 4 &&
+                                          (ex.HResult == unchecked((int)0x80070020) ||
+                                           ex.HResult == unchecked((int)0x80070021)))
+                                {
+                                    await Task.Delay(150 * (attempt + 1), cancellationToken);
+                                }
                             }
                         }
                         stage = "verifying embedded metadata";
@@ -159,6 +218,9 @@ public static class AlbumMetadataClearService
                         var remainingWic = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
                         if (remaining.Count > 0 || remainingWic.Count > 0)
                             throw new InvalidDataException("Embedded keywords remained after reset.");
+                        if (embeddedFlag && metadataReader.ReadMetadata(source).IsFlagged &&
+                            MetadataWriterService.ReadFlagFromSidecar(source) != true)
+                            throw new InvalidDataException("Embedded PhotoLibrarian flag remained after reset.");
                     }
 
                     if (updateSidecar)
