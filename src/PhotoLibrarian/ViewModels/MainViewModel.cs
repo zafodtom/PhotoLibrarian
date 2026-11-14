@@ -1433,7 +1433,8 @@ public partial class MainViewModel : ObservableObject
         await _indexingService.IndexFolderAsync(root, includeSubfolders: true,
             cancellationToken);
         var indexed = (await _imageRepo.GetAllAsync())
-            .Where(entry => FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
+            .Where(entry => entry.MediaType == MediaType.Image &&
+                FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
             .ToList();
         var result = await AlbumMetadataClearService.RunAsync(
             root, indexed,
