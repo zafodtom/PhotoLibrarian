@@ -26,7 +26,7 @@ public sealed class AlbumMetadataClearTests
                 [new ImageEntry { Id = 42, FilePath = photo, FileName = "photo.jpg" }],
                 _ => { cleared++; return Task.CompletedTask; });
 
-            Assert.Equal(1, result.Cleaned);
+            Assert.True(result.Cleaned == 1, string.Join(" | ", result.Errors));
             Assert.Equal(0, result.Failed);
             Assert.Equal(1, cleared);
             Assert.Empty(await EmbeddedMetadataWriter.ReadKeywordsAsync(photo));
@@ -76,6 +76,61 @@ public sealed class AlbumMetadataClearTests
             Assert.Equal("4", xmp.GetPropertyString(
                 "http://ns.adobe.com/xap/1.0/", "xmp:Rating"));
             Assert.True(File.Exists(Path.Combine(result.BackupDirectory, "image.xmp")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Reset_ClearsEmbeddedJpegXmpWithoutReencodingImageOrLosingRating()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "PL-reset-embedded-xmp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        try
+        {
+            var photo = Path.Combine(root, "xmp.jpg");
+            await WicTestImage.CreateAsync(photo, 12, 9, jpeg: true);
+            var original = await File.ReadAllBytesAsync(photo);
+            var xml = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">" +
+                "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">" +
+                "<rdf:Description rdf:about=\"\" " +
+                "xmlns:dc=\"http://purl.org/dc/elements/1.1/\" " +
+                "xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" " +
+                "xmlns:plib=\"http://ns.photolibrarian.app/1.0/\" " +
+                "xmp:Rating=\"4\" plib:Flagged=\"True\">" +
+                "<dc:subject><rdf:Bag><rdf:li>Remove Me</rdf:li>" +
+                "</rdf:Bag></dc:subject></rdf:Description></rdf:RDF></x:xmpmeta>";
+            var tagged = JpegXmpPacket.Embed(original,
+                System.Text.Encoding.UTF8.GetBytes(xml));
+            await File.WriteAllBytesAsync(photo, tagged);
+
+            int cleared = 0;
+            var result = await AlbumMetadataClearService.RunAsync(root,
+                [new ImageEntry { Id = 99, FilePath = photo, FileName = "xmp.jpg" }],
+                _ => { cleared++; return Task.CompletedTask; });
+
+            Assert.Equal(1, result.Cleaned);
+            Assert.Equal(0, result.Failed);
+            Assert.Equal(1, cleared);
+            var output = await File.ReadAllBytesAsync(photo);
+            var savedXmp = JpegXmpPacket.ExtractStandardPacket(output);
+            Assert.NotNull(savedXmp);
+            var packet = XmpCore.XmpMetaFactory.ParseFromString(
+                System.Text.Encoding.UTF8.GetString(savedXmp!));
+            Assert.False(packet.DoesPropertyExist(
+                "http://purl.org/dc/elements/1.1/", "dc:subject"));
+            Assert.False(packet.DoesPropertyExist(
+                "http://ns.photolibrarian.app/1.0/", "plib:Flagged"));
+            Assert.Equal("4", packet.GetPropertyString(
+                "http://ns.adobe.com/xap/1.0/", "xmp:Rating"));
+            // Original JPEG image scan and EXIF segments are preserved.
+            var afterXmpRemoval = JpegXmpPacket.Embed(output,
+                System.Text.Encoding.UTF8.GetBytes(xml));
+            Assert.Equal(tagged, afterXmpRemoval);
+            Assert.True(File.Exists(Path.Combine(result.BackupDirectory, "xmp.jpg")));
         }
         finally
         {
@@ -202,6 +257,9 @@ public sealed class AlbumMetadataClearTests
             Assert.Equal(1, cleared);
             Assert.True(File.Exists(Path.Combine(result.BackupDirectory, "reset-errors.txt")));
             Assert.Contains("first.jpg", result.Errors[0]);
+            Assert.Contains("[clearing SQLite tag assignments]", result.Errors[0]);
+            Assert.Contains("IOException", result.Errors[0]);
+            Assert.Contains("0x", result.Errors[0]);
         }
         finally
         {

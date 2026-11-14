@@ -70,6 +70,45 @@ public static class JpegXmpPacket
         return output.ToArray();
     }
 
+    /// <summary>
+    /// Returns the first standard embedded XMP APP1 payload, without the Adobe
+    /// header. A missing XMP packet is normal and returns null. Corrupt JPEG
+    /// framing fails closed instead of letting a reset rewrite damaged bytes.
+    /// </summary>
+    public static byte[]? ExtractStandardPacket(byte[] jpeg)
+    {
+        ArgumentNullException.ThrowIfNull(jpeg);
+        if (jpeg.Length < 4 || jpeg[0] != 0xFF || jpeg[1] != 0xD8)
+            throw new InvalidDataException("Source is not a JPEG file.");
+
+        int position = 2;
+        while (position < jpeg.Length)
+        {
+            if (jpeg[position] != 0xFF)
+                throw new InvalidDataException("Malformed JPEG segment header.");
+            while (position < jpeg.Length && jpeg[position] == 0xFF)
+                position++;
+            if (position == jpeg.Length)
+                throw new InvalidDataException("Truncated JPEG marker.");
+            byte marker = jpeg[position++];
+            if (marker is 0xDA or 0xD9)
+                return null;
+            if (marker is 0x01 or >= 0xD0 and <= 0xD7)
+                continue;
+            if (position + 2 > jpeg.Length)
+                throw new InvalidDataException("Truncated JPEG segment.");
+            int length = (jpeg[position] << 8) | jpeg[position + 1];
+            if (length < 2 || position + length > jpeg.Length)
+                throw new InvalidDataException("Invalid JPEG segment length.");
+            if (marker == 0xE1 && length >= Header.Length + 2 &&
+                jpeg.AsSpan(position + 2, Header.Length).SequenceEqual(Header))
+                return jpeg.AsSpan(position + 2 + Header.Length,
+                    length - Header.Length - 2).ToArray();
+            position += length;
+        }
+        return null;
+    }
+
     public static bool ContainsExactPacket(byte[] jpeg, byte[] xmp)
     {
         if (jpeg.Length < 4 || jpeg[0] != 0xFF || jpeg[1] != 0xD8)
