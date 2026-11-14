@@ -128,9 +128,27 @@ public static class AlbumMetadataClearService
                         // A failed WIC transcode can partially touch its source.
                         // Mark this before writing so the backup is restored.
                         imageModified = true;
-                        await EmbeddedMetadataWriter.WriteAsync(
-                            source, keywords: Array.Empty<string>(),
-                            flagged: embeddedFlag ? false : null);
+                        for (int attempt = 0; ; attempt++)
+                        {
+                            try
+                            {
+                                await EmbeddedMetadataWriter.WriteAsync(
+                                    source, keywords: Array.Empty<string>(),
+                                    flagged: embeddedFlag ? false : null);
+                                break;
+                            }
+                            catch (IOException) when (attempt < 4)
+                            {
+                                await Task.Delay(150 * (attempt + 1), cancellationToken);
+                            }
+                            catch (System.Runtime.InteropServices.COMException ex)
+                                when (attempt < 4 &&
+                                      (ex.HResult == unchecked((int)0x80070020) ||
+                                       ex.HResult == unchecked((int)0x80070021)))
+                            {
+                                await Task.Delay(150 * (attempt + 1), cancellationToken);
+                            }
+                        }
                         var remaining = metadataReader.ReadTags(source);
                         var remainingWic = await EmbeddedMetadataWriter.ReadKeywordsAsync(source);
                         if (remaining.Count > 0 || remainingWic.Count > 0)
