@@ -52,11 +52,8 @@
                     <ComboBoxItem Content="None" Tag="None" />
                     <ComboBoxItem Content="File Type" Tag="FileType" />
                     <ComboBoxItem Content="Media Type" Tag="MediaType" />
-                    <ComboBoxItem Content="Year Taken" Tag="YearTaken" Visibility="Collapsed" />
-                    <ComboBoxItem Content="Month Taken" Tag="MonthTaken" Visibility="Collapsed" />
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
                     <ComboBoxItem Content="Image Size" Tag="ImageSize" />
-                    <ComboBoxItem Content="Rating" Tag="Rating" Visibility="Collapsed" />
                     <ComboBoxItem Content="Camera" Tag="Camera" />
                 </ComboBox>
             </StackPanel>
@@ -75,7 +72,6 @@
                     <ComboBoxItem Content="Date Taken" Tag="DateTaken" />
                     <ComboBoxItem Content="Date Modified" Tag="DateModified" />
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
-                    <ComboBoxItem Content="Rating" Tag="Rating" Visibility="Collapsed" />
                 </ComboBox>
                 <Button x:Name="SortOrderBtn" Click="OnToggleSortOrder" ToolTipService.ToolTip="Toggle sort order"
                         Style="{StaticResource HiTechIconButtonStyle}">
