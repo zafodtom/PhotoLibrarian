@@ -40,6 +40,10 @@
     <None Include="..\PhotoLibrarian\Controls\VirtualizingPhotoGrid.xaml.cs"
           Link="TestAssets\VirtualizingPhotoGrid.xaml.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Services\PhotoOperationsService.cs"
+          Link="TestAssets\PhotoOperationsService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+
     <None Include="..\PhotoLibrarian\MainWindow.xaml"
           Link="TestAssets\MainWindow.xaml"
           CopyToOutputDirectory="PreserveNewest" />
