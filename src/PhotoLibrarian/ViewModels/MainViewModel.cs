@@ -1378,7 +1378,7 @@ public partial class MainViewModel : ObservableObject
             // reset does not miss files that have not yet entered the cache.
             await _indexingService.IndexFolderAsync(root, includeSubfolders: true,
                 cancellationToken);
-            var indexed = (await _imageRepo.GetAllAsync())
+            indexed = (await _imageRepo.GetAllAsync())
                 .Where(entry => entry.MediaType == MediaType.Image &&
                     !AlbumMetadataClearService.IsInternalAlbumPath(root, entry.FilePath) &&
                     FolderScannerService.IsPathOwnedByAlbumRoot(root, entry.FilePath))
