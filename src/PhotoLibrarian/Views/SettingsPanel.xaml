@@ -389,6 +389,59 @@
                         </Grid>
                     </Border>
 
+                    <!-- Album JPEG conversion: explicit preview and confirmation before modifying files. -->
+                    <Grid Height="34" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Width="4" Height="22"
+                                   Fill="{StaticResource HiTechAccentBrush}"
+                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                            <TextBlock Text="ALBUM // JPEG CONVERSION"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                            <TextBlock Text="LOCAL FILE CONVERSION + XMP EMBEDDING"
+                                       Style="{StaticResource HiTechTinyLabelStyle}" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Text="SEC // 03"
+                                   Style="{StaticResource HiTechTinyLabelStyle}"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Convert supported images in the active album to JPEG (including subfolders). Existing JPEGs with an XMP sidecar receive the full sidecar packet without recompression."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <TextBlock Text="Original files and sidecars are moved to a retained backup under .album/jpeg-conversion-backups. Existing destination JPEGs are never overwritten. RAW, video and unsupported formats are skipped. Non-JPEG images are lossy-encoded to JPEG."
+                                       TextWrapping="Wrap" FontSize="11"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="PreviewJpegConversionButton" Content="SCAN ALBUM"
+                                        Click="OnPreviewJpegConversion"
+                                        AutomationProperties.AutomationId="PreviewJpegConversionButton"
+                                        Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                                <Button x:Name="RunJpegConversionButton" Content="CONVERT TO JPG"
+                                        IsEnabled="False"
+                                        Click="OnRunJpegConversion"
+                                        AutomationProperties.AutomationId="RunJpegConversionButton"
+                                        Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                                <Button x:Name="CancelJpegConversionButton" Content="CANCEL"
+                                        IsEnabled="False"
+                                        Click="OnCancelJpegConversion"
+                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                            </StackPanel>
+                            <ProgressBar x:Name="JpegConversionProgressBar"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Visibility="Collapsed" />
+                            <TextBlock x:Name="JpegConversionStatusText"
+                                       Text="Scan the active album to preview the conversion."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechAccentBrush}" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- About section -->
                     <Grid Height="34" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
