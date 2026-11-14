@@ -438,7 +438,8 @@ public sealed partial class SettingsPanel : UserControl
 
     private async void OnPreviewJpegConversion(object sender, RoutedEventArgs e)
     {
-        if (!EnsureAlbumOpen(JpegConversionStatusText) || _jpegConversionBusy || _clearAlbumBusy)
+        if (!EnsureAlbumOpen(JpegConversionStatusText) || _jpegConversionBusy || _clearAlbumBusy ||
+            _thumbnailGenerationBusy)
             return;
 
         var root = App.CurrentAlbumPath!;
@@ -564,7 +565,7 @@ public sealed partial class SettingsPanel : UserControl
 
     private async void OnRunJpegConversion(object sender, RoutedEventArgs e)
     {
-        if (_jpegConversionBusy || _clearAlbumBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
+        if (_jpegConversionBusy || _clearAlbumBusy || _thumbnailGenerationBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
             !EnsureAlbumOpen(JpegConversionStatusText))
             return;
 
@@ -684,7 +685,8 @@ public sealed partial class SettingsPanel : UserControl
 
     private async Task ClearAlbumMetadataAsync(bool retryFailedOnly)
     {
-        if (_clearAlbumBusy || _jpegConversionBusy || App.ViewModel is null ||
+        if (_clearAlbumBusy || _jpegConversionBusy || _thumbnailGenerationBusy ||
+            App.ViewModel is null ||
             !EnsureAlbumOpen(ClearAlbumStatusText))
             return;
         var root = App.CurrentAlbumPath!;
@@ -885,6 +887,7 @@ public sealed partial class SettingsPanel : UserControl
         object sender,
         RoutedEventArgs e)
     {
+        if (_thumbnailGenerationBusy) return;
         if (ViewModel?.RebuildCacheCommand.CanExecute(null) == true)
         {
             await ViewModel.RebuildCacheCommand.ExecuteAsync(null);
