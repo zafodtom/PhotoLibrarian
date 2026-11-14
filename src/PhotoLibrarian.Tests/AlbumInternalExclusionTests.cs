@@ -28,7 +28,8 @@ public sealed class AlbumInternalExclusionTests
             var files = new List<string>();
             await foreach (var file in scanner.ScanFolderAsync(album))
                 files.Add(file);
-            Assert.Equal([original], files);
+            Assert.Single(files);
+            Assert.Equal(original, files[0]);
             await foreach (var file in scanner.ScanFolderAsync(Path.Combine(album, ".album")))
                 Assert.Fail("Internal metadata scans must not yield any files");
 
@@ -42,6 +43,36 @@ public sealed class AlbumInternalExclusionTests
         finally
         {
             Directory.Delete(album, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DirectIndexingOfBackupFileDoesNotAddCatalogEntry()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PL-private-" + Guid.NewGuid().ToString("N"));
+        var backup = Path.Combine(root, ".album", "metadata-reset-backups", "run-123");
+        Directory.CreateDirectory(backup);
+        try
+        {
+            var backupPhoto = Path.Combine(backup, "portrait.jpg");
+            await File.WriteAllBytesAsync(backupPhoto, [1, 2, 3]);
+            using var database = new PhotoLibrarian.Core.Data.CacheDatabase(
+                Path.Combine(root, "catalog.db"));
+            await database.InitializeAsync();
+            var images = new PhotoLibrarian.Core.Data.ImageRepository(database);
+            using var scanner = new FolderScannerService();
+            var indexer = new LibraryIndexingService(
+                database, images,
+                new PhotoLibrarian.Core.Data.TagRepository(database),
+                new PhotoLibrarian.Core.Data.FaceRepository(database),
+                scanner, new MetadataReaderService(), new FaceMetadataStore());
+            Assert.False(await indexer.IndexFileAsync(backupPhoto));
+            Assert.Null(await images.GetByPathAsync(backupPhoto));
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            Directory.Delete(root, recursive: true);
         }
     }
 
