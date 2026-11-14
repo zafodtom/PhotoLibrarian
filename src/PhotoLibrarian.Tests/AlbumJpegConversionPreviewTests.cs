@@ -19,6 +19,8 @@ public sealed class AlbumJpegConversionPreviewTests
             File.WriteAllText(Path.Combine(root, "c.xmp"), "<xmp />");
             File.WriteAllBytes(Path.Combine(root, "raw.cr3"), [1]);
             File.WriteAllBytes(Path.Combine(root, ".album", "jpeg-conversion-backups", "old", "hidden.png"), [1]);
+            Directory.CreateDirectory(Path.Combine(root, "different-album", ".album"));
+            File.WriteAllBytes(Path.Combine(root, "different-album", "foreign.png"), [1]);
 
             var preview = AlbumJpegConversionService.Preview(root);
             Assert.Equal(1, preview.ConvertCount);
