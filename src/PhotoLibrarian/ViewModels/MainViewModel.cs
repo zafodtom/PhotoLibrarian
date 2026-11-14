@@ -700,10 +700,21 @@ public partial class MainViewModel : ObservableObject
     private void StopBackgroundFaceDetection() =>
         _faceDetectionEnabled = false;
 
-    public Task<bool> PauseFaceDetectionAsync() =>
-        Task.FromResult(false);
+    // Legacy API is also used to fence image edits against background jobs.
+    // Preserve that synchronization for automatic tagging even though face
+    // detection itself is retired.
+    public async Task<bool> PauseFaceDetectionAsync()
+    {
+        var resumeAutoTagging = _autoTaggingEnabled;
+        await StopRecognitionAsync();
+        return resumeAutoTagging;
+    }
 
-    public void ResumeFaceDetection(bool shouldResume) { }
+    public void ResumeFaceDetection(bool shouldResume)
+    {
+        if (shouldResume && _autoTaggingEnabled)
+            StartRecognitionProcessing();
+    }
 
     /// <summary>
     /// Cancels the single recognition job and waits for it to unwind, so both
