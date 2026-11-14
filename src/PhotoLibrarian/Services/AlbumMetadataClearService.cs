@@ -60,7 +60,7 @@ public static class AlbumMetadataClearService
         System.Xml.Linq.XName flagged = System.Xml.Linq.XName.Get("Flagged", PlibNs);
         var targets = document.Descendants().Where(node =>
             node.Name == subject || node.Name == flagged).ToArray();
-        var attributes = document.Descendants().Attributes().Where(attribute =>
+        var attributes = document.Descendants().SelectMany(node => node.Attributes()).Where(attribute =>
             attribute.Name == subject || attribute.Name == flagged).ToArray();
         if (targets.Length == 0 && attributes.Length == 0)
             return false;
