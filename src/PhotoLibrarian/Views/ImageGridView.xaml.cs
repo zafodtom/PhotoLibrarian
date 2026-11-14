@@ -519,7 +519,7 @@ public sealed partial class ImageGridView : UserControl
     // Group By / Sort handlers
     private void OnGroupByChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ViewModel is null || GroupByCombo.SelectedItem is not ComboBoxItem item) return;
+        if (!_isInitialized || ViewModel is null || GroupByCombo.SelectedItem is not ComboBoxItem item) return;
         
         if (Enum.TryParse<GroupByOption>(item.Tag?.ToString(), out var groupBy))
         {
@@ -529,7 +529,7 @@ public sealed partial class ImageGridView : UserControl
     
     private void OnSortByChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ViewModel is null || SortByCombo.SelectedItem is not ComboBoxItem item) return;
+        if (!_isInitialized || ViewModel is null || SortByCombo.SelectedItem is not ComboBoxItem item) return;
         
         if (Enum.TryParse<SortByOption>(item.Tag?.ToString(), out var sortBy))
         {
@@ -554,12 +554,9 @@ public sealed partial class ImageGridView : UserControl
             GroupByOption.None => 0,
             GroupByOption.FileType => 1,
             GroupByOption.MediaType => 2,
-            GroupByOption.YearTaken => 3,
-            GroupByOption.MonthTaken => 4,
-            GroupByOption.FileSize => 5,
-            GroupByOption.ImageSize => 6,
-            GroupByOption.Rating => 7,
-            GroupByOption.Camera => 8,
+            GroupByOption.FileSize => 3,
+            GroupByOption.ImageSize => 4,
+            GroupByOption.Camera => 5,
             _ => 0
         };
         
@@ -576,8 +573,7 @@ public sealed partial class ImageGridView : UserControl
             SortByOption.DateTaken => 1,
             SortByOption.DateModified => 2,
             SortByOption.FileSize => 3,
-            SortByOption.Rating => 4,
-            _ => 1
+            _ => 0
         };
         
         SortByCombo.SelectedIndex = index;
