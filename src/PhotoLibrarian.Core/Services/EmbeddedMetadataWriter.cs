@@ -124,6 +124,27 @@ public static class EmbeddedMetadataWriter
         return Array.Empty<string>();
     }
 
+    /// <summary>
+    /// Removes Windows photo keywords through the writable ImageProperties
+    /// collection. Unlike writing an empty System.Keywords bitmap property,
+    /// this invokes the Shell property handler's deletion policy across
+    /// supported XMP/IPTC/EXIF keyword locations.
+    /// </summary>
+    public static async Task ClearKeywordsUsingFilePropertiesAsync(string filePath)
+    {
+        if (!IsSupported(filePath))
+            throw new NotSupportedException(
+                $"Format not supported for keyword removal: {Path.GetExtension(filePath)}");
+
+        var file = await StorageFile.GetFileFromPathAsync(filePath);
+        var properties = await file.Properties.GetImagePropertiesAsync();
+        if (properties.Keywords.Count == 0)
+            return;
+
+        properties.Keywords.Clear();
+        await properties.SavePropertiesAsync();
+    }
+
     // -----------------------------------------------------------------
     //  Internals
     // -----------------------------------------------------------------
