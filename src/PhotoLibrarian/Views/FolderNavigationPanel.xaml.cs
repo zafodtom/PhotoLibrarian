@@ -1486,14 +1486,36 @@ public sealed partial class FolderNavigationPanel : UserControl
 
             var copy = new MenuFlyoutItem { Text = "Copy" };
             copy.Click += async (_, _) =>
-                await Services.PhotoOperationsService
-                    .CopyPathsToClipboardAsync([targetPath], cut: false);
+            {
+                try
+                {
+                    await Services.PhotoOperationsService
+                        .CopyPathsToClipboardAsync([targetPath], cut: false);
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.WriteLine($"[CLIPBOARD] Folder copy failed: {ex}");
+                    if (App.ViewModel is { } main)
+                        main.StatusText = $"Could not copy folder: {ex.Message}";
+                }
+            };
             menu.Items.Add(copy);
 
             var cut = new MenuFlyoutItem { Text = "Cut" };
             cut.Click += async (_, _) =>
-                await Services.PhotoOperationsService
-                    .CopyPathsToClipboardAsync([targetPath], cut: true);
+            {
+                try
+                {
+                    await Services.PhotoOperationsService
+                        .CopyPathsToClipboardAsync([targetPath], cut: true);
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.WriteLine($"[CLIPBOARD] Folder cut failed: {ex}");
+                    if (App.ViewModel is { } main)
+                        main.StatusText = $"Could not cut folder: {ex.Message}";
+                }
+            };
             menu.Items.Add(cut);
 
             var rename = new MenuFlyoutItem { Text = "Rename…" };
