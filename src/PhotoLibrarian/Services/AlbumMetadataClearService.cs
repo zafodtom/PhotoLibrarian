@@ -202,30 +202,38 @@ public static class AlbumMetadataClearService
                         // dc:subject/our flag directly where possible, preserving
                         // encoded JPEG pixels, EXIF and unrelated APP segments.
                         // Other embedded keyword formats remain fail-closed.
-                        bool clearedJpegXmp = await TryClearJpegXmpAsync(source, cancellationToken);
-                        if (!clearedJpegXmp)
+                        await TryClearJpegXmpAsync(source, cancellationToken);
+
+                        // System.Keywords is a merged view over XMP, IPTC and
+                        // EXIF keyword fields. Cleaning only XMP is insufficient
+                        // when the other containers still hold old tags. Use the
+                        // Windows Shell deletion policy, not a zero-length WIC
+                        // StringArray (which fails with E_INVALIDARG).
+                        stage = "removing Windows photo keywords";
+                        for (int attempt = 0; ; attempt++)
                         {
-                            for (int attempt = 0; ; attempt++)
+                            try
                             {
-                                try
-                                {
-                                    await EmbeddedMetadataWriter.WriteAsync(
-                                        source, keywords: Array.Empty<string>(),
-                                        flagged: embeddedFlag ? false : null);
-                                    break;
-                                }
-                                catch (IOException) when (attempt < 4)
-                                {
-                                    await Task.Delay(150 * (attempt + 1), cancellationToken);
-                                }
-                                catch (System.Runtime.InteropServices.COMException ex)
-                                    when (attempt < 4 &&
-                                          (ex.HResult == unchecked((int)0x80070020) ||
-                                           ex.HResult == unchecked((int)0x80070021)))
-                                {
-                                    await Task.Delay(150 * (attempt + 1), cancellationToken);
-                                }
+                                await EmbeddedMetadataWriter.ClearKeywordsUsingFilePropertiesAsync(source);
+                                break;
                             }
+                            catch (IOException) when (attempt < 4)
+                            {
+                                await Task.Delay(150 * (attempt + 1), cancellationToken);
+                            }
+                            catch (System.Runtime.InteropServices.COMException ex)
+                                when (attempt < 4 &&
+                                      (ex.HResult == unchecked((int)0x80070020) ||
+                                       ex.HResult == unchecked((int)0x80070021)))
+                            {
+                                await Task.Delay(150 * (attempt + 1), cancellationToken);
+                            }
+                        }
+
+                        if (embeddedFlag)
+                        {
+                            stage = "clearing embedded PhotoLibrarian flag";
+                            await EmbeddedMetadataWriter.WriteAsync(source, flagged: false);
                         }
                         stage = "verifying embedded metadata";
                         var remaining = metadataReader.ReadTags(source);
