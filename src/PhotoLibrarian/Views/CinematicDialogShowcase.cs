@@ -26,7 +26,6 @@ internal static class CinematicDialogShowcase
         var accent = fatal ? Brush(248, 43, 55) : warning ? Brush(255, 191, 40) : Brush(64, 204, 211);
         var dim = fatal ? Brush(47, 11, 15) : warning ? Brush(43, 31, 10) : Brush(9, 37, 41);
         var caption = fatal ? "SYSTEM ALERT // E-1047" : warning ? "USER CONFIRMATION // ALBUM" : "SYSTEM STATUS // SCAN";
-        var name = fatal ? "FATAL ERROR" : warning ? "WARNING" : "PROCESS COMPLETE";
         var subject = fatal ? "DATABASE INTEGRITY FAILURE" : warning ? "DELETE SELECTED ALBUM?" : "ALBUM SCAN FINISHED";
         var detail = fatal
             ? "The album database cannot be accessed safely. The current operation was stopped to protect your data."
@@ -34,6 +33,14 @@ internal static class CinematicDialogShowcase
                 ? "This is a visual demonstration only. In the real application, deleting an album requires explicit confirmation."
                 : "This example represents a successfully completed album scan. No actual files were scanned.";
         var glyph = fatal || warning ? "\uE7BA" : "\uE73E";
+        // ContentDialog is capped by the WinUI default width (548 px) unless
+        // its template resource is overridden. Keep the size responsive, too.
+        var availableWidth = Math.Max(420, root.Size.Width - 64);
+        var dialogWidth = Math.Min(800, availableWidth);
+        var panelWidth = dialogWidth - 42;
+        var compact = dialogWidth < 660;
+        var heroFont = compact ? 49 : 72;
+        var warningFont = compact ? 43 : 64;
 
         var stack = new StackPanel { Spacing = 13 };
         var header = new Grid();
@@ -41,39 +48,55 @@ internal static class CinematicDialogShowcase
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var headerText = Label(caption, 11, accent, true);
         header.Children.Add(headerText);
-        var safe = Label("VISUAL PREVIEW / NO ACTIONS", 10, Brush(153, 169, 177), false);
+        var safe = Label("PREVIEW ONLY", 10, Brush(153, 169, 177), false);
         Grid.SetColumn(safe, 1);
         header.Children.Add(safe);
         stack.Children.Add(header);
 
         // Industrial hazard stripes occupy their own region, not just a colored border.
-        var stripeRail = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7, Height = 12 };
-        for (var i = 0; i < 11; i++)
-            stripeRail.Children.Add(new Rectangle
+        // Short angular stripe segments stay inside the available width.
+        var hazard = new Grid { Height = 13, ColumnSpacing = 5 };
+        for (var i = 0; i < 13; i++)
+        {
+            hazard.ColumnDefinitions.Add(new ColumnDefinition
             {
-                Width = i % 3 == 0 ? 42 : 23,
-                Fill = accent,
-                Opacity = i % 3 == 0 ? 1 : 0.6
+                Width = new GridLength(i % 4 == 0 ? 1.7 : 1, GridUnitType.Star)
             });
-        stack.Children.Add(stripeRail);
+            var segment = new Polygon
+            {
+                Points = new Microsoft.UI.Xaml.Media.PointCollection
+                {
+                    new Windows.Foundation.Point(5, 0),
+                    new Windows.Foundation.Point(100, 0),
+                    new Windows.Foundation.Point(95, 13),
+                    new Windows.Foundation.Point(0, 13)
+                },
+                Stretch = Stretch.Fill,
+                Fill = accent,
+                Opacity = i % 4 == 0 ? 1 : 0.52
+            };
+            Grid.SetColumn(segment, i);
+            hazard.Children.Add(segment);
+        }
+        stack.Children.Add(hazard);
 
         var hero = new Grid { Background = dim, Padding = new Thickness(14, 16, 12, 18) };
-        hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) });
+        hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 88 : 124) });
         hero.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var emblem = new Border
         {
             BorderBrush = accent,
             BorderThickness = new Thickness(3),
-            Width = 92,
-            Height = 92,
+            Width = compact ? 72 : 104,
+            Height = compact ? 72 : 104,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Left,
             Child = new FontIcon
             {
                 Glyph = glyph,
                 FontFamily = new FontFamily("Segoe MDL2 Assets"),
-                FontSize = 65,
+                FontSize = compact ? 49 : 73,
                 Foreground = accent
             }
         };
@@ -81,19 +104,27 @@ internal static class CinematicDialogShowcase
         var titleStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 0 };
         if (fatal)
         {
-            titleStack.Children.Add(Label("FATAL", 72, accent, true));
-            titleStack.Children.Add(Label("ERROR", 72, accent, true));
+            titleStack.Children.Add(Label("FATAL", heroFont, accent, true));
+            titleStack.Children.Add(Label("ERROR", heroFont, accent, true));
         }
         else if (warning)
-            titleStack.Children.Add(Label("WARNING", 64, accent, true));
+            titleStack.Children.Add(Label("WARNING", warningFont, accent, true));
         else
         {
-            titleStack.Children.Add(Label("PROCESS", 46, accent, true));
-            titleStack.Children.Add(Label("COMPLETE", 46, accent, true));
+            titleStack.Children.Add(Label("PROCESS", compact ? 32 : 52, accent, true));
+            titleStack.Children.Add(Label("COMPLETE", compact ? 32 : 52, accent, true));
         }
         Grid.SetColumn(titleStack, 1);
         hero.Children.Add(titleStack);
         stack.Children.Add(hero);
+        // A secondary mechanical indicator: the frame changes intensity with
+        // severity without adding a fake status or unnecessary motion.
+        stack.Children.Add(new Rectangle
+        {
+            Height = fatal ? 5 : 3,
+            Fill = accent,
+            Opacity = fatal ? 1 : 0.78
+        });
 
         var subjectBorder = new Border
         {
@@ -110,7 +141,7 @@ internal static class CinematicDialogShowcase
             Foreground = Brush(215, 224, 229),
             FontSize = 14,
             TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 660
+            MaxWidth = panelWidth - 88
         });
 
         if (warning)
@@ -129,11 +160,11 @@ internal static class CinematicDialogShowcase
 
         var footer = new StackPanel { Spacing = 7 };
         footer.Children.Add(new Rectangle { Height = 3, Fill = accent, Opacity = 0.85 });
-        footer.Children.Add(Label("SHOWCASE MODE  //  BUTTONS ONLY NAVIGATE OR CLOSE THIS DEMONSTRATION", 10,
+        footer.Children.Add(Label("SHOWCASE ONLY  //  NO FILES OR DATA ARE MODIFIED", 10,
             Brush(162, 178, 185), false));
         stack.Children.Add(footer);
 
-        var outer = new Grid { MinWidth = 610, MaxWidth = 760 };
+        var outer = new Grid { Width = panelWidth, MaxWidth = 760 };
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(15) });
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var rail = new StackPanel { Background = dim, Spacing = 8, Padding = new Thickness(3, 12, 3, 12) };
@@ -163,8 +194,12 @@ internal static class CinematicDialogShowcase
             Background = Brush(7, 10, 14),
             BorderBrush = accent,
             BorderThickness = new Thickness(1),
-            MaxWidth = 830
+            Width = dialogWidth,
+            MaxWidth = dialogWidth
         };
+        // Override this specimen only, preserving all production dialogs.
+        dialog.Resources["ContentDialogMaxWidth"] = dialogWidth + 24d;
+        dialog.Resources["ContentDialogMinWidth"] = Math.Min(dialogWidth, 400d);
         if (Application.Current.Resources.TryGetValue("HiTechPrimaryButtonStyle", out var primary) && primary is Style ps)
             dialog.PrimaryButtonStyle = ps;
         if (Application.Current.Resources.TryGetValue("HiTechIconButtonStyle", out var close) && close is Style cs)
