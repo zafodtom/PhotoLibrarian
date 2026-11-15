@@ -395,7 +395,7 @@
                                 <NumberBox x:Name="RecentTagCountNumberBox"
                                            Header="VISIBLE RECENT TAGS"
                                            Minimum="0" Maximum="20" SmallChange="1" LargeChange="5"
-                                           SpinButtonPlacementMode="Compact"
+                                           SpinButtonPlacementMode="Hidden"
                                            Width="190"
                                            AutomationProperties.AutomationId="RecentTagCountNumberBox" />
                                 <Button x:Name="ClearRecentTagsButton"
