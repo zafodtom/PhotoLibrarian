@@ -22,9 +22,7 @@ ARM64/
 *.sln.docstates
 *.rsuser
 
-# Build Results
-[Dd]ebug/
-[Rr]elease/
+# C/C++ intermediate outputs
 *_i.c
 *_p.c
 *_h.h
