@@ -52,7 +52,7 @@ public sealed class ViewerTagFilteringRegressionTests
         deferred = deferred[..deferred.IndexOf("public async Task InitializeAsync()", StringComparison.Ordinal)];
 
         Assert.DoesNotContain("ImageViewer.UpdateLibraryImages", deferred);
-        Assert.Contains("if (ImageViewer.IsOpen)", viewer);
+        Assert.Contains("IsOpen && _currentIndex >= 0", viewer);
         Assert.Contains("RaiseCurrentEntryChanged();", viewer);
     }
 }
