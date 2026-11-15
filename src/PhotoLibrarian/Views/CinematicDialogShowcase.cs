@@ -72,13 +72,13 @@ internal static class CinematicDialogShowcase
             Child = new FontIcon
             {
                 Glyph = glyph,
-                FontFamily = new FontFamily("Segoe Fluent Icons"),
+                FontFamily = new FontFamily("Segoe MDL2 Assets"),
                 FontSize = 65,
                 Foreground = accent
             }
         };
         hero.Children.Add(emblem);
-        var titleStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = -8 };
+        var titleStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 0 };
         if (fatal)
         {
             titleStack.Children.Add(Label("FATAL", 72, accent, true));
