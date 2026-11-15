@@ -105,6 +105,14 @@ public partial class ImageGridViewModel : ObservableObject
     public ObservableCollection<PhotoGroup> GroupedImages { get; } = [];
     public ImageRefinementFilter Refinement { get; private set; } = ImageRefinementFilter.Empty;
 
+    /// <summary>True when a metadata tag edit can change membership in the visible grid.</summary>
+    public bool HasTagDependentFilter =>
+        Refinement.RequiresTags ||
+        _currentTagRootSelected || _currentUntaggedSelected ||
+        _currentTagFilters is { Count: > 0 } ||
+        _currentExcludedTagFilters is { Count: > 0 };
+
+
     public event EventHandler? ResultsChanged;
 
     /// <summary>
