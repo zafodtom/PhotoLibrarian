@@ -10,8 +10,8 @@
 
 - **Windows x64:** download the current installer from [GitHub Releases](https://github.com/zafodtom/PhotoLibrarian/releases/latest).
 - **Aktualizace:** v aplikaci otevři **Settings → CHECK FOR UPDATES**. Kontrola se provádí ručně; běžné používání alba je offline.
-- **Podporovaná platforma:** Windows 10/11, Windows App SDK; build v .NET 8. Instalační soubor není digitálně podepsaný, takže Windows může zobrazit upozornění SmartScreen.
-- **Release workflow:** [Build and Release](.github/workflows/windows-installer-release.yml), ručně se zapnutým `publish_release` až po úspěšném CI. Viz [pokyny pro aktualizace](docs/UPDATES.md).
+- **Podporovaná platforma:** Windows 10/11, Windows App SDK; build v .NET 10. Instalační soubor není digitálně podepsaný, takže Windows může zobrazit upozornění SmartScreen.
+- **Release workflow:** [Build and Release](.github/workflows/windows-installer-release.yml), ručně se zapnutým `publish_release` (stable) nebo `publish_development` (DEV) až po úspěšném CI. Viz [pokyny pro aktualizace](docs/UPDATES.md).
 
 ## Main features / Hlavní funkce
 
@@ -54,10 +54,10 @@ Tyto hromadné operace zatím používej až po záloze a ideálně nejprve na t
 git clone https://github.com/zafodtom/PhotoLibrarian.git
 cd PhotoLibrarian
 dotnet build src/PhotoLibrarian/PhotoLibrarian.csproj -c Release
-dotnet test src/PhotoLibrarian.Tests/PhotoLibrarian.Tests.csproj -c Release
+dotnet run --project src/PhotoLibrarian.Tests/PhotoLibrarian.Tests.csproj -c Release -p:Platform=x64
 ```
 
-Pro vývoj je vhodné Visual Studio 2022 s Windows App SDK a .NET 8. Řešení obsahuje:
+Pro vývoj je vhodné aktuální Visual Studio s podporou .NET 10 a Windows App SDK. Řešení obsahuje:
 
 - `src/PhotoLibrarian`: WinUI 3 pohledy, navigace, editor, aplikace.
 - `src/PhotoLibrarian.Core`: indexace, metadata, datové služby a SQLite.
@@ -65,7 +65,7 @@ Pro vývoj je vhodné Visual Studio 2022 s Windows App SDK a .NET 8. Řešení o
 - `src/PhotoLibrarian.Tests`: automatické testy.
 - `tools/PhotoLibrarian.ModelBench`: samostatný experimentální nástroj pro srovnávání modelů (není to hlavní uživatelské rozhraní).
 
-Vývojové buildy pro Windows a kontroly MSIX/instalátoru běží v GitHub Actions. Stable release je samostatná vědomá publikace, nikoli automatický výsledek každého commitu.
+Windows CI a ručně spouštěné sestavení instalátoru běží v GitHub Actions. Stable release je samostatná vědomá publikace, nikoli automatický výsledek každého commitu.
 
 ## Existing but hidden functionality / Skryté a nepoužívané části
 

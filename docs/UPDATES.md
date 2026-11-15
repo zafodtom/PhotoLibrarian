@@ -13,8 +13,8 @@ PhotoLibrarian používá jeden GitHub repozitář a dva oddělené aktualizačn
 ## Development (volitelný)
 
 - Vývojové vydání může vzniknout **z libovolné větve kromě `master`**.
-- Po zavedení workflow do `master`: GitHub Actions → **PhotoLibrarian Windows Build and Release** → vybrat vývojovou větev → `publish_development=true` a `publish_release=false`.
-- Workflow po úspěšném sestavení a testech zveřejní GitHub **prerelease** s tagem `vX.Y.Z-dev.RUN_NUMBER`. Ten není označen jako nejnovější stabilní vydání.
+- GitHub Actions → **PhotoLibrarian Windows Build and Release** → vybrat vývojovou větev → `publish_development=true` a `publish_release=false`.
+- Workflow po úspěšném sestavení a testech zveřejní GitHub **prerelease** s tagem `vX.Y.Z-dev.N` (N se zvyšuje samostatně pro každou verzi). Ten není označen jako nejnovější stabilní vydání.
 - Pokud má větev stále verzi posledního stabilního vydání, workflow pro vývojový instalátor automaticky použije následující patch verzi bez přepsání `.csproj`.
 - `InformationalVersion` aplikace obsahuje číslo vývojového buildu, proto umí aktualizátor nabídnout další `-dev.N` vydání stejné číselné verze.
 - V aplikaci lze ve **Settings → SYSTEM // UPDATE CONTROL** zapnout **INCLUDE DEVELOPMENT UPDATES**. Nastavení se ukládá lokálně. Přepínač je výchozím stavem vypnutý.
@@ -26,6 +26,14 @@ PhotoLibrarian používá jeden GitHub repozitář a dva oddělené aktualizačn
 Aktualizátor používá oficiální GitHub Releases API, vyžaduje HTTPS adresu a přesný název instalátoru, kontroluje velikost souboru a jeho SHA-256 digest. Po potvrzení se instalátor stáhne do dočasné složky a update helper ho znovu ověří před spuštěním Inno Setup. Vypnutí vývojového kanálu samo o sobě neodinstaluje ani nedowngraduje vývojovou verzi.
 
 **Doporučení:** vývojové instalátory testovat na kopii alba. Neměnit najednou data všech alb, zejména při testování konverze JPEG, metadat nebo hromadného přesouvání souborů.
+
+## Ruční vydání následující DEV verze
+
+1. Ověřit úspěšné Windows CI změn ve větvi `develop/1.2.2`.
+2. GitHub → **Actions** → **PhotoLibrarian Windows Build and Release** → **Run workflow**.
+3. Zvolit větev `develop/1.2.2`, nastavit `publish_development=true` a `publish_release=false`.
+4. Workflow spustí sestavení, automatické testy, vytvoření instalátoru a zveřejnění prerelease. Pro poznámky DEV vydání použije `docs/releases/1.2.2-dev.md`.
+5. Ověřit instalaci a následnou aktualizaci v aplikaci se zapnutým vývojovým kanálem.
 
 ## CI a publikace
 
