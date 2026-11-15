@@ -34,6 +34,7 @@ public partial class MainViewModel : ObservableObject
     private bool _recognitionRescanRequested;
     private int _lastAutoTagTreeRefresh;
     private volatile bool _isShuttingDown;
+    private bool _pendingViewerTagFilterRefresh;
 
     public FolderNavigationViewModel FolderNav { get; }
     public DateNavigationViewModel DateNav { get; }
@@ -248,7 +249,31 @@ public partial class MainViewModel : ObservableObject
         if (entry is not null)
             MetadataPanel.ShowMetadata(entry);
         else
+        {
             ImageGrid.RefreshMetadataFromSelection();
+            if (_pendingViewerTagFilterRefresh)
+            {
+                _pendingViewerTagFilterRefresh = false;
+                // Run after the close event has restored the last-viewed selection.
+                _ = RefreshDeferredViewerTagFilterAsync();
+            }
+        }
+    }
+
+    private async Task RefreshDeferredViewerTagFilterAsync()
+    {
+        try
+        {
+            if (!_isShuttingDown && ImageGrid.Refinement.RequiresTags)
+            {
+                await ImageGrid.LoadImagesAsync();
+                ImageGrid.RefreshMetadataFromSelection();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TAGS] Deferred viewer filter refresh failed: {ex}");
+        }
     }
 
     public async Task InitializeAsync()
@@ -1002,7 +1027,12 @@ public partial class MainViewModel : ObservableObject
     public async Task RefreshTagsTreeAsync()
     {
         if (ImageGrid.Refinement.RequiresTags)
-            await ImageGrid.LoadImagesAsync();
+        {
+            if (ImageViewer.IsOpen)
+                _pendingViewerTagFilterRefresh = true;
+            else
+                await ImageGrid.LoadImagesAsync();
+        }
 
         if (App.MainWindow is MainWindow window)
         {
