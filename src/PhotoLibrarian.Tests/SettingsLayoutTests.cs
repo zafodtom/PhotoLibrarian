@@ -38,4 +38,20 @@ public sealed class SettingsLayoutTests
         var content = settings.Descendants(presentation + "ScrollViewer").ToArray();
         Assert.Contains(content, element => (string?)element.Attribute("Grid.Column") == "1");
     }
+    [Fact]
+    public void RecentTagNumberBoxIsInitializedOnlyAfterXamlConstruction()
+    {
+        // Assigning Value while XAML loads can trigger a ValueChanged callback
+        // before the SettingsPanel's other named elements exist.
+        var settings = XDocument.Load(Path.Combine(
+            AppContext.BaseDirectory, "TestAssets", "SettingsPanel.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var recentCount = settings.Descendants(presentation + "NumberBox")
+            .Single(element => (string?)element.Attribute(x + "Name") == "RecentTagCountNumberBox");
+
+        Assert.Null(recentCount.Attribute("Value"));
+        Assert.Null(recentCount.Attribute("ValueChanged"));
+    }
+
 }

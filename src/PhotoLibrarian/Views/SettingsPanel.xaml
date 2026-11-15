@@ -396,8 +396,7 @@
                                            Minimum="0" Maximum="20" SmallChange="1" LargeChange="5"
                                            SpinButtonPlacementMode="Compact"
                                            Width="190"
-                                           Value="5"
-                                           ValueChanged="OnRecentTagCountChanged" />
+                                           AutomationProperties.AutomationId="RecentTagCountNumberBox" />
                                 <Button x:Name="ClearRecentTagsButton"
                                         Content="CLEAR HISTORY"
                                         VerticalAlignment="Bottom"

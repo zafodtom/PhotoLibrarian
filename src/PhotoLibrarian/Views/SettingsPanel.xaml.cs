@@ -15,7 +15,13 @@ public sealed partial class SettingsPanel : UserControl
 
     public SettingsPanel()
     {
+        // NumberBox can raise ValueChanged while XAML is still constructing.
+        // Bind only after InitializeComponent, when all named controls exist.
+        _loadingRecentTagSettings = true;
         InitializeComponent();
+        RecentTagCountNumberBox.Value = RecentTagHistoryService.VisibleCount;
+        RecentTagCountNumberBox.ValueChanged += OnRecentTagCountChanged;
+        _loadingRecentTagSettings = false;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
