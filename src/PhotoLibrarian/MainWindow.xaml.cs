@@ -187,6 +187,9 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         this.InitializeComponent();
+        // Show the actual installed release tag, including -dev.N prereleases.
+        InstalledVersionStatusText.Text = GitHubUpdateService.InstalledTag;
+
         AppRoot.AddHandler(
             UIElement.PointerMovedEvent,
             new PointerEventHandler(OnUserPointerActivity),

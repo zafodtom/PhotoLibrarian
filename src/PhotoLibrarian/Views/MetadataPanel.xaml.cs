@@ -1,8 +1,5 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text.Json;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -10,11 +7,20 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using PhotoLibrarian.ViewModels;
+using PhotoLibrarian.Core.Services;
+using PhotoLibrarian.Services;
 using System;
 using System.Globalization;
 using System.Linq;
 
 namespace PhotoLibrarian.Views;
+
+/// <summary>A recent tag's leaf label with the unchanged full assignment path.</summary>
+public sealed record RecentTagShortcut(string FullTag)
+{
+    public string DisplayName =>
+        FullTag[(FullTag.LastIndexOf('/') + 1)..];
+}
 
 public sealed partial class MetadataPanel : UserControl
 {
@@ -25,13 +31,11 @@ public sealed partial class MetadataPanel : UserControl
     private bool _suppressDateBoxLostFocus;
     private string _lastLoadedDateText = "";
     private bool _suppressTagSuggestions;
-    private const int RecentTagLimit = 5;
-    private static readonly string RecentTagsDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "PhotoLibrarian", "recent-tags");
+    private bool _showingCompleteTagList;
+    private int _tagPickerEpoch;
     private string? _recentTagsAlbumPath;
     private readonly ObservableCollection<string> _recentTags = new();
-    private readonly ObservableCollection<string> _visibleRecentTags = new();
+    private readonly ObservableCollection<RecentTagShortcut> _visibleRecentTags = new();
 
     // Accepted date formats (in order). M/d/yyyy h:mm tt is the canonical one shown to user.
     private static readonly string[] AcceptedDateFormats = new[]
@@ -51,16 +55,42 @@ public sealed partial class MetadataPanel : UserControl
     {
         this.InitializeComponent();
         this.Loaded += OnLoaded;
+        this.Unloaded += OnUnloaded;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null) return;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ViewModel.Tags.CollectionChanged -= OnSelectedTagsChanged;
+        RecentTagHistoryService.Changed -= OnRecentHistoryChanged;
+        RecentTagHistoryService.Changed += OnRecentHistoryChanged;
         TagsList.ItemsSource = ViewModel.Tags;
         RecentTagsList.ItemsSource = _visibleRecentTags;
         ViewModel.Tags.CollectionChanged += OnSelectedTagsChanged;
         EnsureRecentTagsAlbum();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not null)
+        {
+            ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            ViewModel.Tags.CollectionChanged -= OnSelectedTagsChanged;
+        }
+        RecentTagHistoryService.Changed -= OnRecentHistoryChanged;
+        HideTagSuggestions();
+    }
+
+    private void OnRecentHistoryChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _recentTagsAlbumPath = null;
+            EnsureRecentTagsAlbum();
+            RefreshRecentTagsVisibility();
+        });
     }
 
     private void OnSelectedTagsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -186,14 +216,47 @@ public sealed partial class MetadataPanel : UserControl
     {
         if (ViewModel is null) return;
 
+        if (TagSuggestionsPanel.Visibility == Visibility.Visible)
+        {
+            HideTagSuggestions();
+            return;
+        }
+        // The explicit list stays open across multiple assignments.
+        _suppressTagSuggestions = true;
+        try { NewTagBox.Text = ""; }
+        finally { _suppressTagSuggestions = false; }
+        _showingCompleteTagList = true;
+        _tagPickerEpoch++;
         ShowTagSuggestions(ViewModel.AvailableTags);
         NewTagBox.Focus(FocusState.Programmatic);
+    }
+
+    private void OnNewTagBoxLostFocus(object sender, RoutedEventArgs e) =>
+        QueueCloseTagSuggestionsIfFocusOutside();
+
+    private void OnTagSuggestionPanelLostFocus(object sender, RoutedEventArgs e) =>
+        QueueCloseTagSuggestionsIfFocusOutside();
+
+    private void QueueCloseTagSuggestionsIfFocusOutside()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (TagSuggestionsPanel.Visibility != Visibility.Visible) return;
+            var focused = FocusManager.GetFocusedElement(XamlRoot) as DependencyObject;
+            for (var current = focused; current is not null; current = VisualTreeHelper.GetParent(current))
+                if (ReferenceEquals(current, NewTagBox) || ReferenceEquals(current, TagSuggestionsPanel))
+                    return;
+            HideTagSuggestions();
+        });
     }
 
     private void OnTagTextChanged(object sender, TextChangedEventArgs e)
     {
         if (_suppressTagSuggestions || ViewModel is null) return;
 
+        // Typing explicitly switches from browse mode to search mode.
+        _showingCompleteTagList = false;
+        _tagPickerEpoch++;
         var query = NewTagBox.Text?.Trim() ?? "";
         if (string.IsNullOrEmpty(query))
         {
@@ -202,8 +265,7 @@ public sealed partial class MetadataPanel : UserControl
         }
 
         var matches = ViewModel.AvailableTags
-            .Where(item => item.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
-            
+            .Where(item => TagSearchMatcher.Contains(item.Tag, query))
             .ToList();
 
         if (matches.Count == 0)
@@ -215,15 +277,42 @@ public sealed partial class MetadataPanel : UserControl
         ShowTagSuggestions(matches);
     }
 
-    private void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
+    private async void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is not AvailableTagItem chosen) return;
 
-        _suppressTagSuggestions = true;
-        NewTagBox.Text = chosen.Tag;
-        _suppressTagSuggestions = false;
+        var model = ViewModel;
+        if (model is null) return;
 
-        AddCurrentTag();
+        var keepOpen = _showingCompleteTagList;
+        var album = App.CurrentAlbumPath;
+        var offset = FindSuggestionsScrollViewer(TagSuggestionsList)?.VerticalOffset ?? 0;
+        var epoch = ++_tagPickerEpoch;
+
+        if (!keepOpen)
+        {
+            // Clear and close before awaiting the metadata write. A later
+            // completion must not reopen the search or clobber new input.
+            _suppressTagSuggestions = true;
+            try { NewTagBox.Text = ""; }
+            finally { _suppressTagSuggestions = false; }
+            HideTagSuggestions();
+        }
+        else
+        {
+            // Keep focus inside the picker during the async write.
+            NewTagBox.Focus(FocusState.Programmatic);
+        }
+
+        await AssignAndRememberTagAsync(chosen.Tag);
+        if (!keepOpen || epoch != _tagPickerEpoch ||
+            TagSuggestionsPanel.Visibility != Visibility.Visible ||
+            !ReferenceEquals(ViewModel, model) ||
+            !string.Equals(App.CurrentAlbumPath, album, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Replace the updated catalog without jumping to the beginning.
+        ShowTagSuggestions(model.AvailableTags, offset);
     }
 
     // Shared dark HUD host for inline tag dialogs. Keep native ContentDialog
@@ -489,22 +578,32 @@ public sealed partial class MetadataPanel : UserControl
 
     private async void OnToggleAlbumTagSelectionClick(object sender, RoutedEventArgs e)
     {
-        if (ViewModel is null ||
+        var model = ViewModel;
+        if (model is null ||
             sender is not Button { Tag: AvailableTagItem item })
             return;
 
-        await ViewModel.ToggleAlbumTagSelectionAsync(item);
+        var keepOpen = _showingCompleteTagList;
+        var album = App.CurrentAlbumPath;
+        var offset = FindSuggestionsScrollViewer(TagSuggestionsList)?.VerticalOffset ?? 0;
+        var epoch = ++_tagPickerEpoch;
 
-        // Keep the picker open and refresh its current contents after toggling.
-        var query = NewTagBox.Text?.Trim() ?? "";
-        var visible = string.IsNullOrEmpty(query)
-            ? ViewModel.AvailableTags.ToList()
-            : ViewModel.AvailableTags
-                .Where(tag => tag.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
-                
-                .ToList();
+        if (!keepOpen)
+        {
+            _suppressTagSuggestions = true;
+            try { NewTagBox.Text = ""; }
+            finally { _suppressTagSuggestions = false; }
+            HideTagSuggestions();
+        }
 
-        ShowTagSuggestions(visible);
+        await model.ToggleAlbumTagSelectionAsync(item);
+        if (keepOpen && epoch == _tagPickerEpoch &&
+            TagSuggestionsPanel.Visibility == Visibility.Visible &&
+            ReferenceEquals(ViewModel, model) &&
+            string.Equals(App.CurrentAlbumPath, album, StringComparison.OrdinalIgnoreCase))
+        {
+            ShowTagSuggestions(model.AvailableTags, offset);
+        }
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
@@ -552,16 +651,6 @@ public sealed partial class MetadataPanel : UserControl
             RememberTag(tag);
     }
 
-    private static string? GetAlbumRecentTagsFile(string? albumPath)
-    {
-        if (string.IsNullOrWhiteSpace(albumPath)) return null;
-        var normalized = Path.GetFullPath(albumPath)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .ToUpperInvariant();
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)));
-        return Path.Combine(RecentTagsDirectory, hash + ".json");
-    }
-
     private void EnsureRecentTagsAlbum()
     {
         var album = App.HasActiveAlbum ? App.CurrentAlbumPath : null;
@@ -570,49 +659,22 @@ public sealed partial class MetadataPanel : UserControl
 
         _recentTagsAlbumPath = album;
         _recentTags.Clear();
-        try
-        {
-            var file = GetAlbumRecentTagsFile(album);
-            if (file is not null && File.Exists(file))
-            {
-                var saved = JsonSerializer.Deserialize<string[]>(File.ReadAllText(file));
-                foreach (var tag in (saved ?? Array.Empty<string>())
-                    .Where(t => !string.IsNullOrWhiteSpace(t))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Take(RecentTagLimit))
-                    _recentTags.Add(tag.Trim());
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[RECENT TAGS] Album history load failed: {ex}");
-        }
+        foreach (var tag in RecentTagHistoryService.Load(album))
+            _recentTags.Add(tag);
         RefreshRecentTagsVisibility();
     }
 
     private void RememberTag(string tag)
     {
         EnsureRecentTagsAlbum();
-        tag = tag.Trim();
-        if (tag.Length == 0 || _recentTagsAlbumPath is null) return;
-        for (var i = _recentTags.Count - 1; i >= 0; i--)
-            if (string.Equals(_recentTags[i], tag, StringComparison.OrdinalIgnoreCase))
-                _recentTags.RemoveAt(i);
-        _recentTags.Insert(0, tag);
-        while (_recentTags.Count > RecentTagLimit)
-            _recentTags.RemoveAt(_recentTags.Count - 1);
-        RefreshRecentTagsVisibility();
+        if (_recentTagsAlbumPath is null) return;
         try
         {
-            var file = GetAlbumRecentTagsFile(_recentTagsAlbumPath);
-            if (file is null) return;
-            Directory.CreateDirectory(RecentTagsDirectory);
-            File.WriteAllText(file, JsonSerializer.Serialize(_recentTags.ToArray()));
+            RecentTagHistoryService.Remember(_recentTagsAlbumPath, tag);
         }
         catch (Exception ex)
         {
-            // Tag assignment must not fail merely because history cannot be saved.
-            System.Diagnostics.Debug.WriteLine($"[RECENT TAGS] Unable to save history: {ex}");
+            System.Diagnostics.Debug.WriteLine("[RECENT TAGS] Save failed: " + ex);
         }
     }
 
@@ -629,8 +691,13 @@ public sealed partial class MetadataPanel : UserControl
                 .Select(t => t.Tag)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var tag in _recentTags)
+            {
+                if (RecentTagHistoryService.VisibleCount == 0 ||
+                    _visibleRecentTags.Count >= RecentTagHistoryService.VisibleCount)
+                    break;
                 if (!fullyAssigned.Contains(tag))
-                    _visibleRecentTags.Add(tag);
+                    _visibleRecentTags.Add(new RecentTagShortcut(tag));
+            }
         }
 
         RecentTagsPanel.Visibility = _visibleRecentTags.Count > 0 &&
@@ -638,7 +705,8 @@ public sealed partial class MetadataPanel : UserControl
             ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void ShowTagSuggestions(IEnumerable<AvailableTagItem> tags)
+    private void ShowTagSuggestions(
+        IEnumerable<AvailableTagItem> tags, double? preserveVerticalOffset = null)
     {
         var items = tags.ToList();
         if (items.Count == 0)
@@ -650,10 +718,35 @@ public sealed partial class MetadataPanel : UserControl
         TagSuggestionsList.ItemsSource = items;
         TagSuggestionsPanel.Visibility = Visibility.Visible;
         RefreshRecentTagsVisibility();
+
+        if (preserveVerticalOffset is double offset)
+        {
+            // The ListView recreates item containers on ItemsSource replacement.
+            // Restore its inner ScrollViewer after WinUI has measured those items.
+            TagSuggestionsList.UpdateLayout();
+            var viewer = FindSuggestionsScrollViewer(TagSuggestionsList);
+            viewer?.ChangeView(null, offset, null, disableAnimation: true);
+            DispatcherQueue.TryEnqueue(() =>
+                FindSuggestionsScrollViewer(TagSuggestionsList)?
+                    .ChangeView(null, offset, null, disableAnimation: true));
+        }
+    }
+
+    private static ScrollViewer? FindSuggestionsScrollViewer(DependencyObject root)
+    {
+        if (root is ScrollViewer scrollViewer) return scrollViewer;
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var found = FindSuggestionsScrollViewer(VisualTreeHelper.GetChild(root, index));
+            if (found is not null) return found;
+        }
+        return null;
     }
 
     private void HideTagSuggestions()
     {
+        _showingCompleteTagList = false;
+        _tagPickerEpoch++;
         TagSuggestionsPanel.Visibility = Visibility.Collapsed;
         RefreshRecentTagsVisibility();
     }

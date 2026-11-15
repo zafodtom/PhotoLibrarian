@@ -11,9 +11,17 @@ public sealed partial class SettingsPanel : UserControl
     private SettingsViewModel? ViewModel =>
         App.ViewModel?.Settings;
 
+    private bool _loadingRecentTagSettings;
+
     public SettingsPanel()
     {
+        // NumberBox can raise ValueChanged while XAML is still constructing.
+        // Bind only after InitializeComponent, when all named controls exist.
+        _loadingRecentTagSettings = true;
         InitializeComponent();
+        RecentTagCountNumberBox.Value = RecentTagHistoryService.VisibleCount;
+        RecentTagCountNumberBox.ValueChanged += OnRecentTagCountChanged;
+        _loadingRecentTagSettings = false;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -26,6 +34,13 @@ public sealed partial class SettingsPanel : UserControl
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         UpdateCacheDisplay();
+        _loadingRecentTagSettings = true;
+        try { RecentTagCountNumberBox.Value = RecentTagHistoryService.VisibleCount; }
+        finally { _loadingRecentTagSettings = false; }
+        RecentTagsSettingsStatusText.Text = App.HasActiveAlbum
+            ? "Recent tag history is specific to the active album."
+            : "Open an album to clear its recent tag history.";
+        ClearRecentTagsButton.IsEnabled = App.HasActiveAlbum;
         InstalledVersionText.Text = GitHubUpdateService.InstalledTag.TrimStart('v');
         _loadingUpdateChannel = true;
         try { DevelopmentUpdatesToggle.IsOn = GitHubUpdateService.DevelopmentUpdatesEnabled; }
@@ -37,6 +52,7 @@ public sealed partial class SettingsPanel : UserControl
         if (ViewModel is not null)
             ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ResolveUpdateDecision(false);
+        _thumbnailGenerationCancellation?.Cancel();
     }
 
     private void OnViewModelPropertyChanged(
@@ -48,6 +64,78 @@ public sealed partial class SettingsPanel : UserControl
         {
             DispatcherQueue.TryEnqueue(UpdateCacheDisplay);
         }
+    }
+
+    private void OnRecentTagCountChanged(
+        NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_loadingRecentTagSettings || double.IsNaN(args.NewValue)) return;
+        var count = Math.Clamp((int)Math.Round(args.NewValue), 0,
+            RecentTagHistoryService.MaximumVisibleCount);
+        try
+        {
+            RecentTagHistoryService.SetVisibleCount(count);
+            if (sender.Value != count)
+            {
+                _loadingRecentTagSettings = true;
+                try { sender.Value = count; }
+                finally { _loadingRecentTagSettings = false; }
+            }
+            RecentTagsSettingsStatusText.Text =
+                $"Showing up to {count} recent tag(s) in the metadata panel.";
+        }
+        catch (Exception ex)
+        {
+            RecentTagsSettingsStatusText.Text =
+                "Unable to save recent tag count: " + ex.Message;
+        }
+    }
+
+    private void OnClearRecentTagHistory(object sender, RoutedEventArgs e)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+        {
+            RecentTagsSettingsStatusText.Text = "Open an album first.";
+            return;
+        }
+
+        try
+        {
+            RecentTagHistoryService.Clear(App.CurrentAlbumPath);
+            RecentTagsSettingsStatusText.Text =
+                "Recent tag history cleared for the active album. Assigned photo tags were not changed.";
+        }
+        catch (Exception ex)
+        {
+            RecentTagsSettingsStatusText.Text = "Unable to clear recent tags: " + ex.Message;
+        }
+    }
+
+    private void OnNavigateImport(object sender, RoutedEventArgs e) =>
+        NavigateToSettingsSection(ImportSectionHeader);
+
+    private void OnNavigateCache(object sender, RoutedEventArgs e) =>
+        NavigateToSettingsSection(CacheSectionHeader);
+
+    private void OnNavigateAlbum(object sender, RoutedEventArgs e) =>
+        NavigateToSettingsSection(AlbumSectionHeader);
+
+    private void OnNavigateAbout(object sender, RoutedEventArgs e) =>
+        NavigateToSettingsSection(AboutSectionHeader);
+
+    private void NavigateToSettingsSection(FrameworkElement sectionHeader)
+    {
+        // StartBringIntoView only scrolls far enough to make an element visible,
+        // which can leave its header at the bottom of the viewport.
+        // Reserve one viewport of extra space so even ABOUT can reach the top.
+        var viewer = SettingsContentScrollViewer;
+        SettingsNavigationEndSpacer.Height = Math.Max(0, viewer.ViewportHeight);
+
+        // The content stack is the coordinate space of the scrollable document.
+        // ChangeView uses an absolute scroll offset rather than minimal scrolling.
+        var point = sectionHeader.TransformToVisual(SettingsSectionsStack)
+            .TransformPoint(new Windows.Foundation.Point(0, 0));
+        viewer.ChangeView(null, Math.Max(0, point.Y), null, disableAnimation: true);
     }
 
     private void UpdateCacheDisplay()
@@ -425,7 +513,8 @@ public sealed partial class SettingsPanel : UserControl
 
     private async void OnPreviewJpegConversion(object sender, RoutedEventArgs e)
     {
-        if (!EnsureAlbumOpen(JpegConversionStatusText) || _jpegConversionBusy || _clearAlbumBusy)
+        if (!EnsureAlbumOpen(JpegConversionStatusText) || _jpegConversionBusy || _clearAlbumBusy ||
+            _thumbnailGenerationBusy)
             return;
 
         var root = App.CurrentAlbumPath!;
@@ -551,7 +640,7 @@ public sealed partial class SettingsPanel : UserControl
 
     private async void OnRunJpegConversion(object sender, RoutedEventArgs e)
     {
-        if (_jpegConversionBusy || _clearAlbumBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
+        if (_jpegConversionBusy || _clearAlbumBusy || _thumbnailGenerationBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
             !EnsureAlbumOpen(JpegConversionStatusText))
             return;
 
@@ -671,7 +760,8 @@ public sealed partial class SettingsPanel : UserControl
 
     private async Task ClearAlbumMetadataAsync(bool retryFailedOnly)
     {
-        if (_clearAlbumBusy || _jpegConversionBusy || App.ViewModel is null ||
+        if (_clearAlbumBusy || _jpegConversionBusy || _thumbnailGenerationBusy ||
+            App.ViewModel is null ||
             !EnsureAlbumOpen(ClearAlbumStatusText))
             return;
         var root = App.CurrentAlbumPath!;
@@ -807,10 +897,72 @@ public sealed partial class SettingsPanel : UserControl
         _clearAlbumCancellation?.Cancel();
     }
 
+    private CancellationTokenSource? _thumbnailGenerationCancellation;
+    private bool _thumbnailGenerationBusy;
+
+    private async void OnGenerateMissingThumbnails(object sender, RoutedEventArgs e)
+    {
+        if (_thumbnailGenerationBusy || _jpegConversionBusy || _clearAlbumBusy ||
+            !EnsureAlbumOpen(ThumbnailGenerationStatusText))
+            return;
+
+        var albumRoot = App.CurrentAlbumPath!;
+        _thumbnailGenerationBusy = true;
+        _thumbnailGenerationCancellation = new CancellationTokenSource();
+        GenerateMissingThumbnailsButton.IsEnabled = false;
+        CancelThumbnailGenerationButton.IsEnabled = true;
+        ThumbnailGenerationProgressBar.Value = 0;
+        ThumbnailGenerationProgressBar.Visibility = Visibility.Visible;
+        ThumbnailGenerationStatusText.Text = "Scanning album for missing 256px thumbnails…";
+        try
+        {
+            var progress = new Progress<AlbumThumbnailProgress>(value =>
+            {
+                ThumbnailGenerationProgressBar.Value = value.Total == 0
+                    ? 100 : 100d * value.Processed / value.Total;
+                ThumbnailGenerationStatusText.Text =
+                    $"THUMBNAILS // {value.Processed:N0}/{value.Total:N0} missing " +
+                    $"// {value.Generated:N0} generated // {value.Failed:N0} failed " +
+                    $"// {value.AlreadyCached:N0} already cached // {value.FileName}";
+            });
+            var result = await WindowsThumbnailService.GenerateMissingAlbumThumbnailsAsync(
+                albumRoot, progress, _thumbnailGenerationCancellation.Token);
+            ThumbnailGenerationStatusText.Text =
+                $"Finished: {result.Generated:N0} generated, " +
+                $"{result.AlreadyCached:N0} already cached, {result.Failed:N0} failed. " +
+                "Only missing thumbnails were generated. Cache has a 1 GB size limit.";
+            UpdateCacheDisplay();
+        }
+        catch (OperationCanceledException)
+        {
+            ThumbnailGenerationStatusText.Text =
+                "Thumbnail generation canceled. Already created thumbnails are retained.";
+        }
+        catch (Exception ex)
+        {
+            ThumbnailGenerationStatusText.Text = "Thumbnail generation failed: " + ex.Message;
+        }
+        finally
+        {
+            _thumbnailGenerationCancellation?.Dispose();
+            _thumbnailGenerationCancellation = null;
+            _thumbnailGenerationBusy = false;
+            GenerateMissingThumbnailsButton.IsEnabled = true;
+            CancelThumbnailGenerationButton.IsEnabled = false;
+        }
+    }
+
+    private void OnCancelThumbnailGeneration(object sender, RoutedEventArgs e)
+    {
+        CancelThumbnailGenerationButton.IsEnabled = false;
+        _thumbnailGenerationCancellation?.Cancel();
+    }
+
     private async void OnRebuildCache(
         object sender,
         RoutedEventArgs e)
     {
+        if (_thumbnailGenerationBusy) return;
         if (ViewModel?.RebuildCacheCommand.CanExecute(null) == true)
         {
             await ViewModel.RebuildCacheCommand.ExecuteAsync(null);
@@ -953,6 +1105,176 @@ public sealed partial class SettingsPanel : UserControl
             };
             await error.ShowAsync();
         }
+    }
+
+    // Visual-only dialog catalog. This is deliberately separate from production
+    // handlers: previews never invoke conversions, tag edits, deletion or updates.
+    private sealed record DialogPreview(
+        string Category, string Heading, string Message,
+        string Action, bool Warning = false, bool Maintenance = false,
+        bool EditFields = false);
+
+    private static readonly DialogPreview[] DialogPreviews =
+    [
+        new("Import", "IMPORT // DIGIKAM",
+            "Import an existing digiKam album and synchronize its local catalog.", "IMPORT", EditFields: true),
+        new("Import", "IMPORT // STASH",
+            "Connect a Stash export to the current album.", "IMPORT", EditFields: true),
+        new("Library", "ADD // FOLDER",
+            "Choose a photo folder and add it to the library.", "ADD FOLDER", EditFields: true),
+        new("Library", "REMOVE // FOLDER",
+            "Remove the selected folder from the library index.", "REMOVE", Warning: true),
+        new("Catalog", "TAG // CREATE",
+            "Create a new hierarchical tag in the album catalog.", "CREATE TAG", EditFields: true),
+        new("Catalog", "TAG // MODIFY",
+            "Rename or move the selected catalog tag.", "SAVE", EditFields: true),
+        new("Catalog", "TAG // REMOVE",
+            "Remove catalog entries while preserving existing photo assignments.", "REMOVE", Warning: true),
+        new("Catalog", "TAG // CATALOG CONTROL",
+            "Review and manage the hierarchical tag catalog.", "APPLY", EditFields: true),
+        new("Gallery", "REMOVE // IMAGE",
+            "Move selected photos to the Windows Recycle Bin.", "MOVE TO RECYCLE BIN", Warning: true),
+        new("Gallery", "RENAME // IMAGE",
+            "Rename the selected photo without altering its image content.", "RENAME", EditFields: true),
+        new("Gallery", "CLEAR // PHOTO TAGS",
+            "Remove manually assigned tags from selected images.", "CLEAR TAGS", Warning: true),
+        new("Album", "JPG // CONVERSION",
+            "Convert eligible images to JPEG with metadata migration and rollback support.", "CONVERT TO JPG", Maintenance: true),
+        new("Album", "METADATA // RESET",
+            "Clear album tag assignments after a backup is prepared.", "CLEAR METADATA", Warning: true, Maintenance: true),
+        new("Album", "METADATA // RETRY FAILED",
+            "Retry entries from a previous album maintenance operation.", "RETRY", Maintenance: true),
+        new("Album", "WARNING // ARCHIVE TERMINATION",
+            "The album index, sidecars and local cache will be removed; original photos stay intact.", "DELETE ALBUM", Warning: true),
+        new("System", "CACHE // REBUILD",
+            "Rebuild cached thumbnails and photo previews.", "REBUILD CACHE"),
+        new("System", "UPDATE // CONFIRMATION",
+            "A new verified PhotoLibrarian build is available. The installer will replace the current build.", "INSTALL UPDATE"),
+        new("System", "UPDATE // FAILED",
+            "The update could not be downloaded or validated.", "ACKNOWLEDGE", Warning: true),
+        new("System", "ERROR // OPERATION FAILED",
+            "An image or metadata operation failed. The underlying error is reported here.", "ACKNOWLEDGE", Warning: true),
+        new("System", "FATAL ERROR // ALBUM TERMINATION FAILED",
+            "Album data may be partially removed. Restart the application before retrying.", "ACKNOWLEDGE", Warning: true)
+    ];
+
+    private async void OnPreviewAllDialogsClick(object sender, RoutedEventArgs e)
+    {
+        PreviewAllDialogsButton.IsEnabled = false;
+        try
+        {
+            for (var index = 0; index < DialogPreviews.Length; index++)
+            {
+                var specimen = DialogPreviews[index];
+                var dialog = CreateStylePreviewDialog(specimen, index + 1, DialogPreviews.Length);
+                // NEXT is a navigation command only: no original operation runs.
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                    break;
+            }
+        }
+        finally
+        {
+            PreviewAllDialogsButton.IsEnabled = true;
+        }
+    }
+
+    private ContentDialog CreateStylePreviewDialog(DialogPreview preview, int index, int total)
+    {
+        if (preview.Maintenance)
+        {
+            // Reuse the real album-maintenance appearance, not an approximation.
+            var maintenance = CreateAlbumMaintenanceDialog(
+                preview.Heading, preview.Message, preview.Action + " (PREVIEW)", preview.Warning);
+            maintenance.CloseButtonText = "END PREVIEW";
+            maintenance.Content = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock { Text = $"PREVIEW {index:D2}/{total:D2}  //  SAFE MODE",
+                        FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                            Windows.UI.Color.FromArgb(255, 83, 215, 232)) },
+                    (UIElement)maintenance.Content
+                }
+            };
+            return maintenance;
+        }
+
+        var accent = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            preview.Warning
+                ? Windows.UI.Color.FromArgb(255, 255, 90, 108)
+                : Windows.UI.Color.FromArgb(255, 83, 215, 232));
+        var primary = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 230, 247, 250));
+        var surface = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 12, 19, 27));
+        var body = new StackPanel { Spacing = 12, MinWidth = 390, MaxWidth = 535 };
+        body.Children.Add(new TextBlock
+        {
+            Text = $"PREVIEW {index:D2}/{total:D2}  //  {preview.Category.ToUpperInvariant()}  //  SAFE MODE",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 11, Foreground = accent
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = preview.Heading,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 18,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = primary,
+            TextWrapping = TextWrapping.Wrap
+        });
+        body.Children.Add(new Border { Height = 2, Background = accent });
+        body.Children.Add(new TextBlock
+        {
+            Text = preview.Message,
+            Foreground = primary, TextWrapping = TextWrapping.Wrap
+        });
+        if (preview.EditFields)
+        {
+            var input = new TextBox
+            {
+                Header = "Preview input (not saved)",
+                Text = "Example value",
+                IsReadOnly = true
+            };
+            body.Children.Add(input);
+        }
+        body.Children.Add(new TextBlock
+        {
+            Text = "VISUAL CHECK ONLY  //  PRIMARY BUTTON SHOWS NEXT PREVIEW",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 10, Foreground = accent, TextWrapping = TextWrapping.Wrap
+        });
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+            Title = null,
+            Content = new Border
+            {
+                Padding = new Thickness(20),
+                Background = surface,
+                BorderBrush = accent,
+                BorderThickness = new Thickness(preview.Warning ? 2 : 1),
+                Child = body
+            },
+            PrimaryButtonText = preview.Action + " (PREVIEW)",
+            CloseButtonText = "END PREVIEW",
+            DefaultButton = ContentDialogButton.Close,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 7, 11, 16)),
+            BorderBrush = accent,
+            BorderThickness = new Thickness(1)
+        };
+        if (Application.Current.Resources.TryGetValue(
+                "HiTechPrimaryButtonStyle", out var primaryStyle) && primaryStyle is Style primaryButton)
+            dialog.PrimaryButtonStyle = primaryButton;
+        if (Application.Current.Resources.TryGetValue(
+                "HiTechIconButtonStyle", out var closeStyle) && closeStyle is Style closeButton)
+            dialog.CloseButtonStyle = closeButton;
+        return dialog;
     }
 
     private async void OnClose(

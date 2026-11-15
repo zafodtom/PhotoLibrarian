@@ -34,6 +34,8 @@ public partial class MainViewModel : ObservableObject
     private bool _recognitionRescanRequested;
     private int _lastAutoTagTreeRefresh;
     private volatile bool _isShuttingDown;
+    private bool _pendingViewerTagFilterRefresh;
+    private bool _deferredViewerTagRefreshRunning;
 
     public FolderNavigationViewModel FolderNav { get; }
     public DateNavigationViewModel DateNav { get; }
@@ -246,9 +248,52 @@ public partial class MainViewModel : ObservableObject
     private void OnViewerEntryChanged(ImageEntry? entry)
     {
         if (entry is not null)
+        {
             MetadataPanel.ShowMetadata(entry);
-        else
-            ImageGrid.RefreshMetadataFromSelection();
+            return;
+        }
+
+        // ClosedAtEntry already restored the last visible image first.
+        ImageGrid.RefreshMetadataFromSelection();
+        if (_pendingViewerTagFilterRefresh && !_deferredViewerTagRefreshRunning)
+            _ = RefreshDeferredViewerTagFilterAsync();
+    }
+
+    private async Task RefreshDeferredViewerTagFilterAsync()
+    {
+        _deferredViewerTagRefreshRunning = true;
+        try
+        {
+            // Allow ClosedAtEntry to synchronize the last-viewed selection.
+            await Task.Yield();
+
+            // A second metadata write can finish while the first deferred load
+            // is running. Coalesce them, but do not drop the newer request.
+            while (!_isShuttingDown && !ImageViewer.IsOpen &&
+                   _pendingViewerTagFilterRefresh)
+            {
+                _pendingViewerTagFilterRefresh = false;
+                if (!ImageGrid.HasTagDependentFilter)
+                    continue;
+
+                // The viewer keeps its navigation list while open; only the
+                // underlying gallery results are refreshed after closing.
+                await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
+            }
+
+            if (!_isShuttingDown && !ImageViewer.IsOpen)
+                ImageGrid.RefreshMetadataFromSelection();
+        }
+        catch (Exception ex)
+        {
+            _pendingViewerTagFilterRefresh = true;
+            System.Diagnostics.Debug.WriteLine(
+                $"[TAGS] Deferred viewer filter refresh failed: {ex}");
+        }
+        finally
+        {
+            _deferredViewerTagRefreshRunning = false;
+        }
     }
 
     public async Task InitializeAsync()
@@ -1001,8 +1046,13 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task RefreshTagsTreeAsync()
     {
-        if (ImageGrid.Refinement.RequiresTags)
-            await ImageGrid.LoadImagesAsync();
+        if (ImageGrid.HasTagDependentFilter)
+        {
+            if (ImageViewer.IsOpen || _deferredViewerTagRefreshRunning)
+                _pendingViewerTagFilterRefresh = true;
+            else
+                await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
+        }
 
         if (App.MainWindow is MainWindow window)
         {

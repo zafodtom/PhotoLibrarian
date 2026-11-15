@@ -105,65 +105,30 @@
                         <Rectangle Height="1"
                                    Fill="{StaticResource HiTechAccentMutedBrush}" />
 
-                        <Border Style="{StaticResource HiTechModuleStyle}"
-                                Padding="10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="32" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="01"
-                                           FontFamily="Consolas"
-                                           FontSize="14"
-                                           Foreground="{StaticResource HiTechAccentBrush}" />
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="IMPORT"
-                                               Style="{StaticResource HiTechSectionHeaderStyle}" />
-                                    <TextBlock Text="External metadata"
-                                               Style="{StaticResource HiTechTinyLabelStyle}" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <Border Style="{StaticResource HiTechModuleStyle}"
-                                Padding="10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="32" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="02"
-                                           FontFamily="Consolas"
-                                           FontSize="14"
-                                           Foreground="{StaticResource HiTechAccentBrush}" />
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="CACHE"
-                                               Style="{StaticResource HiTechSectionHeaderStyle}" />
-                                    <TextBlock Text="Local performance"
-                                               Style="{StaticResource HiTechTinyLabelStyle}" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <Border Style="{StaticResource HiTechModuleStyle}"
-                                Padding="10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="32" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="03"
-                                           FontFamily="Consolas"
-                                           FontSize="14"
-                                           Foreground="{StaticResource HiTechAccentBrush}" />
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="ABOUT"
-                                               Style="{StaticResource HiTechSectionHeaderStyle}" />
-                                    <TextBlock Text="Runtime identity"
-                                               Style="{StaticResource HiTechTinyLabelStyle}" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                        <Button Content="01  IMPORT"
+                                Click="OnNavigateImport"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                ToolTipService.ToolTip="External metadata"
+                                Style="{StaticResource HiTechIconButtonStyle}" />
+                        <Button Content="02  CACHE"
+                                Click="OnNavigateCache"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                ToolTipService.ToolTip="Thumbnails and storage"
+                                Style="{StaticResource HiTechIconButtonStyle}" />
+                        <Button Content="03  ALBUM"
+                                Click="OnNavigateAlbum"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                ToolTipService.ToolTip="Conversion and cleanup"
+                                Style="{StaticResource HiTechIconButtonStyle}" />
+                        <Button Content="04  ABOUT"
+                                Click="OnNavigateAbout"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,10"
+                                ToolTipService.ToolTip="Version and updates"
+                                Style="{StaticResource HiTechIconButtonStyle}" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="2" Spacing="5">
@@ -181,14 +146,15 @@
             </Border>
 
             <!-- Main settings modules -->
-            <ScrollViewer Grid.Column="1"
+            <ScrollViewer x:Name="SettingsContentScrollViewer" Grid.Column="1"
                           VerticalScrollBarVisibility="Auto">
-                <StackPanel Padding="24,18,28,24"
+                <StackPanel x:Name="SettingsSectionsStack"
+                            Padding="24,18,28,24"
                             Spacing="16"
                             MaxWidth="1050">
 
                     <!-- Import section -->
-                    <Grid Height="34">
+                    <Grid x:Name="ImportSectionHeader" Height="34">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -327,7 +293,7 @@
                     </Grid>
 
                     <!-- Cache section -->
-                    <Grid Height="34" Margin="0,10,0,0">
+                    <Grid x:Name="CacheSectionHeader" Height="34" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -389,8 +355,65 @@
                         </Grid>
                     </Border>
 
+                    <!-- Generate only missing 256px thumbnails for the active album. -->
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="THUMBNAIL // COMPLETE ALBUM"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                            <TextBlock Text="Scan the active album and generate missing 256px cache thumbnails. Existing valid cache entries are not regenerated. Internal .album files and nested albums are excluded."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="GenerateMissingThumbnailsButton"
+                                        Content="GENERATE MISSING THUMBNAILS"
+                                        Click="OnGenerateMissingThumbnails"
+                                        Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                                <Button x:Name="CancelThumbnailGenerationButton"
+                                        Content="CANCEL"
+                                        Click="OnCancelThumbnailGeneration"
+                                        IsEnabled="False"
+                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                            </StackPanel>
+                            <ProgressBar x:Name="ThumbnailGenerationProgressBar"
+                                         Minimum="0" Maximum="100" Visibility="Collapsed" />
+                            <TextBlock x:Name="ThumbnailGenerationStatusText"
+                                       Text="Thumbnail generation has not been run."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechAccentBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Album-specific recent tag shortcuts (global display count). -->
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="TAGS // RECENT HISTORY"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                            <TextBlock Text="Number of recently assigned tags shown below Add tag. Set 0 to hide the shortcuts. The history is kept separately for each album."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                <NumberBox x:Name="RecentTagCountNumberBox"
+                                           Header="VISIBLE RECENT TAGS"
+                                           Minimum="0" Maximum="20" SmallChange="1" LargeChange="5"
+                                           SpinButtonPlacementMode="Hidden"
+                                           Width="190"
+                                           AutomationProperties.AutomationId="RecentTagCountNumberBox" />
+                                <Button x:Name="ClearRecentTagsButton"
+                                        Content="CLEAR HISTORY"
+                                        VerticalAlignment="Bottom"
+                                        Click="OnClearRecentTagHistory"
+                                        AutomationProperties.AutomationId="ClearRecentTagsButton"
+                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                            </StackPanel>
+                            <TextBlock x:Name="RecentTagsSettingsStatusText"
+                                       Text="History changes apply to the current album only."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechAccentBrush}" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- Album JPEG conversion: explicit preview and confirmation before modifying files. -->
-                    <Grid Height="34" Margin="0,10,0,0">
+                    <Grid x:Name="AlbumSectionHeader" Height="34" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -498,8 +521,31 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Album deletion lives alongside conversion and reset actions. -->
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
+                        <StackPanel Spacing="9">
+                            <TextBlock Text="ALBUM // DELETE"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}"
+                                       Foreground="#FF7180" />
+                            <TextBlock Text="Remove the album catalog and associated XMP sidecars. Original photo and video files are preserved. Requires explicit confirmation."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                                <Button x:Name="DeleteAlbumButton"
+                                                    Content="DELETE ALBUM"
+                                                    Click="OnDeleteAlbum"
+                                                    Padding="18,10"
+                                                    FontFamily="Consolas"
+                                                    FontWeight="SemiBold"
+                                                    BorderBrush="#FF4657"
+                                                    BorderThickness="2"
+                                                    Background="#321016"
+                                                    Foreground="#FF7180"
+                                                    ToolTipService.ToolTip="Remove PhotoLibrarian catalog files; keep your photographs" />
+                        </StackPanel>
+                    </Border>
+
                     <!-- About section -->
-                    <Grid Height="34" Margin="0,10,0,0">
+                    <Grid x:Name="AboutSectionHeader" Height="34" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -590,24 +636,31 @@
                                     Style="{StaticResource HiTechPrimaryButtonStyle}"/>
                         </StackPanel>
                     </Border>
+
+                    <!-- Preview-only dialog style audit: no database or file mutations. -->
+                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16" Margin="0,10,0,0">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="DIAGNOSTICS // DIALOG PREVIEW"
+                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                            <TextBlock Text="Inspect application dialog styles in sequence. Preview buttons never execute their original operations."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
+                            <Button x:Name="PreviewAllDialogsButton"
+                                    Content="PREVIEW ALL DIALOGS"
+                                    AutomationProperties.AutomationId="PreviewAllDialogsButton"
+                                    HorizontalAlignment="Left"
+                                    Click="OnPreviewAllDialogsClick"
+                                    Style="{StaticResource HiTechPrimaryButtonStyle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Allow even the final ABOUT header to align at the top of
+                         the viewport when navigated to from the left panel. -->
+                    <Border x:Name="SettingsNavigationEndSpacer"
+                            Height="0"
+                            IsHitTestVisible="False" />
                 </StackPanel>
             </ScrollViewer>
-        </Grid>
-
-        <!-- Destructive album control: deliberately separate from cache actions -->
-        <Grid Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-              Margin="0,0,32,26">
-            <Button x:Name="DeleteAlbumButton"
-                    Content="DELETE ALBUM"
-                    Click="OnDeleteAlbum"
-                    Padding="18,10"
-                    FontFamily="Consolas"
-                    FontWeight="SemiBold"
-                    BorderBrush="#FF4657"
-                    BorderThickness="2"
-                    Background="#321016"
-                    Foreground="#FF7180"
-                    ToolTipService.ToolTip="Remove PhotoLibrarian catalog files; keep your photographs" />
         </Grid>
 
         <!-- Sci-fi archive confirmation surface reuses the application's HiTechTheme. -->
