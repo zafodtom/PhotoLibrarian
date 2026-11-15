@@ -66,9 +66,6 @@
           Link="TestAssets\AlbumJpegConversionService.cs"
           CopyToOutputDirectory="PreserveNewest" />
 
-    <None Include="..\PhotoLibrarian\Views\MetadataPanel.xaml.cs"
-          Link="TestAssets\MetadataPanel.xaml.cs"
-          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\PhotoLibrarian\Views\ImageViewerOverlay.xaml"
           Link="TestAssets\ImageViewerOverlay.xaml"
           CopyToOutputDirectory="PreserveNewest" />

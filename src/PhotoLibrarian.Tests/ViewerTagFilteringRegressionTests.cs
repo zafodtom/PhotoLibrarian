@@ -31,7 +31,7 @@ public sealed class ViewerTagFilteringRegressionTests
 
         Assert.Contains("ImageViewer.ClosedAtEntry += ImageGrid.SelectLastViewedImage;", main);
         Assert.Contains("ClosedAtEntry?.Invoke(lastDisplayedEntry);", viewer);
-        Assert.Contains("if (ImageViewer.IsOpen || _isCompleteTagPickerOpen ||", main);
+        Assert.Contains("if (ImageViewer.IsOpen || _deferredViewerTagRefreshRunning)", main);
         Assert.Contains("_pendingViewerTagFilterRefresh = true;", main);
         Assert.Contains("while (!_isShuttingDown && !ImageViewer.IsOpen &&", main);
         Assert.Contains("await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);", main);
