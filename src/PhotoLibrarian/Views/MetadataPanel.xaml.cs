@@ -227,6 +227,7 @@ public sealed partial class MetadataPanel : UserControl
         finally { _suppressTagSuggestions = false; }
         _showingCompleteTagList = true;
         _tagPickerEpoch++;
+        App.ViewModel?.SetCompleteTagPickerOpen(true);
         ShowTagSuggestions(ViewModel.AvailableTags);
         NewTagBox.Focus(FocusState.Programmatic);
     }
@@ -255,6 +256,8 @@ public sealed partial class MetadataPanel : UserControl
         if (_suppressTagSuggestions || ViewModel is null) return;
 
         // Typing explicitly switches from browse mode to search mode.
+        if (_showingCompleteTagList)
+            App.ViewModel?.SetCompleteTagPickerOpen(false);
         _showingCompleteTagList = false;
         _tagPickerEpoch++;
         var query = NewTagBox.Text?.Trim() ?? "";
@@ -739,6 +742,8 @@ public sealed partial class MetadataPanel : UserControl
 
     private void HideTagSuggestions()
     {
+        if (_showingCompleteTagList)
+            App.ViewModel?.SetCompleteTagPickerOpen(false);
         _showingCompleteTagList = false;
         _tagPickerEpoch++;
         TagSuggestionsPanel.Visibility = Visibility.Collapsed;

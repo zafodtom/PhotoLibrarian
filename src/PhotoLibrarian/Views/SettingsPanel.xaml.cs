@@ -1107,6 +1107,176 @@ public sealed partial class SettingsPanel : UserControl
         }
     }
 
+    // Visual-only dialog catalog. This is deliberately separate from production
+    // handlers: previews never invoke conversions, tag edits, deletion or updates.
+    private sealed record DialogPreview(
+        string Category, string Heading, string Message,
+        string Action, bool Warning = false, bool Maintenance = false,
+        bool EditFields = false);
+
+    private static readonly DialogPreview[] DialogPreviews =
+    [
+        new("Import", "IMPORT // DIGIKAM",
+            "Import an existing digiKam album and synchronize its local catalog.", "IMPORT", EditFields: true),
+        new("Import", "IMPORT // STASH",
+            "Connect a Stash export to the current album.", "IMPORT", EditFields: true),
+        new("Library", "ADD // FOLDER",
+            "Choose a photo folder and add it to the library.", "ADD FOLDER", EditFields: true),
+        new("Library", "REMOVE // FOLDER",
+            "Remove the selected folder from the library index.", "REMOVE", Warning: true),
+        new("Catalog", "TAG // CREATE",
+            "Create a new hierarchical tag in the album catalog.", "CREATE TAG", EditFields: true),
+        new("Catalog", "TAG // MODIFY",
+            "Rename or move the selected catalog tag.", "SAVE", EditFields: true),
+        new("Catalog", "TAG // REMOVE",
+            "Remove catalog entries while preserving existing photo assignments.", "REMOVE", Warning: true),
+        new("Catalog", "TAG // CATALOG CONTROL",
+            "Review and manage the hierarchical tag catalog.", "APPLY", EditFields: true),
+        new("Gallery", "REMOVE // IMAGE",
+            "Move selected photos to the Windows Recycle Bin.", "MOVE TO RECYCLE BIN", Warning: true),
+        new("Gallery", "RENAME // IMAGE",
+            "Rename the selected photo without altering its image content.", "RENAME", EditFields: true),
+        new("Gallery", "CLEAR // PHOTO TAGS",
+            "Remove manually assigned tags from selected images.", "CLEAR TAGS", Warning: true),
+        new("Album", "JPG // CONVERSION",
+            "Convert eligible images to JPEG with metadata migration and rollback support.", "CONVERT TO JPG", Maintenance: true),
+        new("Album", "METADATA // RESET",
+            "Clear album tag assignments after a backup is prepared.", "CLEAR METADATA", Warning: true, Maintenance: true),
+        new("Album", "METADATA // RETRY FAILED",
+            "Retry entries from a previous album maintenance operation.", "RETRY", Maintenance: true),
+        new("Album", "WARNING // ARCHIVE TERMINATION",
+            "The album index, sidecars and local cache will be removed; original photos stay intact.", "DELETE ALBUM", Warning: true),
+        new("System", "CACHE // REBUILD",
+            "Rebuild cached thumbnails and photo previews.", "REBUILD CACHE"),
+        new("System", "UPDATE // CONFIRMATION",
+            "A new verified PhotoLibrarian build is available. The installer will replace the current build.", "INSTALL UPDATE"),
+        new("System", "UPDATE // FAILED",
+            "The update could not be downloaded or validated.", "ACKNOWLEDGE", Warning: true),
+        new("System", "ERROR // OPERATION FAILED",
+            "An image or metadata operation failed. The underlying error is reported here.", "ACKNOWLEDGE", Warning: true),
+        new("System", "FATAL ERROR // ALBUM TERMINATION FAILED",
+            "Album data may be partially removed. Restart the application before retrying.", "ACKNOWLEDGE", Warning: true)
+    ];
+
+    private async void OnPreviewAllDialogsClick(object sender, RoutedEventArgs e)
+    {
+        PreviewAllDialogsButton.IsEnabled = false;
+        try
+        {
+            for (var index = 0; index < DialogPreviews.Length; index++)
+            {
+                var specimen = DialogPreviews[index];
+                var dialog = CreateStylePreviewDialog(specimen, index + 1, DialogPreviews.Length);
+                // NEXT is a navigation command only: no original operation runs.
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                    break;
+            }
+        }
+        finally
+        {
+            PreviewAllDialogsButton.IsEnabled = true;
+        }
+    }
+
+    private ContentDialog CreateStylePreviewDialog(DialogPreview preview, int index, int total)
+    {
+        if (preview.Maintenance)
+        {
+            // Reuse the real album-maintenance appearance, not an approximation.
+            var maintenance = CreateAlbumMaintenanceDialog(
+                preview.Heading, preview.Message, preview.Action + " (PREVIEW)", preview.Warning);
+            maintenance.CloseButtonText = "END PREVIEW";
+            maintenance.Content = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock { Text = $"PREVIEW {index:D2}/{total:D2}  //  SAFE MODE",
+                        FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                            Windows.UI.Color.FromArgb(255, 83, 215, 232)) },
+                    (UIElement)maintenance.Content
+                }
+            };
+            return maintenance;
+        }
+
+        var accent = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            preview.Warning
+                ? Windows.UI.Color.FromArgb(255, 255, 90, 108)
+                : Windows.UI.Color.FromArgb(255, 83, 215, 232));
+        var primary = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 230, 247, 250));
+        var surface = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+            Windows.UI.Color.FromArgb(255, 12, 19, 27));
+        var body = new StackPanel { Spacing = 12, MinWidth = 390, MaxWidth = 535 };
+        body.Children.Add(new TextBlock
+        {
+            Text = $"PREVIEW {index:D2}/{total:D2}  //  {preview.Category.ToUpperInvariant()}  //  SAFE MODE",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 11, Foreground = accent
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = preview.Heading,
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 18,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = primary,
+            TextWrapping = TextWrapping.Wrap
+        });
+        body.Children.Add(new Border { Height = 2, Background = accent });
+        body.Children.Add(new TextBlock
+        {
+            Text = preview.Message,
+            Foreground = primary, TextWrapping = TextWrapping.Wrap
+        });
+        if (preview.EditFields)
+        {
+            var input = new TextBox
+            {
+                Header = "Preview input (not saved)",
+                Text = "Example value",
+                IsReadOnly = true
+            };
+            body.Children.Add(input);
+        }
+        body.Children.Add(new TextBlock
+        {
+            Text = "VISUAL CHECK ONLY  //  PRIMARY BUTTON SHOWS NEXT PREVIEW",
+            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+            FontSize = 10, Foreground = accent, TextWrapping = TextWrapping.Wrap
+        });
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = ElementTheme.Dark,
+            Title = null,
+            Content = new Border
+            {
+                Padding = new Thickness(20),
+                Background = surface,
+                BorderBrush = accent,
+                BorderThickness = new Thickness(preview.Warning ? 2 : 1),
+                Child = body
+            },
+            PrimaryButtonText = preview.Action + " (PREVIEW)",
+            CloseButtonText = "END PREVIEW",
+            DefaultButton = ContentDialogButton.Close,
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(255, 7, 11, 16)),
+            BorderBrush = accent,
+            BorderThickness = new Thickness(1)
+        };
+        if (Application.Current.Resources.TryGetValue(
+                "HiTechPrimaryButtonStyle", out var primaryStyle) && primaryStyle is Style primaryButton)
+            dialog.PrimaryButtonStyle = primaryButton;
+        if (Application.Current.Resources.TryGetValue(
+                "HiTechIconButtonStyle", out var closeStyle) && closeStyle is Style closeButton)
+            dialog.CloseButtonStyle = closeButton;
+        return dialog;
+    }
+
     private async void OnClose(
         object sender,
         RoutedEventArgs e)
