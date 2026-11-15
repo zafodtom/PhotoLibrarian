@@ -31,6 +31,8 @@ public sealed partial class MetadataPanel : UserControl
     private bool _suppressDateBoxLostFocus;
     private string _lastLoadedDateText = "";
     private bool _suppressTagSuggestions;
+    private bool _showingCompleteTagList;
+    private int _tagPickerEpoch;
     private string? _recentTagsAlbumPath;
     private readonly ObservableCollection<string> _recentTags = new();
     private readonly ObservableCollection<RecentTagShortcut> _visibleRecentTags = new();
@@ -219,6 +221,12 @@ public sealed partial class MetadataPanel : UserControl
             HideTagSuggestions();
             return;
         }
+        // The explicit list stays open across multiple assignments.
+        _suppressTagSuggestions = true;
+        try { NewTagBox.Text = ""; }
+        finally { _suppressTagSuggestions = false; }
+        _showingCompleteTagList = true;
+        _tagPickerEpoch++;
         ShowTagSuggestions(ViewModel.AvailableTags);
         NewTagBox.Focus(FocusState.Programmatic);
     }
@@ -246,6 +254,9 @@ public sealed partial class MetadataPanel : UserControl
     {
         if (_suppressTagSuggestions || ViewModel is null) return;
 
+        // Typing explicitly switches from browse mode to search mode.
+        _showingCompleteTagList = false;
+        _tagPickerEpoch++;
         var query = NewTagBox.Text?.Trim() ?? "";
         if (string.IsNullOrEmpty(query))
         {
@@ -270,22 +281,38 @@ public sealed partial class MetadataPanel : UserControl
     {
         if (e.ClickedItem is not AvailableTagItem chosen) return;
 
-        // Keep the entered filter, the open picker and the list scroll position
-        // while applying several tags in succession.
-        var scrollViewer = FindSuggestionsScrollViewer(TagSuggestionsList);
-        var scrollOffset = scrollViewer?.VerticalOffset ?? 0;
-        NewTagBox.Focus(FocusState.Programmatic);
-        await AssignAndRememberTagAsync(chosen.Tag);
+        var model = ViewModel;
+        if (model is null) return;
 
-        // A deliberate Escape or click outside during the asynchronous write
-        // still closes the picker; never reopen it afterward.
-        if (TagSuggestionsPanel.Visibility != Visibility.Visible || ViewModel is null)
+        var keepOpen = _showingCompleteTagList;
+        var album = App.CurrentAlbumPath;
+        var offset = FindSuggestionsScrollViewer(TagSuggestionsList)?.VerticalOffset ?? 0;
+        var epoch = ++_tagPickerEpoch;
+
+        if (!keepOpen)
+        {
+            // Clear and close before awaiting the metadata write. A later
+            // completion must not reopen the search or clobber new input.
+            _suppressTagSuggestions = true;
+            try { NewTagBox.Text = ""; }
+            finally { _suppressTagSuggestions = false; }
+            HideTagSuggestions();
+        }
+        else
+        {
+            // Keep focus inside the picker during the async write.
+            NewTagBox.Focus(FocusState.Programmatic);
+        }
+
+        await AssignAndRememberTagAsync(chosen.Tag);
+        if (!keepOpen || epoch != _tagPickerEpoch ||
+            TagSuggestionsPanel.Visibility != Visibility.Visible ||
+            !ReferenceEquals(ViewModel, model) ||
+            !string.Equals(App.CurrentAlbumPath, album, StringComparison.OrdinalIgnoreCase))
             return;
 
-        var query = NewTagBox.Text?.Trim() ?? "";
-        ShowTagSuggestions(
-            ViewModel.AvailableTags.Where(item => TagSearchMatcher.Contains(item.Tag, query)),
-            scrollOffset);
+        // Replace the updated catalog without jumping to the beginning.
+        ShowTagSuggestions(model.AvailableTags, offset);
     }
 
     // Shared dark HUD host for inline tag dialogs. Keep native ContentDialog
@@ -551,18 +578,32 @@ public sealed partial class MetadataPanel : UserControl
 
     private async void OnToggleAlbumTagSelectionClick(object sender, RoutedEventArgs e)
     {
-        if (ViewModel is null ||
+        var model = ViewModel;
+        if (model is null ||
             sender is not Button { Tag: AvailableTagItem item })
             return;
 
-        await ViewModel.ToggleAlbumTagSelectionAsync(item);
-
-        // Preserve the scroll position when pinning or unpinning a tag.
+        var keepOpen = _showingCompleteTagList;
+        var album = App.CurrentAlbumPath;
         var offset = FindSuggestionsScrollViewer(TagSuggestionsList)?.VerticalOffset ?? 0;
-        var query = NewTagBox.Text?.Trim() ?? "";
-        ShowTagSuggestions(
-            ViewModel.AvailableTags.Where(tag => TagSearchMatcher.Contains(tag.Tag, query)),
-            offset);
+        var epoch = ++_tagPickerEpoch;
+
+        if (!keepOpen)
+        {
+            _suppressTagSuggestions = true;
+            try { NewTagBox.Text = ""; }
+            finally { _suppressTagSuggestions = false; }
+            HideTagSuggestions();
+        }
+
+        await model.ToggleAlbumTagSelectionAsync(item);
+        if (keepOpen && epoch == _tagPickerEpoch &&
+            TagSuggestionsPanel.Visibility == Visibility.Visible &&
+            ReferenceEquals(ViewModel, model) &&
+            string.Equals(App.CurrentAlbumPath, album, StringComparison.OrdinalIgnoreCase))
+        {
+            ShowTagSuggestions(model.AvailableTags, offset);
+        }
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
@@ -704,6 +745,8 @@ public sealed partial class MetadataPanel : UserControl
 
     private void HideTagSuggestions()
     {
+        _showingCompleteTagList = false;
+        _tagPickerEpoch++;
         TagSuggestionsPanel.Visibility = Visibility.Collapsed;
         RefreshRecentTagsVisibility();
     }
