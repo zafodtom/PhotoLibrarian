@@ -7,8 +7,8 @@ using Microsoft.UI.Text;
 namespace PhotoLibrarian.Views;
 
 /// <summary>
-/// Design-only cinematic dialog specimens. No filesystem, database or album operations.
-/// Production dialog handlers are intentionally not connected to this factory.
+/// Shared cinematic presentation for previews and confirmations.
+/// This class never performs any filesystem, database or album operations.
 /// </summary>
 internal static class CinematicDialogShowcase
 {
@@ -19,7 +19,9 @@ internal static class CinematicDialogShowcase
 
     private static readonly FontFamily TechnicalFont = new("Consolas");
 
-    internal static ContentDialog Create(XamlRoot root, Variant variant)
+    internal static ContentDialog Create(XamlRoot root, Variant variant,
+        string? subjectOverride = null, string? detailOverride = null,
+        string? confirmLabel = null, bool preview = true, string? context = null)
     {
         var fatal = variant == Variant.Fatal;
         var warning = variant == Variant.Warning;
@@ -58,6 +60,8 @@ internal static class CinematicDialogShowcase
             Variant.Progress => "This is a static processing layout preview. No indexing is running and the counters below are examples.",
             _ => "This panel demonstrates an ordinary system message without an alarm. No settings are changed."
         };
+        subject = subjectOverride ?? subject;
+        detail = detailOverride ?? detail;
         var glyph = critical || warning ? "\uE7BA" : complete ? "\uE73E"
             : progress ? "\uE895" : "\uE946";
         // ContentDialog is capped by the WinUI default width (548 px) unless
@@ -75,7 +79,7 @@ internal static class CinematicDialogShowcase
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var headerText = Label(caption, 11, accent, true);
         header.Children.Add(headerText);
-        var safe = Label("PREVIEW ONLY", 10, Brush(153, 169, 177), false);
+        var safe = Label(preview ? "PREVIEW ONLY" : "ALBUM OPERATION", 10, Brush(153, 169, 177), false);
         Grid.SetColumn(safe, 1);
         header.Children.Add(safe);
         stack.Children.Add(header);
@@ -177,18 +181,18 @@ internal static class CinematicDialogShowcase
             MaxWidth = panelWidth - 88
         });
 
-        if (warning)
+        if (context is not null || (warning && preview))
         {
             stack.Children.Add(new Border
             {
                 Background = Brush(25, 29, 31),
                 Padding = new Thickness(12),
-                Child = Label("TARGET  //  Family Photos (example)", 13, Brush(230, 233, 236), false)
+                Child = Label("TARGET  //  " + (context ?? "Family Photos (example)"), 13, Brush(230, 233, 236), false)
             });
         }
-        else if (complete)
+        else if (complete && preview)
             stack.Children.Add(Label("PROCESSED  12,846    |    UPDATED  12,846    |    ERRORS  0   (EXAMPLE)", 12, accent, false));
-        else if (progress)
+        else if (progress && preview)
         {
             var track = new Grid { Height = 12, Background = Brush(28, 43, 52) };
             track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(37, GridUnitType.Star) });
@@ -197,14 +201,14 @@ internal static class CinematicDialogShowcase
             stack.Children.Add(track);
             stack.Children.Add(Label("PREVIEW  //  37% EXAMPLE  //  NO ACTIVE PROCESS", 12, accent, false));
         }
-        else if (error || fatal)
+        else if (preview && (error || fatal))
             stack.Children.Add(Label("SYSTEM STATE  //  OPERATION INTERRUPTED (EXAMPLE)", 12, accent, false));
-        else
+        else if (preview)
             stack.Children.Add(Label("STATUS  //  INFORMATION ONLY", 12, accent, false));
 
         var footer = new StackPanel { Spacing = 7 };
         footer.Children.Add(new Rectangle { Height = 3, Fill = accent, Opacity = 0.85 });
-        footer.Children.Add(Label("SHOWCASE ONLY  //  NO FILES OR DATA ARE MODIFIED", 10,
+        footer.Children.Add(Label(preview ? "SHOWCASE ONLY  //  NO FILES OR DATA ARE MODIFIED" : "REVIEW THE OPERATION BEFORE CONFIRMING", 10,
             Brush(162, 178, 185), false));
         stack.Children.Add(footer);
 
@@ -231,9 +235,15 @@ internal static class CinematicDialogShowcase
             XamlRoot = root,
             RequestedTheme = ElementTheme.Dark,
             Title = null,
-            Content = outer,
-            PrimaryButtonText = "NEXT PREVIEW",
-            CloseButtonText = "CLOSE SHOWCASE",
+            Content = new ScrollViewer
+            {
+                Content = outer,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                MaxHeight = Math.Max(300, root.Size.Height - 160)
+            },
+            PrimaryButtonText = preview ? "NEXT PREVIEW" : confirmLabel,
+            CloseButtonText = preview ? "CLOSE SHOWCASE" : "CANCEL",
             DefaultButton = ContentDialogButton.Close,
             Background = Brush(7, 10, 14),
             BorderBrush = accent,
