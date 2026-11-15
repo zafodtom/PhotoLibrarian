@@ -286,7 +286,6 @@ public sealed partial class MetadataPanel : UserControl
 
         var keepOpen = _showingCompleteTagList;
         var album = App.CurrentAlbumPath;
-        var offset = FindSuggestionsScrollViewer(TagSuggestionsList)?.VerticalOffset ?? 0;
         var epoch = ++_tagPickerEpoch;
 
         if (!keepOpen)
@@ -311,8 +310,11 @@ public sealed partial class MetadataPanel : UserControl
             !string.Equals(App.CurrentAlbumPath, album, StringComparison.OrdinalIgnoreCase))
             return;
 
-        // Replace the updated catalog without jumping to the beginning.
-        ShowTagSuggestions(model.AvailableTags, offset);
+        // Do not rebind ItemsSource after assigning from the complete list.
+        // A filtered gallery updates metadata and the tag catalog asynchronously,
+        // but the already open ListView must keep its existing item containers,
+        // keyboard focus and scroll position until explicitly dismissed.
+        // Opening the picker next time takes a fresh snapshot of AvailableTags.
     }
 
     // Shared dark HUD host for inline tag dialogs. Keep native ContentDialog
@@ -584,10 +586,6 @@ public sealed partial class MetadataPanel : UserControl
             return;
 
         var keepOpen = _showingCompleteTagList;
-        var album = App.CurrentAlbumPath;
-        var offset = FindSuggestionsScrollViewer(TagSuggestionsList)?.VerticalOffset ?? 0;
-        var epoch = ++_tagPickerEpoch;
-
         if (!keepOpen)
         {
             _suppressTagSuggestions = true;
@@ -597,13 +595,9 @@ public sealed partial class MetadataPanel : UserControl
         }
 
         await model.ToggleAlbumTagSelectionAsync(item);
-        if (keepOpen && epoch == _tagPickerEpoch &&
-            TagSuggestionsPanel.Visibility == Visibility.Visible &&
-            ReferenceEquals(ViewModel, model) &&
-            string.Equals(App.CurrentAlbumPath, album, StringComparison.OrdinalIgnoreCase))
-        {
-            ShowTagSuggestions(model.AvailableTags, offset);
-        }
+        // The clicked item's pin glyph already updates in place. Refreshing
+        // the entire ListView here would reset the scroll position.
+        // The next explicit open uses the rebuilt catalog.
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
