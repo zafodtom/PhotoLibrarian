@@ -14,6 +14,13 @@ using System.Linq;
 
 namespace PhotoLibrarian.Views;
 
+/// <summary>A recent tag's leaf label with the unchanged full assignment path.</summary>
+public sealed record RecentTagShortcut(string FullTag)
+{
+    public string DisplayName =>
+        FullTag[(FullTag.LastIndexOf('/') + 1)..];
+}
+
 public sealed partial class MetadataPanel : UserControl
 {
     private MetadataPanelViewModel? ViewModel => App.ViewModel?.MetadataPanel;
@@ -25,7 +32,7 @@ public sealed partial class MetadataPanel : UserControl
     private bool _suppressTagSuggestions;
     private string? _recentTagsAlbumPath;
     private readonly ObservableCollection<string> _recentTags = new();
-    private readonly ObservableCollection<string> _visibleRecentTags = new();
+    private readonly ObservableCollection<RecentTagShortcut> _visibleRecentTags = new();
 
     // Accepted date formats (in order). M/d/yyyy h:mm tt is the canonical one shown to user.
     private static readonly string[] AcceptedDateFormats = new[]
@@ -641,7 +648,7 @@ public sealed partial class MetadataPanel : UserControl
                     _visibleRecentTags.Count >= RecentTagHistoryService.VisibleCount)
                     break;
                 if (!fullyAssigned.Contains(tag))
-                    _visibleRecentTags.Add(tag);
+                    _visibleRecentTags.Add(new RecentTagShortcut(tag));
             }
         }
 
