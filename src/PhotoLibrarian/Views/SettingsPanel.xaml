@@ -148,7 +148,8 @@
             <!-- Main settings modules -->
             <ScrollViewer x:Name="SettingsContentScrollViewer" Grid.Column="1"
                           VerticalScrollBarVisibility="Auto">
-                <StackPanel Padding="24,18,28,24"
+                <StackPanel x:Name="SettingsSectionsStack"
+                            Padding="24,18,28,24"
                             Spacing="16"
                             MaxWidth="1050">
 
@@ -635,6 +636,12 @@
                                     Style="{StaticResource HiTechPrimaryButtonStyle}"/>
                         </StackPanel>
                     </Border>
+
+                    <!-- Allow even the final ABOUT header to align at the top of
+                         the viewport when navigated to from the left panel. -->
+                    <Border x:Name="SettingsNavigationEndSpacer"
+                            Height="0"
+                            IsHitTestVisible="False" />
                 </StackPanel>
             </ScrollViewer>
         </Grid>
