@@ -586,9 +586,6 @@ public sealed partial class MetadataPanel : UserControl
             return;
 
         var keepOpen = _showingCompleteTagList;
-        var album = App.CurrentAlbumPath;
-        var epoch = ++_tagPickerEpoch;
-
         if (!keepOpen)
         {
             _suppressTagSuggestions = true;
@@ -601,8 +598,6 @@ public sealed partial class MetadataPanel : UserControl
         // The clicked item's pin glyph already updates in place. Refreshing
         // the entire ListView here would reset the scroll position.
         // The next explicit open uses the rebuilt catalog.
-        _ = epoch;
-        _ = album;
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
