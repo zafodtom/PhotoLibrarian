@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using PhotoLibrarian.ViewModels;
+using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.Services;
 using System;
 using System.Globalization;
@@ -253,8 +254,7 @@ public sealed partial class MetadataPanel : UserControl
         }
 
         var matches = ViewModel.AvailableTags
-            .Where(item => item.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
-            
+            .Where(item => TagSearchMatcher.Contains(item.Tag, query))
             .ToList();
 
         if (matches.Count == 0)
@@ -266,15 +266,26 @@ public sealed partial class MetadataPanel : UserControl
         ShowTagSuggestions(matches);
     }
 
-    private void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
+    private async void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is not AvailableTagItem chosen) return;
 
-        _suppressTagSuggestions = true;
-        NewTagBox.Text = chosen.Tag;
-        _suppressTagSuggestions = false;
+        // Keep the entered filter, the open picker and the list scroll position
+        // while applying several tags in succession.
+        var scrollViewer = FindSuggestionsScrollViewer(TagSuggestionsList);
+        var scrollOffset = scrollViewer?.VerticalOffset ?? 0;
+        NewTagBox.Focus(FocusState.Programmatic);
+        await AssignAndRememberTagAsync(chosen.Tag);
 
-        AddCurrentTag();
+        // A deliberate Escape or click outside during the asynchronous write
+        // still closes the picker; never reopen it afterward.
+        if (TagSuggestionsPanel.Visibility != Visibility.Visible || ViewModel is null)
+            return;
+
+        var query = NewTagBox.Text?.Trim() ?? "";
+        ShowTagSuggestions(
+            ViewModel.AvailableTags.Where(item => TagSearchMatcher.Contains(item.Tag, query)),
+            scrollOffset);
     }
 
     // Shared dark HUD host for inline tag dialogs. Keep native ContentDialog
@@ -546,16 +557,12 @@ public sealed partial class MetadataPanel : UserControl
 
         await ViewModel.ToggleAlbumTagSelectionAsync(item);
 
-        // Keep the picker open and refresh its current contents after toggling.
+        // Preserve the scroll position when pinning or unpinning a tag.
+        var offset = FindSuggestionsScrollViewer(TagSuggestionsList)?.VerticalOffset ?? 0;
         var query = NewTagBox.Text?.Trim() ?? "";
-        var visible = string.IsNullOrEmpty(query)
-            ? ViewModel.AvailableTags.ToList()
-            : ViewModel.AvailableTags
-                .Where(tag => tag.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
-                
-                .ToList();
-
-        ShowTagSuggestions(visible);
+        ShowTagSuggestions(
+            ViewModel.AvailableTags.Where(tag => TagSearchMatcher.Contains(tag.Tag, query)),
+            offset);
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
@@ -657,7 +664,8 @@ public sealed partial class MetadataPanel : UserControl
             ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void ShowTagSuggestions(IEnumerable<AvailableTagItem> tags)
+    private void ShowTagSuggestions(
+        IEnumerable<AvailableTagItem> tags, double? preserveVerticalOffset = null)
     {
         var items = tags.ToList();
         if (items.Count == 0)
@@ -669,6 +677,29 @@ public sealed partial class MetadataPanel : UserControl
         TagSuggestionsList.ItemsSource = items;
         TagSuggestionsPanel.Visibility = Visibility.Visible;
         RefreshRecentTagsVisibility();
+
+        if (preserveVerticalOffset is double offset)
+        {
+            // The ListView recreates item containers on ItemsSource replacement.
+            // Restore its inner ScrollViewer after WinUI has measured those items.
+            TagSuggestionsList.UpdateLayout();
+            var viewer = FindSuggestionsScrollViewer(TagSuggestionsList);
+            viewer?.ChangeView(null, offset, null, disableAnimation: true);
+            DispatcherQueue.TryEnqueue(() =>
+                FindSuggestionsScrollViewer(TagSuggestionsList)?
+                    .ChangeView(null, offset, null, disableAnimation: true));
+        }
+    }
+
+    private static ScrollViewer? FindSuggestionsScrollViewer(DependencyObject root)
+    {
+        if (root is ScrollViewer scrollViewer) return scrollViewer;
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var found = FindSuggestionsScrollViewer(VisualTreeHelper.GetChild(root, index));
+            if (found is not null) return found;
+        }
+        return null;
     }
 
     private void HideTagSuggestions()
