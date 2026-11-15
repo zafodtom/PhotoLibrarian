@@ -208,7 +208,7 @@
                                                 <StackPanel Grid.Column="1">
                                                     <TextBlock Text="{x:Bind Name}"
                                                                FontSize="12" />
-                                                    <TextBlock Text="{x:Bind SourceLabel}"
+                                                    <TextBlock Text="{x:Bind SourceLabel, Mode=OneWay}"
                                                                FontSize="10"
                                                                Opacity="0.6" />
                                                 </StackPanel>
@@ -218,7 +218,7 @@
                                                         Padding="4,2"
                                                         Visibility="{x:Bind PinVisibility}"
                                                         ToolTipService.ToolTip="Pin/unpin in album catalog">
-                                                    <FontIcon Glyph="{x:Bind PinGlyph}"
+                                                    <FontIcon Glyph="{x:Bind PinGlyph, Mode=OneWay}"
                                                               FontSize="11" />
                                                 </Button>
                                                 <Button Grid.Column="3"
