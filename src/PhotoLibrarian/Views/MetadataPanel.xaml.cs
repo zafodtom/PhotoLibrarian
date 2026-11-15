@@ -25,6 +25,7 @@ public sealed partial class MetadataPanel : UserControl
     private bool _suppressDateBoxLostFocus;
     private string _lastLoadedDateText = "";
     private bool _suppressTagSuggestions;
+    private bool _showingCompleteTagList;
     private const int RecentTagLimit = 5;
     private static readonly string RecentTagsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -186,6 +187,10 @@ public sealed partial class MetadataPanel : UserControl
     {
         if (ViewModel is null) return;
 
+        _showingCompleteTagList = true;
+        _suppressTagSuggestions = true;
+        NewTagBox.Text = "";
+        _suppressTagSuggestions = false;
         ShowTagSuggestions(ViewModel.AvailableTags);
         NewTagBox.Focus(FocusState.Programmatic);
     }
@@ -195,6 +200,7 @@ public sealed partial class MetadataPanel : UserControl
         if (_suppressTagSuggestions || ViewModel is null) return;
 
         var query = NewTagBox.Text?.Trim() ?? "";
+        _showingCompleteTagList = false;
         if (string.IsNullOrEmpty(query))
         {
             HideTagSuggestions();
@@ -215,15 +221,23 @@ public sealed partial class MetadataPanel : UserControl
         ShowTagSuggestions(matches);
     }
 
-    private void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
+    private async void OnTagSuggestionItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is not AvailableTagItem chosen) return;
 
+        var keepOpen = _showingCompleteTagList;
+        await AssignAndRememberTagAsync(chosen.Tag);
         _suppressTagSuggestions = true;
-        NewTagBox.Text = chosen.Tag;
+        NewTagBox.Text = "";
         _suppressTagSuggestions = false;
 
-        AddCurrentTag();
+        if (keepOpen)
+        {
+            _showingCompleteTagList = true;
+            ShowTagSuggestions(ViewModel?.AvailableTags ?? Array.Empty<AvailableTagItem>());
+        }
+        else
+            HideTagSuggestions();
     }
 
     // Shared dark HUD host for inline tag dialogs. Keep native ContentDialog
@@ -495,16 +509,17 @@ public sealed partial class MetadataPanel : UserControl
 
         await ViewModel.ToggleAlbumTagSelectionAsync(item);
 
-        // Keep the picker open and refresh its current contents after toggling.
-        var query = NewTagBox.Text?.Trim() ?? "";
-        var visible = string.IsNullOrEmpty(query)
-            ? ViewModel.AvailableTags.ToList()
-            : ViewModel.AvailableTags
-                .Where(tag => tag.Tag.Contains(query, StringComparison.OrdinalIgnoreCase))
-                
-                .ToList();
-
-        ShowTagSuggestions(visible);
+        if (_showingCompleteTagList)
+        {
+            ShowTagSuggestions(ViewModel.AvailableTags);
+        }
+        else
+        {
+            _suppressTagSuggestions = true;
+            NewTagBox.Text = "";
+            _suppressTagSuggestions = false;
+            HideTagSuggestions();
+        }
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
@@ -654,6 +669,7 @@ public sealed partial class MetadataPanel : UserControl
 
     private void HideTagSuggestions()
     {
+        _showingCompleteTagList = false;
         TagSuggestionsPanel.Visibility = Visibility.Collapsed;
         RefreshRecentTagsVisibility();
     }
