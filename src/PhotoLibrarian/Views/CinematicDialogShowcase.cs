@@ -35,12 +35,12 @@ internal static class CinematicDialogShowcase
         var glyph = fatal || warning ? "\uE7BA" : "\uE73E";
         // ContentDialog is capped by the WinUI default width (548 px) unless
         // its template resource is overridden. Keep the size responsive, too.
-        var availableWidth = Math.Max(420, root.Size.Width - 64);
+        var availableWidth = Math.Max(380, root.Size.Width - 64);
         var dialogWidth = Math.Min(800, availableWidth);
-        var panelWidth = dialogWidth - 42;
+        var panelWidth = dialogWidth - 80;
         var compact = dialogWidth < 660;
-        var heroFont = compact ? 49 : 72;
-        var warningFont = compact ? 43 : 64;
+        var heroFont = compact ? (dialogWidth < 500 ? 39 : 49) : 72;
+        var warningFont = compact ? (dialogWidth < 500 ? 35 : 43) : 64;
 
         var stack = new StackPanel { Spacing = 13 };
         var header = new Grid();
