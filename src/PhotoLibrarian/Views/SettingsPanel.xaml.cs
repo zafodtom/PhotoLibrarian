@@ -1290,11 +1290,23 @@ public sealed partial class SettingsPanel : UserControl
     private async void OnShowcaseComplete(object sender, RoutedEventArgs e) =>
         await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Complete);
 
+    private async void OnShowcaseError(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Error);
+
+    private async void OnShowcaseInformation(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Information);
+
+    private async void OnShowcaseProgress(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Progress);
+
     private async void OnShowcaseSequence(object sender, RoutedEventArgs e) =>
         await ShowCinematicSpecimensAsync(
             CinematicDialogShowcase.Variant.Fatal,
+            CinematicDialogShowcase.Variant.Error,
             CinematicDialogShowcase.Variant.Warning,
-            CinematicDialogShowcase.Variant.Complete);
+            CinematicDialogShowcase.Variant.Complete,
+            CinematicDialogShowcase.Variant.Information,
+            CinematicDialogShowcase.Variant.Progress);
 
     private bool _cinematicShowcaseOpen;
 
