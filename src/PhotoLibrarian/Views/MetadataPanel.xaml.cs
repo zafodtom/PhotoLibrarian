@@ -226,11 +226,13 @@ public sealed partial class MetadataPanel : UserControl
         if (e.ClickedItem is not AvailableTagItem chosen) return;
 
         var keepOpen = _showingCompleteTagList;
-        await AssignAndRememberTagAsync(chosen.Tag);
         _suppressTagSuggestions = true;
         NewTagBox.Text = "";
         _suppressTagSuggestions = false;
+        if (!keepOpen)
+            HideTagSuggestions();
 
+        await AssignAndRememberTagAsync(chosen.Tag);
         if (keepOpen)
         {
             _showingCompleteTagList = true;
@@ -510,19 +512,18 @@ public sealed partial class MetadataPanel : UserControl
             sender is not Button { Tag: AvailableTagItem item })
             return;
 
-        await ViewModel.ToggleAlbumTagSelectionAsync(item);
-
-        if (_showingCompleteTagList)
-        {
-            ShowTagSuggestions(ViewModel.AvailableTags);
-        }
-        else
+        var keepOpen = _showingCompleteTagList;
+        if (!keepOpen)
         {
             _suppressTagSuggestions = true;
             NewTagBox.Text = "";
             _suppressTagSuggestions = false;
             HideTagSuggestions();
         }
+
+        await ViewModel.ToggleAlbumTagSelectionAsync(item);
+        if (keepOpen)
+            ShowTagSuggestions(ViewModel.AvailableTags);
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
