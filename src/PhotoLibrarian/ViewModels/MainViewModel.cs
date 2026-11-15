@@ -264,26 +264,24 @@ public partial class MainViewModel : ObservableObject
         _deferredViewerTagRefreshRunning = true;
         try
         {
-            // Let viewer close/selection notifications settle before rebuilding
-            // thumbnail results. Never reload the grid while the viewer is open.
+            // Allow ClosedAtEntry to synchronize the last-viewed selection.
             await Task.Yield();
-            if (_isShuttingDown || ImageViewer.IsOpen)
-                return;
 
-            if (!_pendingViewerTagFilterRefresh)
-                return;
+            // A second metadata write can finish while the first deferred load
+            // is running. Coalesce them, but do not drop the newer request.
+            while (!_isShuttingDown && !ImageViewer.IsOpen &&
+                   _pendingViewerTagFilterRefresh)
+            {
+                _pendingViewerTagFilterRefresh = false;
+                if (!ImageGrid.HasTagDependentFilter)
+                    continue;
 
-            _pendingViewerTagFilterRefresh = false;
-            if (!ImageGrid.HasTagDependentFilter)
-                return;
+                // The viewer keeps its navigation list while open; only the
+                // underlying gallery results are refreshed after closing.
+                await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
+            }
 
-            // The viewer keeps its own navigation snapshot until it closes;
-            // a tagged image that no longer matches the filter is correctly
-            // removed from the refreshed grid.
-            await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
-            if (ImageViewer.IsOpen)
-                _pendingViewerTagFilterRefresh = true;
-            else
+            if (!_isShuttingDown && !ImageViewer.IsOpen)
                 ImageGrid.RefreshMetadataFromSelection();
         }
         catch (Exception ex)
