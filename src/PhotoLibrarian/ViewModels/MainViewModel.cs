@@ -36,7 +36,6 @@ public partial class MainViewModel : ObservableObject
     private volatile bool _isShuttingDown;
     private bool _pendingViewerTagFilterRefresh;
     private bool _deferredViewerTagRefreshRunning;
-    private bool _isCompleteTagPickerOpen;
 
     public FolderNavigationViewModel FolderNav { get; }
     public DateNavigationViewModel DateNav { get; }
@@ -260,20 +259,6 @@ public partial class MainViewModel : ObservableObject
             _ = RefreshDeferredViewerTagFilterAsync();
     }
 
-    /// <summary>
-    /// A complete tag picker is a multi-edit transaction from the user's perspective.
-    /// Store tags immediately, but don't remove the selected image from a filtered
-    /// grid until the picker is dismissed (or the viewer is closed).
-    /// </summary>
-    public void SetCompleteTagPickerOpen(bool open)
-    {
-        if (_isCompleteTagPickerOpen == open) return;
-        _isCompleteTagPickerOpen = open;
-        if (!open && !ImageViewer.IsOpen &&
-            _pendingViewerTagFilterRefresh && !_deferredViewerTagRefreshRunning)
-            _ = RefreshDeferredViewerTagFilterAsync();
-    }
-
     private async Task RefreshDeferredViewerTagFilterAsync()
     {
         _deferredViewerTagRefreshRunning = true;
@@ -285,7 +270,7 @@ public partial class MainViewModel : ObservableObject
             // A second metadata write can finish while the first deferred load
             // is running. Coalesce them, but do not drop the newer request.
             while (!_isShuttingDown && !ImageViewer.IsOpen &&
-                   !_isCompleteTagPickerOpen && _pendingViewerTagFilterRefresh)
+                   _pendingViewerTagFilterRefresh)
             {
                 _pendingViewerTagFilterRefresh = false;
                 if (!ImageGrid.HasTagDependentFilter)
@@ -296,8 +281,7 @@ public partial class MainViewModel : ObservableObject
                 await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
             }
 
-            if (!_isShuttingDown && !ImageViewer.IsOpen &&
-                !_isCompleteTagPickerOpen)
+            if (!_isShuttingDown && !ImageViewer.IsOpen)
                 ImageGrid.RefreshMetadataFromSelection();
         }
         catch (Exception ex)
@@ -1064,8 +1048,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (ImageGrid.HasTagDependentFilter)
         {
-            if (ImageViewer.IsOpen || _isCompleteTagPickerOpen ||
-                _deferredViewerTagRefreshRunning)
+            if (ImageViewer.IsOpen || _deferredViewerTagRefreshRunning)
                 _pendingViewerTagFilterRefresh = true;
             else
                 await ImageGrid.LoadImagesAsync(scanDiskForMissingFiles: false);
