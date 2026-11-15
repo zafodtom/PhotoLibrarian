@@ -234,7 +234,10 @@ public sealed partial class MetadataPanel : UserControl
         if (keepOpen)
         {
             _showingCompleteTagList = true;
-            ShowTagSuggestions(ViewModel?.AvailableTags ?? Array.Empty<AvailableTagItem>());
+            if (ViewModel is not null)
+                ShowTagSuggestions(ViewModel.AvailableTags);
+            else
+                HideTagSuggestions();
         }
         else
             HideTagSuggestions();
