@@ -256,8 +256,8 @@ internal static class CinematicDialogShowcase
         dialog.Resources["ContentDialogMinWidth"] = Math.Min(dialogWidth, 400d);
         // Preview controls belong to the same severity palette as the panel.
         // Avoid the default blue WinUI accent, without changing app-wide styles.
-        dialog.PrimaryButtonStyle = ActionStyle(accent, dim, solid: false);
-        dialog.CloseButtonStyle = ActionStyle(accent, dim, solid: true);
+        dialog.PrimaryButtonStyle = ActionStyle(accent, dim, solid: !preview);
+        dialog.CloseButtonStyle = ActionStyle(accent, dim, solid: preview);
         return dialog;
     }
 
