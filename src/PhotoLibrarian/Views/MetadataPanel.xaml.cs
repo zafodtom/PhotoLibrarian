@@ -227,7 +227,6 @@ public sealed partial class MetadataPanel : UserControl
         finally { _suppressTagSuggestions = false; }
         _showingCompleteTagList = true;
         _tagPickerEpoch++;
-        App.ViewModel?.SetCompleteTagPickerOpen(true);
         ShowTagSuggestions(ViewModel.AvailableTags);
         NewTagBox.Focus(FocusState.Programmatic);
     }
@@ -256,8 +255,6 @@ public sealed partial class MetadataPanel : UserControl
         if (_suppressTagSuggestions || ViewModel is null) return;
 
         // Typing explicitly switches from browse mode to search mode.
-        if (_showingCompleteTagList)
-            App.ViewModel?.SetCompleteTagPickerOpen(false);
         _showingCompleteTagList = false;
         _tagPickerEpoch++;
         var query = NewTagBox.Text?.Trim() ?? "";
@@ -289,6 +286,7 @@ public sealed partial class MetadataPanel : UserControl
 
         var keepOpen = _showingCompleteTagList;
         var album = App.CurrentAlbumPath;
+        var offset = FindSuggestionsScrollViewer(TagSuggestionsList)?.VerticalOffset ?? 0;
         var epoch = ++_tagPickerEpoch;
 
         if (!keepOpen)
@@ -313,11 +311,8 @@ public sealed partial class MetadataPanel : UserControl
             !string.Equals(App.CurrentAlbumPath, album, StringComparison.OrdinalIgnoreCase))
             return;
 
-        // Do not rebind ItemsSource after assigning from the complete list.
-        // A filtered gallery updates metadata and the tag catalog asynchronously,
-        // but the already open ListView must keep its existing item containers,
-        // keyboard focus and scroll position until explicitly dismissed.
-        // Opening the picker next time takes a fresh snapshot of AvailableTags.
+        // Replace the updated catalog without jumping to the beginning.
+        ShowTagSuggestions(model.AvailableTags, offset);
     }
 
     // Shared dark HUD host for inline tag dialogs. Keep native ContentDialog
@@ -589,6 +584,10 @@ public sealed partial class MetadataPanel : UserControl
             return;
 
         var keepOpen = _showingCompleteTagList;
+        var album = App.CurrentAlbumPath;
+        var offset = FindSuggestionsScrollViewer(TagSuggestionsList)?.VerticalOffset ?? 0;
+        var epoch = ++_tagPickerEpoch;
+
         if (!keepOpen)
         {
             _suppressTagSuggestions = true;
@@ -598,9 +597,13 @@ public sealed partial class MetadataPanel : UserControl
         }
 
         await model.ToggleAlbumTagSelectionAsync(item);
-        // The clicked item's pin glyph already updates in place. Refreshing
-        // the entire ListView here would reset the scroll position.
-        // The next explicit open uses the rebuilt catalog.
+        if (keepOpen && epoch == _tagPickerEpoch &&
+            TagSuggestionsPanel.Visibility == Visibility.Visible &&
+            ReferenceEquals(ViewModel, model) &&
+            string.Equals(App.CurrentAlbumPath, album, StringComparison.OrdinalIgnoreCase))
+        {
+            ShowTagSuggestions(model.AvailableTags, offset);
+        }
     }
 
     private void OnNewTagKeyDown(object sender, KeyRoutedEventArgs e)
@@ -742,8 +745,6 @@ public sealed partial class MetadataPanel : UserControl
 
     private void HideTagSuggestions()
     {
-        if (_showingCompleteTagList)
-            App.ViewModel?.SetCompleteTagPickerOpen(false);
         _showingCompleteTagList = false;
         _tagPickerEpoch++;
         TagSuggestionsPanel.Visibility = Visibility.Collapsed;
