@@ -112,16 +112,31 @@ public sealed partial class SettingsPanel : UserControl
     }
 
     private void OnNavigateImport(object sender, RoutedEventArgs e) =>
-        ImportSectionHeader.StartBringIntoView();
+        NavigateToSettingsSection(ImportSectionHeader);
 
     private void OnNavigateCache(object sender, RoutedEventArgs e) =>
-        CacheSectionHeader.StartBringIntoView();
+        NavigateToSettingsSection(CacheSectionHeader);
 
     private void OnNavigateAlbum(object sender, RoutedEventArgs e) =>
-        AlbumSectionHeader.StartBringIntoView();
+        NavigateToSettingsSection(AlbumSectionHeader);
 
     private void OnNavigateAbout(object sender, RoutedEventArgs e) =>
-        AboutSectionHeader.StartBringIntoView();
+        NavigateToSettingsSection(AboutSectionHeader);
+
+    private void NavigateToSettingsSection(FrameworkElement sectionHeader)
+    {
+        // StartBringIntoView only scrolls far enough to make an element visible,
+        // which can leave its header at the bottom of the viewport.
+        // Reserve one viewport of extra space so even ABOUT can reach the top.
+        var viewer = SettingsContentScrollViewer;
+        SettingsNavigationEndSpacer.Height = Math.Max(0, viewer.ViewportHeight);
+
+        // The content stack is the coordinate space of the scrollable document.
+        // ChangeView uses an absolute scroll offset rather than minimal scrolling.
+        var point = sectionHeader.TransformToVisual(SettingsSectionsStack)
+            .TransformPoint(new Windows.Foundation.Point(0, 0));
+        viewer.ChangeView(null, Math.Max(0, point.Y), null, disableAnimation: true);
+    }
 
     private void UpdateCacheDisplay()
     {

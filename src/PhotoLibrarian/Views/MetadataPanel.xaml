@@ -53,8 +53,6 @@
                 <!-- ═══ Row 0: Editable sections ═══ -->
                 <Border Grid.Row="0"
                         Background="#66070D13"
-                        BorderBrush="{StaticResource HiTechBorderBrush}"
-                        BorderThickness="0,0,0,1"
                         Margin="0,0,0,8"
                         IsHitTestVisible="False" />
                 <StackPanel Grid.Row="0" Spacing="0">
@@ -248,15 +246,14 @@
                                 </ItemsRepeater.Layout>
                                 <ItemsRepeater.ItemTemplate>
                                     <DataTemplate>
-                                        <Button Content="{Binding}"
-                                                Tag="{Binding}"
+                                        <Button Content="{Binding DisplayName}"
+                                                Tag="{Binding FullTag}"
                                                 Click="OnRecentTagClick"
                                                 HorizontalAlignment="Stretch"
                                                 HorizontalContentAlignment="Left"
                                                 Padding="8,4"
                                                 FontSize="12"
-                                                ToolTipService.ToolTip="Assign this tag to selected photos"
-                                                AutomationProperties.Name="Assign recent tag" />
+                                                AutomationProperties.Name="{Binding FullTag}" />
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>
@@ -394,12 +391,15 @@
 
                 <!-- ═══ Row 1: Spacer (pushes info to bottom when viewport is tall) ═══ -->
 
-                <!-- ═══ Row 2: Information block ═══ -->
+                <!-- ═══ Row 2: Collapsible FILE / EXIF details (closed by default) ═══ -->
                 <Border Grid.Row="2"
                         Style="{StaticResource HiTechModuleStyle}"
                         Margin="0,10,0,10">
-                    <StackPanel Spacing="0">
-                        <Grid Margin="0,0,0,8">
+                    <Expander x:Name="FileExifExpander"
+                              IsExpanded="False"
+                              HorizontalAlignment="Stretch">
+                        <Expander.Header>
+                            <Grid Margin="0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
@@ -418,87 +418,88 @@
                                        Text="DATA"
                                        Style="{StaticResource HiTechTinyLabelStyle}"
                                        VerticalAlignment="Center" />
-                        </Grid>
-                        <Border Height="1"
-                                Background="{StaticResource HiTechAccentMutedBrush}"
-                                Margin="0,0,0,8" />
-
-                    <StackPanel Spacing="6">
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Filename:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoFileName" Style="{StaticResource InfoValueStyle}"
-                                       TextTrimming="CharacterEllipsis"
-                                       ToolTipService.ToolTip="{x:Bind InfoFileName.Text, Mode=OneWay}" />
-                        </Grid>
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Folder:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoFolder" Style="{StaticResource InfoValueStyle}"
-                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                                       ToolTipService.ToolTip="{x:Bind InfoFolder.Text, Mode=OneWay}" />
-                        </Grid>
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Size:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoFileSize" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid x:Name="InfoDimensionsRow">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Dimensions:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoDimensions" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid x:Name="InfoCameraRow">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Camera:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoCamera" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid Visibility="Collapsed">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Author:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoAuthor" Style="{StaticResource InfoValueStyle}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        </Grid>
-                        <Grid x:Name="InfoExposureRow">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Exposure:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoExposure" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid x:Name="InfoApertureRow">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Aperture:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoAperture" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid x:Name="InfoFocalLengthRow">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Focal length:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoFocalLength" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid x:Name="InfoIsoRow">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="ISO:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoIso" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid x:Name="InfoLatRow" Visibility="Collapsed">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Latitude:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoLatitude" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid x:Name="InfoLonRow" Visibility="Collapsed">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Longitude:" Style="{StaticResource InfoLabelStyle}" />
-                            <TextBlock Grid.Column="1" x:Name="InfoLongitude" Style="{StaticResource InfoValueStyle}" />
-                        </Grid>
-                        <Grid Margin="0,4,0,0">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Path:" Style="{StaticResource InfoLabelStyle}"
-                                       VerticalAlignment="Top" />
-                            <TextBlock Grid.Column="1" x:Name="InfoFilePath" Style="{StaticResource InfoValueStyle}"
-                                       FontSize="11" IsTextSelectionEnabled="True"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        </Grid>
-                    </StackPanel>
-                    </StackPanel>
+                            </Grid>
+                        </Expander.Header>
+                        <StackPanel Spacing="8">
+                            <Border Height="1"
+                                    Background="{StaticResource HiTechAccentMutedBrush}" />
+                            <StackPanel Spacing="6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Filename:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoFileName" Style="{StaticResource InfoValueStyle}"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTipService.ToolTip="{x:Bind InfoFileName.Text, Mode=OneWay}" />
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Folder:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoFolder" Style="{StaticResource InfoValueStyle}"
+                                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                               ToolTipService.ToolTip="{x:Bind InfoFolder.Text, Mode=OneWay}" />
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Size:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoFileSize" Style="{StaticResource InfoValueStyle}" />
+                                </Grid>
+                                <Grid x:Name="InfoDimensionsRow">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Dimensions:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoDimensions" Style="{StaticResource InfoValueStyle}" />
+                                </Grid>
+                                <Grid x:Name="InfoCameraRow">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Camera:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoCamera" Style="{StaticResource InfoValueStyle}" />
+                                </Grid>
+                                <Grid Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Author:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoAuthor" Style="{StaticResource InfoValueStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Grid>
+                                <Grid x:Name="InfoExposureRow">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Exposure:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoExposure" Style="{StaticResource InfoValueStyle}" />
+                                </Grid>
+                                <Grid x:Name="InfoApertureRow">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Aperture:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoAperture" Style="{StaticResource InfoValueStyle}" />
+                                </Grid>
+                                <Grid x:Name="InfoFocalLengthRow">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Focal length:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoFocalLength" Style="{StaticResource InfoValueStyle}" />
+                                </Grid>
+                                <Grid x:Name="InfoIsoRow">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="ISO:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoIso" Style="{StaticResource InfoValueStyle}" />
+                                </Grid>
+                                <Grid x:Name="InfoLatRow" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Latitude:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoLatitude" Style="{StaticResource InfoValueStyle}" />
+                                </Grid>
+                                <Grid x:Name="InfoLonRow" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Longitude:" Style="{StaticResource InfoLabelStyle}" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoLongitude" Style="{StaticResource InfoValueStyle}" />
+                                </Grid>
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Path:" Style="{StaticResource InfoLabelStyle}"
+                                               VerticalAlignment="Top" />
+                                    <TextBlock Grid.Column="1" x:Name="InfoFilePath" Style="{StaticResource InfoValueStyle}"
+                                               FontSize="11" IsTextSelectionEnabled="True"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Expander>
                 </Border>
             </Grid>
         </ScrollViewer>
