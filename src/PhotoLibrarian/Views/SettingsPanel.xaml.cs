@@ -914,72 +914,21 @@ public sealed partial class SettingsPanel : UserControl
 
         var root = App.CurrentAlbumPath;
         var xmpCount = AlbumService.FindAlbumXmpSidecars(root).Count;
-        var red = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            Windows.UI.Color.FromArgb(255, 255, 80, 94));
-        var text = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            Windows.UI.Color.FromArgb(255, 229, 240, 244));
-        var panel = new StackPanel { Spacing = 14, MinWidth = 500 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = "WARNING // ARCHIVE TERMINATION",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontSize = 19, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            Foreground = red
-        });
-        panel.Children.Add(new Border
-        {
-            Height = 3, Background = red
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "CRITICAL OPERATION  //  IRREVERSIBLE",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontSize = 13, Foreground = red
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "TARGET: " + root,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            TextWrapping = TextWrapping.Wrap, Foreground = text
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "PhotoLibrarian catalog, cache and matching album launchers will be deleted. " +
-                   $"All {xmpCount} XMP sidecar file(s) within this album will also be deleted, " +
-                   "including XMP originally created by other software. " +
-                   "Original image/video files and folders remain. Embedded metadata in images " +
-                   "is NOT reverted. Other standalone albums are excluded. The app will close.",
-            TextWrapping = TextWrapping.Wrap, Foreground = text
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "CONFIRMATION REQUIRED  //  ORIGINAL PHOTOS ARE PRESERVED",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontSize = 11,
-            Foreground = red
-        });
-        var dialog = new ContentDialog
-        {
-            Title = null,
-            Content = new Border
-            {
-                Padding = new Thickness(22),
-                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Windows.UI.Color.FromArgb(255, 12, 17, 26)),
-                BorderBrush = red,
-                BorderThickness = new Thickness(2),
-                Child = panel
-            },
-            PrimaryButtonText = "DELETE ALBUM",
-            CloseButtonText = "ABORT",
-            DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
-            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Windows.UI.Color.FromArgb(255, 9, 16, 24)),
-            BorderBrush = red,
-            BorderThickness = new Thickness(1),
-            XamlRoot = XamlRoot
-        };
+        // Preserve the complete deletion warning and its explicit Primary/Cancel gate.
+        var dialog = CinematicDialogShowcase.Create(
+            XamlRoot,
+            CinematicDialogShowcase.Variant.Warning,
+            subjectOverride: "DELETE ALBUM AND METADATA?",
+            detailOverride:
+                "PhotoLibrarian catalog, cache and matching album launchers will be deleted. " +
+                $"All {xmpCount} XMP sidecar file(s) within this album will also be deleted, " +
+                "including XMP originally created by other software. " +
+                "Original image/video files and folders remain. Embedded metadata in images " +
+                "is NOT reverted. Other standalone albums are excluded. The app will close. " +
+                "This operation is irreversible. Review your backups before proceeding.",
+            confirmLabel: "DELETE ALBUM",
+            preview: false,
+            context: root);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
@@ -992,49 +941,13 @@ public sealed partial class SettingsPanel : UserControl
         catch (Exception ex)
         {
             DeleteAlbumButton.IsEnabled = true;
-            var errorPanel = new StackPanel { Spacing = 12, MinWidth = 450 };
-            errorPanel.Children.Add(new TextBlock
-            {
-                Text = "FATAL ERROR // ALBUM TERMINATION FAILED",
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-                FontSize = 17,
-                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                Foreground = red
-            });
-            errorPanel.Children.Add(new Border { Height = 3, Background = red });
-            errorPanel.Children.Add(new TextBlock
-            {
-                Text = ex.Message,
-                Foreground = text,
-                TextWrapping = TextWrapping.Wrap
-            });
-            errorPanel.Children.Add(new TextBlock
-            {
-                Text = "ALBUM DATA MAY BE PARTIALLY REMOVED. RESTART BEFORE RETRYING.",
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-                Foreground = red,
-                TextWrapping = TextWrapping.Wrap
-            });
-            var error = new ContentDialog
-            {
-                Title = null,
-                Content = new Border
-                {
-                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                        Windows.UI.Color.FromArgb(255, 12, 17, 26)),
-                    BorderBrush = red,
-                    BorderThickness = new Thickness(2),
-                    Padding = new Thickness(20),
-                    Child = errorPanel
-                },
-                CloseButtonText = "ACKNOWLEDGE",
-                RequestedTheme = ElementTheme.Dark,
-                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Windows.UI.Color.FromArgb(255, 9, 16, 24)),
-                BorderBrush = red,
-                BorderThickness = new Thickness(1),
-                XamlRoot = XamlRoot
-            };
+            var error = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Fatal,
+                subjectOverride: "ALBUM TERMINATION FAILED",
+                detailOverride: ex.Message +
+                    "\n\nALBUM DATA MAY BE PARTIALLY REMOVED. RESTART BEFORE RETRYING.",
+                preview: false);
             await error.ShowAsync();
         }
     }
