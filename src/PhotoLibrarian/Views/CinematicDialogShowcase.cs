@@ -12,7 +12,7 @@ namespace PhotoLibrarian.Views;
 /// </summary>
 internal static class CinematicDialogShowcase
 {
-    internal enum Variant { Fatal, Warning, Complete }
+    internal enum Variant { Fatal, Error, Warning, Complete, Information, Progress }
 
     private static SolidColorBrush Brush(byte r, byte g, byte b) =>
         new(Windows.UI.Color.FromArgb(255, r, g, b));
@@ -23,16 +23,43 @@ internal static class CinematicDialogShowcase
     {
         var fatal = variant == Variant.Fatal;
         var warning = variant == Variant.Warning;
-        var accent = fatal ? Brush(248, 43, 55) : warning ? Brush(255, 191, 40) : Brush(64, 204, 211);
-        var dim = fatal ? Brush(47, 11, 15) : warning ? Brush(43, 31, 10) : Brush(9, 37, 41);
-        var caption = fatal ? "SYSTEM ALERT // E-1047" : warning ? "USER CONFIRMATION // ALBUM" : "SYSTEM STATUS // SCAN";
-        var subject = fatal ? "DATABASE INTEGRITY FAILURE" : warning ? "DELETE SELECTED ALBUM?" : "ALBUM SCAN FINISHED";
-        var detail = fatal
-            ? "The album database cannot be accessed safely. The current operation was stopped to protect your data."
-            : warning
-                ? "This is a visual demonstration only. In the real application, deleting an album requires explicit confirmation."
-                : "This example represents a successfully completed album scan. No actual files were scanned.";
-        var glyph = fatal || warning ? "\uE7BA" : "\uE73E";
+        var error = variant == Variant.Error;
+        var complete = variant == Variant.Complete;
+        var progress = variant == Variant.Progress;
+        var critical = fatal || error;
+        var accent = critical ? Brush(248, 43, 55) : warning ? Brush(255, 191, 40)
+            : complete ? Brush(64, 204, 211) : progress ? Brush(84, 161, 206) : Brush(154, 176, 191);
+        var dim = critical ? Brush(47, 11, 15) : warning ? Brush(43, 31, 10)
+            : complete ? Brush(9, 37, 41) : progress ? Brush(14, 29, 42) : Brush(24, 29, 37);
+        var caption = variant switch
+        {
+            Variant.Fatal => "SYSTEM ALERT // E-1047",
+            Variant.Error => "SYSTEM ERROR // E-041",
+            Variant.Warning => "USER CONFIRMATION // ALBUM",
+            Variant.Complete => "SYSTEM STATUS // SCAN",
+            Variant.Progress => "SYSTEM PROCESS // INDEXING",
+            _ => "SYSTEM MESSAGE // INFO"
+        };
+        var subject = variant switch
+        {
+            Variant.Fatal => "DATABASE INTEGRITY FAILURE",
+            Variant.Error => "METADATA WRITE FAILED",
+            Variant.Warning => "DELETE SELECTED ALBUM?",
+            Variant.Complete => "ALBUM SCAN FINISHED",
+            Variant.Progress => "INDEXING ALBUM CONTENT",
+            _ => "ALBUM SETTINGS"
+        };
+        var detail = variant switch
+        {
+            Variant.Fatal => "The album database cannot be accessed safely. The current operation was stopped to protect your data.",
+            Variant.Error => "The metadata file could not be updated because another application is using it. The affected file was not modified.",
+            Variant.Warning => "This is a visual demonstration only. In the real application, deleting an album requires explicit confirmation.",
+            Variant.Complete => "This example represents a successfully completed album scan. No actual files were scanned.",
+            Variant.Progress => "This is a static processing layout preview. No indexing is running and the counters below are examples.",
+            _ => "This panel demonstrates an ordinary system message without an alarm. No settings are changed."
+        };
+        var glyph = critical || warning ? "\uE7BA" : complete ? "\uE73E"
+            : progress ? "\uE895" : "\uE946";
         // ContentDialog is capped by the WinUI default width (548 px) unless
         // its template resource is overridden. Keep the size responsive, too.
         var availableWidth = Math.Max(380, root.Size.Width - 64);
@@ -109,11 +136,17 @@ internal static class CinematicDialogShowcase
         }
         else if (warning)
             titleStack.Children.Add(Label("WARNING", warningFont, accent, true));
-        else
+        else if (error)
+            titleStack.Children.Add(Label("ERROR", heroFont, accent, true));
+        else if (complete)
         {
             titleStack.Children.Add(Label("PROCESS", compact ? 32 : 52, accent, true));
             titleStack.Children.Add(Label("COMPLETE", compact ? 32 : 52, accent, true));
         }
+        else if (progress)
+            titleStack.Children.Add(Label("PROCESSING", compact ? 30 : 50, accent, true));
+        else
+            titleStack.Children.Add(Label("INFORMATION", compact ? 29 : 48, accent, true));
         Grid.SetColumn(titleStack, 1);
         hero.Children.Add(titleStack);
         stack.Children.Add(hero);
@@ -153,10 +186,21 @@ internal static class CinematicDialogShowcase
                 Child = Label("TARGET  //  Family Photos (example)", 13, Brush(230, 233, 236), false)
             });
         }
-        else if (variant == Variant.Complete)
+        else if (complete)
             stack.Children.Add(Label("PROCESSED  12,846    |    UPDATED  12,846    |    ERRORS  0   (EXAMPLE)", 12, accent, false));
-        else
+        else if (progress)
+        {
+            var track = new Grid { Height = 12, Background = Brush(28, 43, 52) };
+            track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(37, GridUnitType.Star) });
+            track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(63, GridUnitType.Star) });
+            track.Children.Add(new Border { Background = accent });
+            stack.Children.Add(track);
+            stack.Children.Add(Label("PREVIEW  //  37% EXAMPLE  //  NO ACTIVE PROCESS", 12, accent, false));
+        }
+        else if (error || fatal)
             stack.Children.Add(Label("SYSTEM STATE  //  OPERATION INTERRUPTED (EXAMPLE)", 12, accent, false));
+        else
+            stack.Children.Add(Label("STATUS  //  INFORMATION ONLY", 12, accent, false));
 
         var footer = new StackPanel { Spacing = 7 };
         footer.Children.Add(new Rectangle { Height = 3, Fill = accent, Opacity = 0.85 });
@@ -200,11 +244,26 @@ internal static class CinematicDialogShowcase
         // Override this specimen only, preserving all production dialogs.
         dialog.Resources["ContentDialogMaxWidth"] = dialogWidth + 24d;
         dialog.Resources["ContentDialogMinWidth"] = Math.Min(dialogWidth, 400d);
-        if (Application.Current.Resources.TryGetValue("HiTechPrimaryButtonStyle", out var primary) && primary is Style ps)
-            dialog.PrimaryButtonStyle = ps;
-        if (Application.Current.Resources.TryGetValue("HiTechIconButtonStyle", out var close) && close is Style cs)
-            dialog.CloseButtonStyle = cs;
+        // Preview controls belong to the same severity palette as the panel.
+        // Avoid the default blue WinUI accent, without changing app-wide styles.
+        dialog.PrimaryButtonStyle = ActionStyle(accent, dim, solid: false);
+        dialog.CloseButtonStyle = ActionStyle(accent, dim, solid: true);
         return dialog;
+    }
+
+    private static Style ActionStyle(SolidColorBrush accent, SolidColorBrush dim, bool solid)
+    {
+        var style = new Style(typeof(Button));
+        style.Setters.Add(new Setter(Button.BackgroundProperty, solid ? accent : dim));
+        style.Setters.Add(new Setter(Button.ForegroundProperty,
+            solid ? Brush(7, 11, 16) : Brush(239, 243, 246)));
+        style.Setters.Add(new Setter(Button.BorderBrushProperty, accent));
+        style.Setters.Add(new Setter(Button.BorderThicknessProperty, new Thickness(2)));
+        style.Setters.Add(new Setter(Button.CornerRadiusProperty, new CornerRadius(0)));
+        style.Setters.Add(new Setter(Button.FontFamilyProperty, TechnicalFont));
+        style.Setters.Add(new Setter(Button.FontWeightProperty, FontWeights.Bold));
+        style.Setters.Add(new Setter(Button.MinHeightProperty, 42d));
+        return style;
     }
 
     private static TextBlock Label(string value, double size, SolidColorBrush color, bool bold) =>
