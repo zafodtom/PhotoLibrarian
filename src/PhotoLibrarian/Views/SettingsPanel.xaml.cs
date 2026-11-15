@@ -123,6 +123,9 @@ public sealed partial class SettingsPanel : UserControl
     private void OnNavigateAbout(object sender, RoutedEventArgs e) =>
         NavigateToSettingsSection(AboutSectionHeader);
 
+    private void OnNavigateUiShowcase(object sender, RoutedEventArgs e) =>
+        NavigateToSettingsSection(UiShowcaseSectionHeader);
+
     private void NavigateToSettingsSection(FrameworkElement sectionHeader)
     {
         // StartBringIntoView only scrolls far enough to make an element visible,
@@ -1275,6 +1278,47 @@ public sealed partial class SettingsPanel : UserControl
                 "HiTechIconButtonStyle", out var closeStyle) && closeStyle is Style closeButton)
             dialog.CloseButtonStyle = closeButton;
         return dialog;
+    }
+
+    // Isolated Cinematic UI 2.0 lab. Intentionally never calls production operations.
+    private async void OnShowcaseFatal(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Fatal);
+
+    private async void OnShowcaseWarning(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Warning);
+
+    private async void OnShowcaseComplete(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Complete);
+
+    private async void OnShowcaseSequence(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(
+            CinematicDialogShowcase.Variant.Fatal,
+            CinematicDialogShowcase.Variant.Warning,
+            CinematicDialogShowcase.Variant.Complete);
+
+    private bool _cinematicShowcaseOpen;
+
+    private async System.Threading.Tasks.Task ShowCinematicSpecimensAsync(
+        params CinematicDialogShowcase.Variant[] variants)
+    {
+        if (_cinematicShowcaseOpen) return;
+        _cinematicShowcaseOpen = true;
+        CinematicShowcaseSequenceButton.IsEnabled = false;
+        try
+        {
+            foreach (var variant in variants)
+            {
+                var dialog = CinematicDialogShowcase.Create(XamlRoot, variant);
+                // Primary only navigates to the next specimen. No actual operation executes.
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                    break;
+            }
+        }
+        finally
+        {
+            CinematicShowcaseSequenceButton.IsEnabled = true;
+            _cinematicShowcaseOpen = false;
+        }
     }
 
     private async void OnClose(
