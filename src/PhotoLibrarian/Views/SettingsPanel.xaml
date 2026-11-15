@@ -698,12 +698,23 @@
                                         AutomationProperties.AutomationId="ShowcaseCompleteButton"
                                         Foreground="#53D7E8" Style="{StaticResource HiTechIconButtonStyle}" />
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="9">
+                                <Button Content="ERROR" Click="OnShowcaseError"
+                                        AutomationProperties.AutomationId="ShowcaseErrorButton"
+                                        Foreground="#FF4C57" Style="{StaticResource HiTechIconButtonStyle}" />
+                                <Button Content="INFORMATION" Click="OnShowcaseInformation"
+                                        AutomationProperties.AutomationId="ShowcaseInfoButton"
+                                        Foreground="#9AB0BF" Style="{StaticResource HiTechIconButtonStyle}" />
+                                <Button Content="PROCESSING" Click="OnShowcaseProgress"
+                                        AutomationProperties.AutomationId="ShowcaseProgressButton"
+                                        Foreground="#54A1CE" Style="{StaticResource HiTechIconButtonStyle}" />
+                            </StackPanel>
                             <Button x:Name="CinematicShowcaseSequenceButton"
                                     Content="PREVIEW CINEMATIC SEQUENCE"
                                     Click="OnShowcaseSequence"
                                     HorizontalAlignment="Left"
                                     Style="{StaticResource HiTechPrimaryButtonStyle}" />
-                            <TextBlock Text="The previous PREVIEW ALL DIALOGS audit remains available above; real dialogs are unchanged."
+                            <TextBlock Text="Preview panels are isolated and cannot modify data. The previous PREVIEW ALL DIALOGS audit remains available above."
                                        TextWrapping="Wrap"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
                         </StackPanel>
