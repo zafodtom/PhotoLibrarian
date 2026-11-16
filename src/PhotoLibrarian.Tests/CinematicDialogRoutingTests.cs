@@ -44,6 +44,18 @@ public sealed class CinematicDialogRoutingTests
     }
 
     [Fact]
+    public void LongRunningAlbumMaintenanceReportsCompletionOrErrors()
+    {
+        var source = Source("SettingsPanel.xaml.cs");
+        Assert.Contains("JPEG CONVERSION COMPLETE", source);
+        Assert.Contains("JPEG CONVERSION PARTIALLY FAILED", source);
+        Assert.Contains("ALBUM RESET COMPLETE", source);
+        Assert.Contains("ALBUM RESET PARTIALLY FAILED", source);
+        Assert.Contains("JPEG CONVERSION FAILED", source);
+        Assert.Contains("ALBUM RESET FAILED", source);
+    }
+
+    [Fact]
     public void InformationalAlertsHaveAcknowledgementNotCancel()
     {
         var factory = Source("CinematicDialogShowcase.cs");
