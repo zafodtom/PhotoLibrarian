@@ -66,6 +66,28 @@
           Link="TestAssets\AlbumJpegConversionService.cs"
           CopyToOutputDirectory="PreserveNewest" />
 
+    <None Include="..\PhotoLibrarian\Themes\HiTechTheme.xaml"
+          Link="TestAssets\HiTechTheme.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\BootWindow.xaml"
+          Link="TestAssets\BootWindow.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\ImageEditorView.xaml"
+          Link="TestAssets\ImageEditorView.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\ManageFoldersDialog.xaml"
+          Link="TestAssets\ManageFoldersDialog.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\PeopleReviewView.xaml"
+          Link="TestAssets\PeopleReviewView.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\MetadataPanel.xaml"
+          Link="TestAssets\MetadataPanel.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\CropOverlay.xaml"
+          Link="TestAssets\CropOverlay.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+
     <None Include="..\PhotoLibrarian\Views\ImageViewerOverlay.xaml"
           Link="TestAssets\ImageViewerOverlay.xaml"
           CopyToOutputDirectory="PreserveNewest" />
