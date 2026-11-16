@@ -35,6 +35,7 @@ public sealed class SinglePhotoBackupPolicyTests
         Assert.DoesNotContain("BackupOriginalAsync", rotate);
 
         Assert.DoesNotContain("BackupOriginalAsync", editor);
+        Assert.Contains("File.Move(temporary, destination, overwrite: true)", editor);
         Assert.DoesNotContain("HasBackup = true;", editorVm);
 
         // Context privacy cleanup has no retained backup, but the full album
