@@ -17,7 +17,6 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -39,27 +38,8 @@
                     Background="{StaticResource HiTechAccentMutedBrush}"
                     IsHitTestVisible="False" />
 
-            <!-- Group By controls -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="GROUP"
-                           VerticalAlignment="Center"
-                           Margin="4,0"
-                           Style="{StaticResource HiTechPanelHeadingStyle}" />
-                <ComboBox x:Name="GroupByCombo" 
-                          SelectedIndex="0" 
-                          MinWidth="140"
-                          SelectionChanged="OnGroupByChanged">
-                    <ComboBoxItem Content="None" Tag="None" />
-                    <ComboBoxItem Content="File Type" Tag="FileType" />
-                    <ComboBoxItem Content="Media Type" Tag="MediaType" />
-                    <ComboBoxItem Content="File Size" Tag="FileSize" />
-                    <ComboBoxItem Content="Image Size" Tag="ImageSize" />
-                    <ComboBoxItem Content="Camera" Tag="Camera" />
-                </ComboBox>
-            </StackPanel>
-
             <!-- Sort controls -->
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" Margin="0,0,0,0">
                 <TextBlock Text="SORT"
                            VerticalAlignment="Center"
                            Margin="4,0"
@@ -80,7 +60,7 @@
             </StackPanel>
 
             <!-- Central FUI identity block -->
-            <StackPanel Grid.Column="2"
+            <StackPanel Grid.Column="1" Grid.ColumnSpan="2"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Spacing="1">
@@ -121,74 +101,22 @@
                   Margin="0,2,14,0"
                   IsHitTestVisible="False" />
 
-            <!-- Refinement filters -->
-            <Button x:Name="FilterButton"
-                    AutomationProperties.AutomationId="GridFilterButton"
-                    AutomationProperties.Name="Refine photos"
-                    Grid.Column="3"
-                    Margin="0,0,12,0"
-                    ToolTipService.ToolTip="Refine the current left-pane results"
-                    Style="{StaticResource HiTechRailButtonStyle}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon Glyph="&#xE71C;" FontSize="16" />
-                    <TextBlock Text="Filter" VerticalAlignment="Center" />
-                </StackPanel>
-                <Button.Flyout>
-                    <Flyout x:Name="FilterFlyout">
-                        <ScrollViewer MaxHeight="640"
-                                      VerticalScrollBarVisibility="Auto">
-                            <StackPanel MinWidth="384" Spacing="16">
-                                <TextBlock Text="Refine results"
-                                           Style="{StaticResource SubtitleTextBlockStyle}" />
-                                <TextBlock Text="These filters narrow the union selected in the left pane."
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-
-                                <!-- Tag-first refinement. The historical hidden rating,
-                                     date, person and flag filters were retired. -->
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="Include tags" Style="{StaticResource HiTechPanelHeadingStyle}" />
-                                    <TextBox x:Name="IncludeTagsBox"
-                                             AutomationProperties.AutomationId="FilterIncludeTags"
-                                             PlaceholderText="Comma-separated tags (all must match)"
-                                             Style="{StaticResource HiTechInputStyle}" />
-                                    <TextBlock Text="Exclude tags" Style="{StaticResource HiTechPanelHeadingStyle}" />
-                                    <TextBox x:Name="ExcludeTagsBox"
-                                             AutomationProperties.AutomationId="FilterExcludeTags"
-                                             PlaceholderText="Comma-separated tags"
-                                             Style="{StaticResource HiTechInputStyle}" />
-                                    <TextBlock Text="Media type" Style="{StaticResource HiTechPanelHeadingStyle}" />
-                                    <ComboBox x:Name="MediaKindCombo" SelectedIndex="0"
-                                              Style="{StaticResource HiTechComboStyle}"
-                                              AutomationProperties.AutomationId="FilterMediaKind">
-                                        <ComboBoxItem Content="All media" Tag="Any" />
-                                        <ComboBoxItem Content="Photos" Tag="Photos" />
-                                        <ComboBoxItem Content="Videos" Tag="Videos" />
-                                    </ComboBox>
-                                    <TextBlock Text="File extensions" Style="{StaticResource HiTechPanelHeadingStyle}" />
-                                    <TextBox x:Name="ExtensionsBox"
-                                             AutomationProperties.AutomationId="FilterExtensions"
-                                             PlaceholderText="JPG, PNG, MP4"
-                                             Style="{StaticResource HiTechInputStyle}" />
-                                </StackPanel>
-
-                                <StackPanel HorizontalAlignment="Right"
-                                            Orientation="Horizontal"
-                                            Spacing="8">
-                                    <Button AutomationProperties.AutomationId="FilterClearAll"
-                                            Click="OnClearAllFilters"
-                                            Content="Clear all"
-                                            Style="{StaticResource HiTechSectionActionStyle}" />
-                                    <Button AutomationProperties.AutomationId="FilterApply"
-                                            Click="OnApplyFilters"
-                                            Content="Apply"
-                                            Style="{StaticResource HiTechPrimaryButtonStyle}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </Flyout>
-                </Button.Flyout>
-            </Button>
+            <!-- File-name search. Tag filtering remains in the left tag tree. -->
+            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6"
+                        VerticalAlignment="Center" Margin="0,0,12,0">
+                <TextBox x:Name="SearchFileNameBox" Width="190"
+                         AutomationProperties.AutomationId="GalleryFileSearch"
+                         PlaceholderText="Find filename..."
+                         KeyDown="OnSearchKeyDown"
+                         Style="{StaticResource HiTechInputStyle}"/>
+                <Button Content="SEARCH" Click="OnSearchClick"
+                        AutomationProperties.AutomationId="GallerySearchApply"
+                        Style="{StaticResource HiTechRailButtonStyle}"/>
+                <Button Content="×" Click="OnSearchClear"
+                        ToolTipService.ToolTip="Clear filename search"
+                        AutomationProperties.AutomationId="GallerySearchClear"
+                        Style="{StaticResource HiTechSecondaryButtonStyle}"/>
+            </StackPanel>
 
             <!-- Thumbnail size slider -->
             <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4">
@@ -205,21 +133,8 @@
             </StackPanel>
         </Grid>
 
-        <ScrollViewer x:Name="ActiveFiltersScroller"
-                      Grid.Row="1"
-                      Padding="8,4"
-                      Background="{StaticResource HiTechAccentFillBrush}"
-                      HorizontalScrollBarVisibility="Auto"
-                      HorizontalScrollMode="Enabled"
-                      VerticalScrollMode="Disabled"
-                      Visibility="Collapsed">
-            <StackPanel x:Name="ActiveFiltersPanel"
-                        Orientation="Horizontal"
-                        Spacing="8" />
-        </ScrollViewer>
-
         <!-- Custom Virtualizing Photo Grid -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="1">
             <local:VirtualizingPhotoGrid x:Name="PhotoGrid"
                                          RightTapped="OnGridBackgroundRightTapped" />
             <StackPanel HorizontalAlignment="Left"
@@ -251,7 +166,7 @@
 
         <!-- Cinematic empty / indexing state -->
         <Grid x:Name="EmptyState"
-              Grid.Row="2"
+              Grid.Row="1"
               HorizontalAlignment="Center"
               VerticalAlignment="Center"
               RightTapped="OnGridBackgroundRightTapped"
@@ -347,7 +262,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <Grid Grid.Row="2">
+                    <Grid Grid.Row="1">
                         <TextBlock x:Name="EmptyStateCode"
                                    Text="STATE / STANDBY"
                                    Style="{StaticResource HiTechSystemCaptionStyle}" />
