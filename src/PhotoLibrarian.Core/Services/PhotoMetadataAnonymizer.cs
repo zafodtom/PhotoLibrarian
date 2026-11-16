@@ -259,7 +259,7 @@ public static class PhotoMetadataAnonymizer
 
     private static bool LooksLikeEmbeddedIsoMedia(ReadOnlySpan<byte> data)
     {
-        if (data.Length < 16 || !data.Slice(4, 4).SequenceEqual("ftyp"u8))
+        if (data.Length < 12 || !data.Slice(4, 4).SequenceEqual("ftyp"u8))
             return false;
         var boxSize = BinaryPrimitives.ReadUInt32BigEndian(data[..4]);
         // Real ftyp boxes are tiny (typically 16–32 bytes). The four ASCII
