@@ -727,7 +727,9 @@ public sealed partial class MainWindow : Window
             // Back up the original first (no-op if a backup already exists).
             await App.ViewModel.BackupService.BackupOriginalAsync(entry.FilePath);
 
-            var result = await CropService.CropImageAsync(entry.FilePath, bounds.Value);
+            var assignedTags = await ViewModel.GetPhotoTagsForCropAsync(entry);
+            var result = await CropService.CropImageAsync(
+                entry.FilePath, bounds.Value, assignedTags);
             await ViewModel.RefreshAfterCropAsync(entry.FilePath, result);
         }
         catch (Exception ex)
@@ -751,35 +753,87 @@ public sealed partial class MainWindow : Window
         var entry = ViewModel.ImageViewer.CurrentEntry;
         if (bounds is null || entry is null || !CropService.IsSupported(entry.FilePath)) return;
 
-        // The Windows App SDK picker accepts an exact folder. Always start in the
-        // current photo's directory rather than the system Pictures library or
-        // the last directory used by a different Save As operation.
-        var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)
-        {
-            SuggestedFolder = System.IO.Path.GetDirectoryName(entry.FilePath)
-                ?? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
-            SuggestedFileName = System.IO.Path.GetFileNameWithoutExtension(entry.FilePath) + "_crop",
-            DefaultFileExtension = ".jpg",
-            CommitButtonText = "Save crop"
-        };
-        picker.FileTypeChoices.Add("JPEG image", new System.Collections.Generic.List<string> { ".jpg" });
-        picker.FileTypeChoices.Add("PNG image", new System.Collections.Generic.List<string> { ".png" });
-        picker.FileTypeChoices.Add("TIFF image", new System.Collections.Generic.List<string> { ".tif", ".tiff" });
-        picker.FileTypeChoices.Add("Bitmap image", new System.Collections.Generic.List<string> { ".bmp" });
-
-        var selected = await picker.PickSaveFileAsync();
-        if (selected is null) return;
-
         TopRibbon.IsEnabled = false;
         try
         {
+            var assignedTags = await ViewModel.GetPhotoTagsForCropAsync(entry);
+            // The new file is independent: explicitly decide whether its tag
+            // assignments should be copied. CANCEL must never open the picker.
+            var tagChoice = PhotoLibrarian.Views.CinematicDialogShowcase.Create(
+                AppRoot.XamlRoot,
+                PhotoLibrarian.Views.CinematicDialogShowcase.Variant.Information,
+                subjectOverride: "COPY ORIGINAL PHOTO TAGS?",
+                detailOverride: assignedTags.Count == 0
+                    ? "The original has no assigned tags. Save the new crop without tags, or cancel."
+                    : $"Copy all {assignedTags.Count:N0} assigned tags to the new crop? " +
+                      "The original photo and its tag assignments will remain unchanged. " +
+                      "Face regions are not copied because the new image has different geometry.",
+                confirmLabel: "KEEP TAGS",
+                preview: false,
+                context: entry.FileName,
+                captionOverride: "CROP EXPORT // TAGS",
+                operationLabel: "PHOTO OPERATION");
+            tagChoice.SecondaryButtonText = "WITHOUT TAGS";
+            tagChoice.CloseButtonText = "CANCEL";
+            tagChoice.IsPrimaryButtonEnabled = assignedTags.Count > 0;
+            if (Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue(
+                    "HiTechSecondaryButtonStyle", out var neutralStyle) &&
+                neutralStyle is Style style)
+                tagChoice.SecondaryButtonStyle = style;
+
+            var decision = await tagChoice.ShowAsync();
+            if (decision == ContentDialogResult.None)
+                return;
+            var copiedTags = decision == ContentDialogResult.Primary
+                ? assignedTags
+                : Array.Empty<string>();
+
+            // The Windows App SDK picker accepts an exact folder. Always start
+            // in the current picture's directory, while allowing other locations.
+            var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)
+            {
+                SuggestedFolder = System.IO.Path.GetDirectoryName(entry.FilePath)
+                    ?? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+                SuggestedFileName = System.IO.Path.GetFileNameWithoutExtension(entry.FilePath) + "_crop",
+                DefaultFileExtension = ".jpg",
+                CommitButtonText = "Save crop"
+            };
+            picker.FileTypeChoices.Add("JPEG image", new System.Collections.Generic.List<string> { ".jpg" });
+            picker.FileTypeChoices.Add("PNG image", new System.Collections.Generic.List<string> { ".png" });
+            picker.FileTypeChoices.Add("TIFF image", new System.Collections.Generic.List<string> { ".tif", ".tiff" });
+            picker.FileTypeChoices.Add("Bitmap image", new System.Collections.Generic.List<string> { ".bmp" });
+
+            var selected = await picker.PickSaveFileAsync();
+            if (selected is null) return;
+
             var result = await CropService.ExportCropAsync(
-                entry.FilePath, selected.Path, bounds.Value);
-            ViewModel.StatusText = $"Saved crop: {selected.Path} ({result.Width}×{result.Height})";
+                entry.FilePath, selected.Path, bounds.Value, copiedTags);
+            try
+            {
+                await ViewModel.RegisterExportedCropAsync(selected.Path, copiedTags);
+                ViewModel.StatusText =
+                    $"Saved crop: {selected.Path} ({result.Width}×{result.Height}); " +
+                    $"{copiedTags.Count:N0} tags copied.";
+            }
+            catch (Exception indexException)
+            {
+                ViewModel.StatusText =
+                    $"Crop saved with {copiedTags.Count:N0} tags, but album refresh failed: " +
+                    indexException.Message;
+            }
         }
         catch (Exception ex)
         {
             ViewModel.StatusText = "Crop export failed: " + ex.Message;
+            var error = PhotoLibrarian.Views.CinematicDialogShowcase.Create(
+                AppRoot.XamlRoot,
+                PhotoLibrarian.Views.CinematicDialogShowcase.Variant.Error,
+                subjectOverride: "CROP EXPORT FAILED",
+                detailOverride: ex.Message,
+                preview: false,
+                captionOverride: "PHOTO OPERATIONS // ERROR",
+                operationLabel: "PHOTO OPERATION");
+            await error.ShowAsync();
         }
         finally
         {
