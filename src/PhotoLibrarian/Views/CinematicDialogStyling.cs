@@ -12,8 +12,11 @@ internal static class CinematicDialogStyling
 {
     internal static void Apply(ContentDialog dialog, bool destructive = false)
     {
-        dialog.HorizontalAlignment = HorizontalAlignment.Center;
-        dialog.VerticalAlignment = VerticalAlignment.Center;
+        // The built-in WinUI dialog presenter is responsible for placement.
+        // Forcing Center alignment on the control does not center its Popup
+        // and can instead shift it toward the edge of the XAML root.
+        dialog.ClearValue(FrameworkElement.HorizontalAlignmentProperty);
+        dialog.ClearValue(FrameworkElement.VerticalAlignmentProperty);
         dialog.RequestedTheme = ElementTheme.Dark;
 
         // The WinUI default Close button would otherwise receive a blue
