@@ -499,7 +499,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         var removeButton = new Button
         {
             Content = "REMOVE",
-            Style = iconButtonStyle,
+            Style = (Style)Application.Current.Resources["HiTechDangerButtonStyle"],
             IsEnabled = false
         };
 
@@ -1059,7 +1059,7 @@ public sealed partial class FolderNavigationPanel : UserControl
                 Foreground = secondaryTextBrush
             });
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            var proceed = new Button { Content = "CONFIRM REMOVE", Style = iconButtonStyle };
+            var proceed = new Button { Content = "CONFIRM REMOVE", Style = (Style)Application.Current.Resources["HiTechDangerButtonStyle"] };
             var abort = new Button { Content = "ABORT", Style = iconButtonStyle };
             actions.Children.Add(proceed);
             actions.Children.Add(abort);
