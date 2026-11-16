@@ -117,6 +117,18 @@ public sealed class CinematicUiConsistencyTests
     }
 
     [Fact]
+    public void ManageCatalogCancelUsesTheSharedNeutralActionStyle()
+    {
+        var source = Read("MetadataPanel.xaml.cs");
+        var actions = source.Split("var saveButton = new Button { Content = \"SAVE CHANGES\" };", 2)[1]
+            .Split("actionRail.Children.Add(saveButton)", 2)[0];
+
+        Assert.Contains("HiTechSecondaryButtonStyle", actions);
+        Assert.DoesNotContain("cancelButton.Style = (Style)Application.Current.Resources[\"HiTechIconButtonStyle\"]", actions);
+        Assert.Contains("MinWidth = 100", actions);
+    }
+
+    [Fact]
     public void ViewerControlsKeepActualSizeSeparateFromActualZoomReadout()
     {
         var window = Read("MainWindow.xaml");
