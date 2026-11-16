@@ -811,18 +811,53 @@ public sealed partial class MainWindow : Window
         SideRotateLeftButton.IsEnabled = SideRotateRightButton.IsEnabled = false;
         FullscreenRotateLeftButton.IsEnabled = FullscreenRotateRightButton.IsEnabled = false;
         var resumeFaceDetection = false;
+        string? originalBackupPath = null;
+        var pixelsWereRotated = false;
+        var originalWidth = entry.Width;
+        var originalHeight = entry.Height;
         try
         {
             resumeFaceDetection = await ViewModel.PauseFaceDetectionAsync();
             ViewModel.StatusText = clockwise ? "Rotating clockwise…" : "Rotating counterclockwise…";
             await App.ViewModel.BackupService.BackupOriginalAsync(entry.FilePath);
+            originalBackupPath = await App.ViewModel.BackupService.GetBackupPathAsync(entry.FilePath);
+            if (originalBackupPath is null)
+                throw new System.IO.IOException("Cannot verify the backup of the original photo.");
+
             var dimensions = await ImageEditRenderer.RenderRotatedAsync(entry.FilePath, clockwise);
+            pixelsWereRotated = true;
             await ViewModel.RefreshAfterRotationAsync(
                 entry.FilePath, dimensions.Width, dimensions.Height, clockwise);
         }
         catch (Exception ex)
         {
-            ViewModel.StatusText = "Rotation failed: " + ex.Message;
+            if (pixelsWereRotated && originalBackupPath is not null)
+            {
+                try
+                {
+                    // The metadata service has already rolled back XMP and face
+                    // coordinates if its write failed. Restore the original pixels
+                    // as well so the photo and its face metadata stay aligned.
+                    await Task.Run(() => System.IO.File.Copy(
+                        originalBackupPath, entry.FilePath, overwrite: true));
+                    await ViewModel.RefreshAfterPixelEditAsync(
+                        entry.FilePath,
+                        (uint)System.Math.Max(1, originalWidth),
+                        (uint)System.Math.Max(1, originalHeight),
+                        "Restored", invalidateFaceScan: false);
+                    ViewModel.StatusText = "Rotation failed; original photo restored: " + ex.Message;
+                }
+                catch (Exception restoreEx)
+                {
+                    ViewModel.StatusText =
+                        "Rotation failed and automatic restore failed: " +
+                        ex.Message + " / " + restoreEx.Message;
+                }
+            }
+            else
+            {
+                ViewModel.StatusText = "Rotation failed: " + ex.Message;
+            }
         }
         finally
         {
