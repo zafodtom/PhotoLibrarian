@@ -99,10 +99,8 @@ jobs:
           $tag = "v$env:VERSION"
           $notes = "docs/releases/$env:VERSION.md"
           if (-not (Test-Path $notes)) { throw "Release notes missing: $notes" }
-          $existing = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" --silent 2>$null
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw "Stable release $tag already exists. Bump the project version; published assets are immutable." }
-          $existingTag = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>$null
-          if ($LASTEXITCODE -eq 0) { throw "Git tag $tag already exists. Use a new version." }
       - name: Compile application and tests
         shell: pwsh
         run: |
