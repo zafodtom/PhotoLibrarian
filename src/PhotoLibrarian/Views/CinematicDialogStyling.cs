@@ -16,6 +16,12 @@ internal static class CinematicDialogStyling
         dialog.VerticalAlignment = VerticalAlignment.Center;
         dialog.RequestedTheme = ElementTheme.Dark;
 
+        // The WinUI default Close button would otherwise receive a blue
+        // AccentButton treatment and override its neutral cinematic style.
+        // ESC and the explicit Close/Cancel command remain available.
+        if (dialog.DefaultButton == ContentDialogButton.Close)
+            dialog.DefaultButton = ContentDialogButton.None;
+
         var resources = Application.Current.Resources;
         if (resources.TryGetValue(
                 destructive ? "HiTechDangerButtonStyle" : "HiTechPrimaryButtonStyle",
