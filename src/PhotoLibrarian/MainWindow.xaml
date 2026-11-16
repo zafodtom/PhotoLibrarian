@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:views="using:PhotoLibrarian.Views"
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:progress="using:PhotoLibrarian.Controls"
     Title="PhotoLibrarian">
 
     <Grid x:Name="AppRoot"
@@ -634,12 +635,12 @@
                        FontSize="11"
                        ToolTipService.ToolTip="Installed PhotoLibrarian version" />
 
-            <ProgressRing x:Name="IndexingProgress"
-                          Grid.Column="2"
-                          IsActive="False"
-                          Width="16"
-                          Height="16"
-                          Margin="0,0,8,0" />
+            <progress:CinematicProgressBar x:Name="IndexingProgress"
+                                           Grid.Column="2"
+                                           Width="84"
+                                           Margin="0,0,8,0"
+                                           IsIndeterminate="True"
+                                           IsActive="False" />
 
             <Button x:Name="SettingsButton"
                     Grid.Column="3"
