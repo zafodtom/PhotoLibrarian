@@ -1193,7 +1193,11 @@ public partial class MainViewModel : ObservableObject
                 {
                     var portable = await _faceRepo.GetPhotoFaceMetadataAsync(
                         entry.Id, (int)newWidth, (int)newHeight);
-                    await new FaceMetadataStore().WriteAsync(filePath, portable);
+                    // Keep the current rotated image and its XMP/sidecar consistent:
+                    // if writing either fails, the metadata store restores its own
+                    // on-disk changes before this method reverses the DB rotation.
+                    await new FaceMetadataStore().WriteBatchAsync(
+                        new[] { (ImagePath: filePath, Metadata: portable) });
                 }
                 catch
                 {
