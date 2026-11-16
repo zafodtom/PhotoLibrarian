@@ -131,7 +131,8 @@
                                             Click="OnRemoveTagClick"
                                             Tag="{Binding Tag}"
                                             ToolTipService.ToolTip="Remove tag from all selected"
-                                            AutomationProperties.Name="Remove selected tag">
+                                            AutomationProperties.Name="Remove selected tag"
+                                            Foreground="{StaticResource HiTechDangerBrush}">
                                         <FontIcon Glyph="&#xE10A;" FontSize="10" />
                                     </Button>
                                     <TextBlock Grid.Column="1" Text="{Binding Tag}" FontSize="13"
@@ -183,7 +184,7 @@
                             <StackPanel Spacing="6">
                                 <Button Content="New tag"
                                         Click="OnNewCatalogTagClick"
-                                        HorizontalAlignment="Stretch" />
+                                        HorizontalAlignment="Stretch"  Style="{StaticResource HiTechSectionActionStyle}"/>
                                 <ListView x:Name="TagSuggestionsList"
                                           MaxHeight="320"
                                           IsItemClickEnabled="True"
@@ -217,7 +218,7 @@
                                                         Click="OnToggleAlbumTagSelectionClick"
                                                         Padding="4,2"
                                                         Visibility="{x:Bind PinVisibility}"
-                                                        ToolTipService.ToolTip="Pin/unpin in album catalog">
+                                                        ToolTipService.ToolTip="Pin/unpin in album catalog" Style="{StaticResource HiTechSectionActionStyle}">
                                                     <FontIcon Glyph="{x:Bind PinGlyph}"
                                                               FontSize="11" />
                                                 </Button>
@@ -225,7 +226,7 @@
                                                         Tag="{x:Bind}"
                                                         Click="OnManageCatalogItemClick"
                                                         Padding="4,2"
-                                                        ToolTipService.ToolTip="Manage tag">
+                                                        ToolTipService.ToolTip="Manage tag" Style="{StaticResource HiTechSectionActionStyle}">
                                                     <FontIcon Glyph="&#xE70F;"
                                                               FontSize="11" />
                                                 </Button>
@@ -253,7 +254,7 @@
                                                 HorizontalContentAlignment="Left"
                                                 Padding="8,4"
                                                 FontSize="12"
-                                                AutomationProperties.Name="{Binding FullTag}" />
+                                                AutomationProperties.Name="{Binding FullTag}"  Style="{StaticResource HiTechSectionActionStyle}"/>
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>
@@ -282,7 +283,7 @@
                                 <Button Grid.Column="2" x:Name="DatePickerBtn"
                                         Padding="6,4"
                                         VerticalAlignment="Center"
-                                        ToolTipService.ToolTip="Pick from calendar">
+                                        ToolTipService.ToolTip="Pick from calendar" Style="{StaticResource HiTechSectionActionStyle}">
                                     <FontIcon Glyph="&#xE787;" FontSize="12" />
                                     <Button.Flyout>
                                         <Flyout>
@@ -295,7 +296,7 @@
                                                             HorizontalAlignment="Stretch" />
                                                 <Button Content="Apply"
                                                         Click="OnApplyDatePopupClick"
-                                                        HorizontalAlignment="Stretch" />
+                                                        HorizontalAlignment="Stretch"  Style="{StaticResource HiTechPrimaryButtonStyle}"/>
                                             </StackPanel>
                                         </Flyout>
                                     </Button.Flyout>
@@ -380,7 +381,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Button Grid.Column="0" Click="OnApplyShiftClick"
                                         x:Name="ApplyShiftButton"
-                                        Content="Apply shift" HorizontalAlignment="Stretch" />
+                                        Content="Apply shift" HorizontalAlignment="Stretch"  Style="{StaticResource HiTechPrimaryButtonStyle}"/>
                                 <HyperlinkButton Grid.Column="1" Click="OnSwitchToAbsolute"
                                                  Content="Cancel"
                                                  FontSize="12" />
