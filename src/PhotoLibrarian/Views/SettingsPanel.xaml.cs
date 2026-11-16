@@ -51,7 +51,7 @@ public sealed partial class SettingsPanel : UserControl
     {
         if (ViewModel is not null)
             ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        ResolveUpdateDecision(false);
+        _activeUpdateDialog?.Hide();
         _thumbnailGenerationCancellation?.Cancel();
     }
 
@@ -386,38 +386,40 @@ public sealed partial class SettingsPanel : UserControl
             InvalidOperationException;
 
     private bool _checkingUpdates;
-    private TaskCompletionSource<bool>? _updateDecision;
+    private ContentDialog? _activeUpdateDialog;
     private bool _loadingUpdateChannel;
 
-    private Task<bool> ConfirmUpdateAsync(
-        string title, string description, string acceptLabel)
+    // Use the same centered cinematic ContentDialog as album maintenance,
+    // with native modal focus, Escape/cancel and a non-default primary action.
+    private async Task<bool> ConfirmUpdateAsync(
+        string title,
+        string description,
+        string acceptLabel,
+        CinematicDialogShowcase.Variant variant,
+        string context)
     {
-        if (_updateDecision is not null)
+        if (_activeUpdateDialog is not null)
             throw new InvalidOperationException("An update confirmation is already visible.");
 
-        UpdateConfirmTitle.Text = title;
-        UpdateConfirmDescription.Text = description;
-        UpdateAcceptButton.Content = acceptLabel;
-        UpdateConfirmOverlay.Visibility = Visibility.Visible;
-        _updateDecision = new TaskCompletionSource<bool>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        UpdateAcceptButton.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
-        return _updateDecision.Task;
+        var dialog = CinematicDialogShowcase.Create(
+            XamlRoot,
+            variant,
+            subjectOverride: title,
+            detailOverride: description,
+            confirmLabel: acceptLabel,
+            preview: false,
+            context: context);
+        _activeUpdateDialog = dialog;
+        try
+        {
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        }
+        finally
+        {
+            if (ReferenceEquals(_activeUpdateDialog, dialog))
+                _activeUpdateDialog = null;
+        }
     }
-
-    private void ResolveUpdateDecision(bool accepted)
-    {
-        UpdateConfirmOverlay.Visibility = Visibility.Collapsed;
-        var pending = _updateDecision;
-        _updateDecision = null;
-        pending?.TrySetResult(accepted);
-    }
-
-    private void OnUpdateAcceptClick(object sender, RoutedEventArgs e) =>
-        ResolveUpdateDecision(true);
-
-    private void OnUpdateCancelClick(object sender, RoutedEventArgs e) =>
-        ResolveUpdateDecision(false);
 
     private void OnDevelopmentUpdatesToggled(object sender, RoutedEventArgs e)
     {
@@ -460,7 +462,11 @@ public sealed partial class SettingsPanel : UserControl
                 (release.IsDevelopment ? "This is a DEVELOPMENT BUILD and may be unstable. " : "") +
                 "Download the official PhotoLibrarian installer from GitHub and verify SHA-256? " +
                 "Your photographs, catalogs and album data will not be removed.",
-                "DOWNLOAD UPDATE"))
+                "DOWNLOAD UPDATE",
+                release.IsDevelopment
+                    ? CinematicDialogShowcase.Variant.Warning
+                    : CinematicDialogShowcase.Variant.Information,
+                $"RELEASE {release.Tag}  //  {(release.IsDevelopment ? "DEVELOPMENT" : "STABLE")}"))
                 return;
 
             UpdateDownloadProgress.Value = 0;
@@ -482,7 +488,9 @@ public sealed partial class SettingsPanel : UserControl
                 "PhotoLibrarian will close. A separate Trimenor update window will install " +
                 "the new version without the Inno Setup wizard and reopen this application. " +
                 "Save any outstanding changes before continuing. Windows may ask for administrator approval.",
-                "INSTALL & RESTART"))
+                "INSTALL & RESTART",
+                CinematicDialogShowcase.Variant.Warning,
+                $"VERIFIED INSTALLER  //  {release.Tag}"))
                 return;
 
             // Start the helper before closing the app. It waits for this process
@@ -869,7 +877,7 @@ public sealed partial class SettingsPanel : UserControl
 
     private async void OnGenerateMissingThumbnails(object sender, RoutedEventArgs e)
     {
-        if (_thumbnailGenerationBusy || _jpegConversionBusy || _clearAlbumBusy ||
+        if (_thumbnailGenerationBusy || _cacheClearBusy || _jpegConversionBusy || _clearAlbumBusy ||
             !EnsureAlbumOpen(ThumbnailGenerationStatusText))
             return;
 
@@ -925,15 +933,52 @@ public sealed partial class SettingsPanel : UserControl
         _thumbnailGenerationCancellation?.Cancel();
     }
 
+    private bool _cacheClearBusy;
+
     private async void OnRebuildCache(
         object sender,
         RoutedEventArgs e)
     {
-        if (_thumbnailGenerationBusy) return;
-        if (ViewModel?.RebuildCacheCommand.CanExecute(null) == true)
+        if (_cacheClearBusy || _thumbnailGenerationBusy ||
+            ViewModel?.RebuildCacheCommand.CanExecute(null) != true)
+            return;
+
+        _cacheClearBusy = true;
+        RebuildCacheButton.IsEnabled = false;
+        try
         {
+            var dialog = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Warning,
+                subjectOverride: "CLEAR THUMBNAIL CACHE?",
+                detailOverride:
+                    $"Remove the generated thumbnail cache ({ViewModel.ThumbnailCacheSizeMB:N0} MB)? " +
+                    "Original photographs, assigned tags and the album catalog will not be modified. " +
+                    "Previews regenerate when needed; opening photos may temporarily be slower.",
+                confirmLabel: "CLEAR THUMBNAILS",
+                preview: false,
+                context: ViewModel.CacheLocation);
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
             await ViewModel.RebuildCacheCommand.ExecuteAsync(null);
             UpdateCacheDisplay();
+        }
+        catch (Exception ex)
+        {
+            App.ViewModel.StatusText = "Thumbnail cache clear failed: " + ex.Message;
+            var error = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Error,
+                subjectOverride: "THUMBNAIL CACHE CLEAR FAILED",
+                detailOverride: ex.Message,
+                preview: false);
+            await error.ShowAsync();
+        }
+        finally
+        {
+            _cacheClearBusy = false;
+            RebuildCacheButton.IsEnabled = true;
         }
     }
 
