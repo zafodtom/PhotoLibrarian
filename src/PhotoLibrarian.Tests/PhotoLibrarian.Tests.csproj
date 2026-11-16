@@ -88,6 +88,13 @@
           Link="TestAssets\CropOverlay.xaml"
           CopyToOutputDirectory="PreserveNewest" />
 
+    <None Include="..\PhotoLibrarian\Views\CinematicDialogShowcase.cs"
+          Link="TestAssets\CinematicDialogShowcase.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\CinematicDialogStyling.cs"
+          Link="TestAssets\CinematicDialogStyling.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+
     <None Include="..\PhotoLibrarian\Views\ImageViewerOverlay.xaml"
           Link="TestAssets\ImageViewerOverlay.xaml"
           CopyToOutputDirectory="PreserveNewest" />
