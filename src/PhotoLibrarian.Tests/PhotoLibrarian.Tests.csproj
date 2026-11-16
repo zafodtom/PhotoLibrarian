@@ -88,6 +88,18 @@
           Link="TestAssets\CropOverlay.xaml"
           CopyToOutputDirectory="PreserveNewest" />
 
+    <None Include="..\PhotoLibrarian\MainWindow.xaml.cs"
+          Link="TestAssets\MainWindow.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\ManageFoldersDialog.xaml.cs"
+          Link="TestAssets\ManageFoldersDialog.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\PeopleReviewView.xaml.cs"
+          Link="TestAssets\PeopleReviewView.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\FolderNavigationPanel.xaml.cs"
+          Link="TestAssets\FolderNavigationPanel.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\PhotoLibrarian\Views\CinematicDialogShowcase.cs"
           Link="TestAssets\CinematicDialogShowcase.cs"
           CopyToOutputDirectory="PreserveNewest" />
