@@ -32,11 +32,11 @@ public enum GroupByOption
 public enum SortByOption
 {
     FileName,       // Alphabetical by file name
-    FolderThenFileName, // By folder path, then alphabetically by file name within each folder
     DateTaken,      // Chronological by date taken (newest first by default)
     DateModified,   // By file system modified date
     FileSize,       // By file size (largest first by default)
-    Rating          // By rating (highest first)
+    Rating,         // By rating (highest first)
+    FolderThenFileName // By folder path, then by filename within each folder
 }
 
 /// <summary>
