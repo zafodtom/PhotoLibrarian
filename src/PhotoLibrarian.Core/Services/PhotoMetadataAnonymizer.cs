@@ -31,8 +31,30 @@ public static class PhotoMetadataAnonymizer
 
         // Removing orientation metadata without rotating the pixels would visibly
         // turn many phone photographs sideways. Bake it into the pixels first.
+        var orientation = extension is ".jpg" or ".jpeg" or ".png" or ".webp"
+            ? new MetadataReaderService().ReadMetadata(filePath).Orientation : 1;
+        if (extension == ".webp" && orientation is > 1 and <= 8)
+            throw new NotSupportedException(
+                "WebP has embedded orientation data which cannot be safely baked in.");
+
         var needsOrientationBake = extension is ".jpg" or ".jpeg" or ".png" &&
-            new MetadataReaderService().ReadMetadata(filePath).Orientation is > 1 and <= 8;
+            orientation is > 1 and <= 8;
+        if (needsOrientationBake)
+        {
+            // Validate multi-picture/trailer markers BEFORE decoding: a fresh
+            // WIC encode could otherwise discard additional JPEG frames
+            // without giving the metadata stripper a chance to reject them.
+            var original = await File.ReadAllBytesAsync(filePath, cancellationToken);
+            if (extension is ".jpg" or ".jpeg")
+                _ = StripJpeg(original);
+            else
+            {
+                _ = StripPng(original);
+                if (HasApngAnimation(original))
+                    throw new NotSupportedException(
+                        "Animated PNG with orientation cannot be re-encoded safely.");
+            }
+        }
         byte[] bytes;
         if (extension is ".tif" or ".tiff" or ".bmp" || needsOrientationBake)
         {
@@ -165,6 +187,23 @@ public static class PhotoMetadataAnonymizer
                     "JPEG has nonstandard appended data. Its original contents were preserved.");
         }
         return output.ToArray();
+    }
+
+    private static bool HasApngAnimation(ReadOnlySpan<byte> input)
+    {
+        if (input.Length < 8 || !input[..8].SequenceEqual(PngSignature))
+            return false;
+        var offset = 8;
+        while (offset + 12 <= input.Length)
+        {
+            var count = BinaryPrimitives.ReadUInt32BigEndian(input.Slice(offset, 4));
+            if (count > (uint)(input.Length - offset - 12))
+                throw new InvalidDataException("Invalid PNG animation chunk length.");
+            if (input.Slice(offset + 4, 4).SequenceEqual("acTL"u8))
+                return true;
+            offset += checked((int)count + 12);
+        }
+        return false;
     }
 
     private static readonly byte[] PngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
