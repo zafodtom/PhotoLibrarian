@@ -80,6 +80,9 @@ public sealed class CinematicDialogRoutingTests
 
         Assert.Contains("private async Task<bool> ConfirmUpdateAsync(", source);
         Assert.Contains("CinematicDialogShowcase.Create(", source);
+        Assert.Contains("captionOverride: caption", source);
+        Assert.Contains("operationLabel: \"UPDATE CONTROL\"", source);
+        Assert.Contains("captionOverride: \"CACHE MAINTENANCE // CONFIRMATION\"", source);
         Assert.Contains("return await dialog.ShowAsync() == ContentDialogResult.Primary", source);
         Assert.Contains("CinematicDialogShowcase.Variant.Information", source);
         Assert.Contains("CinematicDialogShowcase.Variant.Warning", source);
@@ -89,6 +92,15 @@ public sealed class CinematicDialogRoutingTests
         Assert.DoesNotContain("UpdateConfirmOverlay", xaml);
         Assert.DoesNotContain("ResolveUpdateDecision", source);
         Assert.DoesNotContain("TaskCompletionSource<bool>", source);
+    }
+
+    [Fact]
+    public void SharedDialogAllowsOperationSpecificHeaderWithoutChangingExistingCallers()
+    {
+        var factory = Source("CinematicDialogShowcase.cs");
+        Assert.Contains("string? captionOverride = null, string? operationLabel = null", factory);
+        Assert.Contains("captionOverride ?? caption", factory);
+        Assert.Contains(@"operationLabel ?? ""ALBUM OPERATION""", factory);
     }
 
     [Fact]
