@@ -178,15 +178,47 @@ public static class PhotoMetadataAnonymizer
         }
         if (!sawEoi || !sawScan)
             throw new InvalidDataException("JPEG SOS/EOI marker missing.");
-        // Unknown non-padding content after EOI may be another picture or
-        // proprietary payload. Never silently truncate such files.
-        for (var tail = position; tail < input.Length; tail++)
-        {
-            if (input[tail] is not (0x00 or 0xff))
-                throw new NotSupportedException(
-                    "JPEG has nonstandard appended data. Its original contents were preserved.");
-        }
+        // Camera software (including some older digital cameras) can append
+        // proprietary metadata after the JPEG End-Of-Image marker. It is not
+        // part of the encoded picture and may contain identifying information.
+        // Drop it, preserving the JPEG scan data byte-for-byte. Do NOT discard
+        // a recognizable second picture, Live Photo video or huge unknown
+        // payload: those are separate media and need dedicated handling.
+        var trailer = input[position..];
+        if (trailer.Length > 0 && ContainsAdditionalMedia(trailer))
+            throw new NotSupportedException(
+                "JPEG contains a possible appended photo/video or oversized payload. " +
+                "It was not changed; please inspect this multi-media file manually.");
         return output.ToArray();
+    }
+
+    private static bool ContainsAdditionalMedia(ReadOnlySpan<byte> trailer)
+    {
+        // Most camera metadata trailers are small. A very large attachment is
+        // more likely to contain additional visual media or another container.
+        const int MaxMetadataTrailerBytes = 256 * 1024;
+        if (trailer.Length > MaxMetadataTrailerBytes) return true;
+
+        for (var index = 0; index < trailer.Length; index++)
+        {
+            var remaining = trailer.Length - index;
+            if (remaining >= 2 &&
+                trailer[index] == 0xff && trailer[index + 1] == 0xd8)
+                return true; // Another JPEG SOI (stereo/multi-image).
+            if (remaining >= 8 &&
+                trailer.Slice(index, 8).SequenceEqual(PngSignature))
+                return true;
+            if (remaining >= 12 &&
+                trailer.Slice(index, 4).SequenceEqual("RIFF"u8) &&
+                (trailer.Slice(index + 8, 4).SequenceEqual("WEBP"u8) ||
+                 trailer.Slice(index + 8, 4).SequenceEqual("AVI "u8)))
+                return true;
+            if (remaining >= 8 &&
+                trailer.Slice(index + 4, 4).SequenceEqual("ftyp"u8))
+                return true; // ISO BMFF: MP4, MOV, HEIF, AVIF, etc.
+        }
+
+        return false; // Only detached metadata/padding; safe to discard.
     }
 
     private static bool HasApngAnimation(ReadOnlySpan<byte> input)
