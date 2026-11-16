@@ -60,6 +60,47 @@ public sealed class GallerySearchAndPhotoToolsTests
     }
 
     [Fact]
+    public void ViewerReturnCentersTheLastViewedPhotoAfterGalleryLayout()
+    {
+        var gridView = Read("ImageGridView.xaml.cs");
+        var grid = Read("VirtualizingPhotoGrid.xaml.cs");
+        var viewModel = Read("ImageGridViewModel.cs");
+
+        Assert.Contains("ViewerReturnSelectionRequested += OnViewerReturnSelectionRequested", gridView);
+        var handler = gridView.Split("private void OnViewerReturnSelectionRequested(", 2)[1]
+            .Split("private void OnResultsChanged(", 2)[0];
+        Assert.Contains("DispatcherQueuePriority.Low", handler);
+        Assert.Contains("PhotoGrid.RestoreSelection(ViewModel.SelectedImages, ViewModel.SelectedImage)", handler);
+        Assert.Contains("PhotoGrid.ScrollPrimarySelectionIntoView()", handler);
+
+        var scroll = grid.Split("public void ScrollPrimarySelectionIntoView()", 2)[1]
+            .Split("private void ScrollItemIntoView(", 2)[0];
+        Assert.Contains("_pendingViewerReturnItem = _primaryItem", scroll);
+        Assert.Contains("ScrollContainer.LayoutUpdated += OnViewerReturnLayoutUpdated", scroll);
+        Assert.Contains("ScrollContainer.ExtentHeight", scroll);
+        Assert.Contains("bounds.Value.Top + bounds.Value.Height / 2 - viewport / 2", scroll);
+        Assert.Contains("ScrollContainer.ChangeView(null, targetOffset, null, disableAnimation: true)", scroll);
+        Assert.Contains("ClearPendingViewerReturnScroll()", scroll);
+        Assert.Contains("GetItemRowBounds(vm)", grid);
+
+        Assert.Contains("SelectLastViewedImage(ImageEntry? entry)", viewModel);
+        Assert.Contains("ViewerReturnSelectionRequested?.Invoke(this, EventArgs.Empty)", viewModel);
+    }
+
+    [Fact]
+    public void SelectedThumbnailUsesStrongConsistentCinematicHighlight()
+    {
+        var grid = Read("VirtualizingPhotoGrid.xaml.cs");
+        Assert.Contains("grid.BorderThickness = selected ? new Thickness(3)", grid);
+        Assert.Contains("Height = 4", grid);
+        Assert.Contains("Margin = new Thickness(3, 0, 3, 24)", grid);
+        Assert.Contains("Text = \"SELECTED\"", grid);
+        Assert.Contains("Width = 27, Height = 27", grid);
+        Assert.Contains("bracket.Visibility = selected ? Visibility.Visible", grid);
+        Assert.Contains("hudElement.Visibility = selected ? Visibility.Visible", grid);
+    }
+
+    [Fact]
     public void CropRibbonExposesSeparateSaveAsAndExistingApply()
     {
         var ribbon = Read("TopRibbon.xaml");
