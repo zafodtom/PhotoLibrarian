@@ -47,6 +47,18 @@ public sealed class GallerySearchAndPhotoToolsTests
     }
 
     [Fact]
+    public void RotationHasRecoveryPathIfFaceMetadataSaveFails()
+    {
+        var window = Read("MainWindow.xaml.cs");
+        var viewModel = Read("MainViewModel.cs");
+        Assert.Contains("GetBackupPathAsync(entry.FilePath)", window);
+        Assert.Contains("pixelsWereRotated", window);
+        Assert.Contains("System.IO.File.Copy(", window);
+        Assert.Contains("WriteBatchAsync(", viewModel);
+        Assert.Contains("RotateFaceRegionsAsync(entry.Id, !clockwise)", viewModel);
+    }
+
+    [Fact]
     public void BothViewerRailsOfferTwoQuarterTurns()
     {
         var main = Read("MainWindow.xaml");
