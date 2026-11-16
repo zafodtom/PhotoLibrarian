@@ -64,9 +64,11 @@ internal static class CinematicDialogShowcase
         detail = detailOverride ?? detail;
         var glyph = critical || warning ? "\uE7BA" : complete ? "\uE73E"
             : progress ? "\uE895" : "\uE946";
-        // ContentDialog is capped by the WinUI default width (548 px) unless
-        // its template resource is overridden. Keep the size responsive, too.
-        var availableWidth = Math.Max(380, root.Size.Width - 64);
+        // WinUI centers its ContentDialog through its own presenter/template.
+        // Setting Width or MaxWidth on the ContentDialog itself prevents
+        // recentering (microsoft/microsoft-ui-xaml#424). Resize the CONTENT,
+        // and raise only the dialog template's width resource instead.
+        var availableWidth = Math.Max(320, root.Size.Width - 64);
         var dialogWidth = Math.Min(800, availableWidth);
         var panelWidth = dialogWidth - 80;
         var compact = dialogWidth < 660;
@@ -257,18 +259,14 @@ internal static class CinematicDialogShowcase
             // ESC and the explicit CANCEL button still dismiss safely; no destructive
             // action is selected automatically by Enter.
             DefaultButton = ContentDialogButton.None,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Background = Brush(7, 10, 14),
             BorderBrush = accent,
-            BorderThickness = new Thickness(1),
-            Width = dialogWidth,
-            MaxWidth = dialogWidth
+            BorderThickness = new Thickness(1)
         };
         // Override this specimen only, preserving all production dialogs.
         dialog.Resources["ContentDialogMaxWidth"] = dialogWidth + 24d;
-        dialog.Resources["ContentDialogMinWidth"] = Math.Min(dialogWidth, 400d);
+        dialog.Resources["ContentDialogMinWidth"] = Math.Min(dialogWidth, 320d);
         // Preview controls belong to the same severity palette as the panel.
         // Avoid the default blue WinUI accent, without changing app-wide styles.
         dialog.PrimaryButtonStyle = ActionStyle(accent, dim, solid: !preview);
