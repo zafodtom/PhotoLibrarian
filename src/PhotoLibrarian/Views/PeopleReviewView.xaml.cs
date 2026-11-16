@@ -480,12 +480,17 @@ public sealed partial class PeopleReviewView : UserControl
             var recentLabel = new TextBlock
             {
                 Text = "Recent",
-                Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"]
+                Style = (Style)Application.Current.Resources["HiTechSystemCaptionStyle"]
             };
             var recentRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             foreach (var recentPerson in recentPeople)
             {
-                var recentButton = new Button { Content = recentPerson.Name, Tag = recentPerson };
+                var recentButton = new Button
+                {
+                    Content = recentPerson.Name,
+                    Tag = recentPerson,
+                    Style = (Style)Application.Current.Resources["HiTechSectionActionStyle"]
+                };
                 AutomationProperties.SetAutomationId(
                     recentButton,
                     $"RecentPerson{recentPerson.Id}");
@@ -529,6 +534,7 @@ public sealed partial class PeopleReviewView : UserControl
             UpdateDialogState();
         };
 
+        CinematicDialogStyling.Apply(dialog);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         await RunGridActionAsync(
             SuggestionGrid,
@@ -552,6 +558,7 @@ public sealed partial class PeopleReviewView : UserControl
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot
         };
+        CinematicDialogStyling.Apply(dialog, destructive: true);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         await RunGridActionAsync(
             SuggestionGrid,
@@ -587,6 +594,7 @@ public sealed partial class PeopleReviewView : UserControl
         name.TextChanged += (_, _) =>
             dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(name.Text);
 
+        CinematicDialogStyling.Apply(dialog);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         await RunActionAsync(() => ViewModel.RenamePersonAsync(person, name.Text));
     }
@@ -624,6 +632,7 @@ public sealed partial class PeopleReviewView : UserControl
             dialog.IsPrimaryButtonEnabled =
                 targetPicker.SelectedItem is PersonManagementItemViewModel;
 
+        CinematicDialogStyling.Apply(dialog);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary ||
             targetPicker.SelectedItem is not PersonManagementItemViewModel target)
         {
@@ -690,17 +699,15 @@ public sealed partial class PeopleReviewView : UserControl
         var person = ViewModel.SelectedPerson;
         if (person is null) return;
 
-        var dialog = new ContentDialog
-        {
-            Title = $"Delete {person.Name}?",
-            Content =
+        var dialog = CinematicDialogShowcase.Create(
+            XamlRoot,
+            CinematicDialogShowcase.Variant.Warning,
+            subjectOverride: $"DELETE PERSON: {person.Name}?",
+            detailOverride:
                 $"The person will be deleted and {person.Faces.Count} assigned faces " +
-                "will return to face matching.",
-            PrimaryButtonText = "Delete person",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
-        };
+                "will return to face matching. Review the selected identity before proceeding.",
+            confirmLabel: "DELETE PERSON",
+            preview: false);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         await RunActionAsync(() => ViewModel.DeletePersonAsync(person));
     }
@@ -818,13 +825,12 @@ public sealed partial class PeopleReviewView : UserControl
 
     private async Task ShowErrorAsync(string title, Exception exception)
     {
-        var dialog = new ContentDialog
-        {
-            Title = title,
-            Content = exception.Message,
-            CloseButtonText = "Close",
-            XamlRoot = XamlRoot
-        };
+        var dialog = CinematicDialogShowcase.Create(
+            XamlRoot,
+            CinematicDialogShowcase.Variant.Error,
+            subjectOverride: title.ToUpperInvariant(),
+            detailOverride: exception.Message,
+            preview: false);
         await dialog.ShowAsync();
     }
 

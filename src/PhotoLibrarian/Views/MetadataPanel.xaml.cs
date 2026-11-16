@@ -403,6 +403,7 @@ public sealed partial class MetadataPanel : UserControl
             BorderThickness = new Thickness(1)
         };
 
+        CinematicDialogStyling.Apply(dialog);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
@@ -501,9 +502,9 @@ public sealed partial class MetadataPanel : UserControl
         };
         var saveButton = new Button { Content = "SAVE CHANGES" };
         var removeButton = new Button { Content = "REMOVE FROM CATALOG" };
-        var cancelButton = new Button { Content = "CANCEL" };
+        var cancelButton = new Button { Content = "CANCEL", Style = (Style)Application.Current.Resources["HiTechSecondaryButtonStyle"] };
         saveButton.Style = (Style)Application.Current.Resources["HiTechPrimaryButtonStyle"];
-        removeButton.Style = (Style)Application.Current.Resources["HiTechIconButtonStyle"];
+        removeButton.Style = (Style)Application.Current.Resources["HiTechDangerButtonStyle"];
         cancelButton.Style = (Style)Application.Current.Resources["HiTechIconButtonStyle"];
         actionRail.Children.Add(saveButton);
         actionRail.Children.Add(removeButton);
@@ -531,6 +532,7 @@ public sealed partial class MetadataPanel : UserControl
         saveButton.Click += (_, _) => { result = ContentDialogResult.Primary; dialog.Hide(); };
         removeButton.Click += (_, _) => { result = ContentDialogResult.Secondary; dialog.Hide(); };
         cancelButton.Click += (_, _) => dialog.Hide();
+        CinematicDialogStyling.Apply(dialog);
         await dialog.ShowAsync();
 
         if (result == ContentDialogResult.Secondary)

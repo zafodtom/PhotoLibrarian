@@ -64,9 +64,11 @@ internal static class CinematicDialogShowcase
         detail = detailOverride ?? detail;
         var glyph = critical || warning ? "\uE7BA" : complete ? "\uE73E"
             : progress ? "\uE895" : "\uE946";
-        // ContentDialog is capped by the WinUI default width (548 px) unless
-        // its template resource is overridden. Keep the size responsive, too.
-        var availableWidth = Math.Max(380, root.Size.Width - 64);
+        // WinUI centers its ContentDialog through its own presenter/template.
+        // Setting Width or MaxWidth on the ContentDialog itself prevents
+        // recentering (microsoft/microsoft-ui-xaml#424). Resize the CONTENT,
+        // and raise only the dialog template's width resource instead.
+        var availableWidth = Math.Max(320, root.Size.Width - 64);
         var dialogWidth = Math.Min(800, availableWidth);
         var panelWidth = dialogWidth - 80;
         var compact = dialogWidth < 660;
@@ -212,7 +214,12 @@ internal static class CinematicDialogShowcase
             Brush(162, 178, 185), false));
         stack.Children.Add(footer);
 
-        var outer = new Grid { Width = panelWidth, MaxWidth = 760 };
+        var outer = new Grid
+        {
+            Width = panelWidth,
+            MaxWidth = 760,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(15) });
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var rail = new StackPanel { Background = dim, Spacing = 8, Padding = new Thickness(3, 12, 3, 12) };
@@ -240,24 +247,31 @@ internal static class CinematicDialogShowcase
                 Content = outer,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                MaxHeight = Math.Max(300, root.Size.Height - 160)
+                MaxHeight = Math.Max(260, root.Size.Height - 160),
+                HorizontalAlignment = HorizontalAlignment.Center
             },
             PrimaryButtonText = preview ? "NEXT PREVIEW" : confirmLabel,
-            CloseButtonText = preview ? "CLOSE SHOWCASE" : "CANCEL",
-            DefaultButton = ContentDialogButton.Close,
+            CloseButtonText = preview ? "CLOSE SHOWCASE" :
+                string.IsNullOrWhiteSpace(confirmLabel)
+                    ? (critical ? "ACKNOWLEDGE" : "CLOSE")
+                    : "CANCEL",
+            // Avoid WinUI's blue accent-default button overriding our severity styles.
+            // ESC and the explicit CANCEL button still dismiss safely; no destructive
+            // action is selected automatically by Enter.
+            DefaultButton = ContentDialogButton.None,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Background = Brush(7, 10, 14),
             BorderBrush = accent,
-            BorderThickness = new Thickness(1),
-            Width = dialogWidth,
-            MaxWidth = dialogWidth
+            BorderThickness = new Thickness(1)
         };
         // Override this specimen only, preserving all production dialogs.
         dialog.Resources["ContentDialogMaxWidth"] = dialogWidth + 24d;
-        dialog.Resources["ContentDialogMinWidth"] = Math.Min(dialogWidth, 400d);
+        dialog.Resources["ContentDialogMinWidth"] = Math.Min(dialogWidth, 320d);
         // Preview controls belong to the same severity palette as the panel.
         // Avoid the default blue WinUI accent, without changing app-wide styles.
         dialog.PrimaryButtonStyle = ActionStyle(accent, dim, solid: !preview);
-        dialog.CloseButtonStyle = ActionStyle(accent, dim, solid: preview);
+        // Cancel/dismiss is neutral rather than a second bright colored action.
+        dialog.CloseButtonStyle = ActionStyle(Brush(91, 120, 136), Brush(17, 34, 48), solid: false);
         return dialog;
     }
 

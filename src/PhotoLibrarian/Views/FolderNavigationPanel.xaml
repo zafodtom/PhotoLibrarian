@@ -28,19 +28,19 @@
                                    VerticalAlignment="Center" />
                         <TextBlock Grid.Column="1"
                                    Text="LIBRARY"
-                                   Style="{StaticResource HiTechSectionHeaderStyle}"
+                                   Style="{StaticResource HiTechPanelHeadingStyle}"
                                    Margin="8,0,0,0"
                                    VerticalAlignment="Center" />
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
                             <Button x:Name="ManageFoldersButton" ToolTipService.ToolTip="Open another album"
                                     AutomationProperties.Name="Open another album"
                                     Click="OnManageFoldersClick" Padding="6"
-                                    Style="{StaticResource HiTechIconButtonStyle}">
+                                    Style="{StaticResource HiTechRailButtonStyle}">
                                 <Viewbox Width="14" Height="14"><Path Data="M2,7 L2,20 L22,20 L22,8 L11,8 L8,5 L2,5 Z" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
                             </Button>
                             <Button x:Name="RefreshButton" ToolTipService.ToolTip="Refresh"
                                     Click="OnRefreshClick" Padding="6"
-                                    Style="{StaticResource HiTechIconButtonStyle}">
+                                    Style="{StaticResource HiTechRailButtonStyle}">
                                 <Viewbox Width="14" Height="14"><Path Data="M20,8 A9,9 0 1 0 21,15 M20,3 L20,9 L14,9" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
                             </Button>
                         </StackPanel>
@@ -86,32 +86,30 @@
                                        Fill="{StaticResource HiTechAccentBrush}"
                                        VerticalAlignment="Center" />
                             <TextBlock Text="TAGS"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}"
+                                       Style="{StaticResource HiTechPanelHeadingStyle}"
                                        VerticalAlignment="Center" />
-                            <TextBlock Text="B02"
-                                       Style="{StaticResource HiTechTinyLabelStyle}"
-                                       VerticalAlignment="Center" />
+                            
                         </StackPanel>
                         <StackPanel Grid.Column="1"
                                     Orientation="Horizontal"
                                     Spacing="2">
                             <Button Click="OnManageTagCatalogClick"
                                     Padding="5,3"
-                                    Style="{StaticResource HiTechIconButtonStyle}"
+                                    Style="{StaticResource HiTechRailButtonStyle}"
                                     ToolTipService.ToolTip="Manage tag catalog"
                                     AutomationProperties.Name="Manage tag catalog">
                                 <Viewbox Width="16" Height="16"><Grid Width="24" Height="24"><Path Data="M12,2 L12,5 M12,19 L12,22 M2,12 L5,12 M19,12 L22,12 M4.9,4.9 L7,7 M17,17 L19.1,19.1 M19.1,4.9 L17,7 M7,17 L4.9,19.1" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/><Ellipse Width="13" Height="13" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6"/><Ellipse Width="4" Height="4" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2"/></Grid></Viewbox>
                             </Button>
                             <Button Click="OnExpandAllTagsClick"
                                     Padding="5,3"
-                                    Style="{StaticResource HiTechIconButtonStyle}"
+                                    Style="{StaticResource HiTechRailButtonStyle}"
                                     ToolTipService.ToolTip="Expand all tags"
                                     AutomationProperties.Name="Expand all tags">
                                 <Viewbox Width="12" Height="12"><Path Data="M4,15 L12,7 L20,15" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"/></Viewbox>
                             </Button>
                             <Button Click="OnCollapseAllTagsClick"
                                     Padding="5,3"
-                                    Style="{StaticResource HiTechIconButtonStyle}"
+                                    Style="{StaticResource HiTechRailButtonStyle}"
                                     ToolTipService.ToolTip="Collapse all tags"
                                     AutomationProperties.Name="Collapse all tags">
                                 <Viewbox Width="12" Height="12"><Path Data="M4,9 L12,17 L20,9" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"/></Viewbox>
@@ -140,12 +138,12 @@
                             <Button Grid.Column="1" Content="CLEAR"
                                     Click="OnClearTagFiltersClick"
                                     Padding="8,4"
-                                    Style="{StaticResource HiTechIconButtonStyle}"
+                                    Style="{StaticResource HiTechRailButtonStyle}"
                                     ToolTipService.ToolTip="Clear included and excluded tag filters" />
                         </Grid>
                         <TextBlock x:Name="ActiveTagFiltersText"
                                    Text="No tag conditions"
-                                   Style="{StaticResource HiTechTinyLabelStyle}"
+                                   Style="{StaticResource HiTechSystemCaptionStyle}"
                                    TextWrapping="Wrap" />
                         <TextBlock x:Name="TagMatchesText"
                                    Text="0 matched photos"
@@ -179,6 +177,7 @@
                                             Click="OnIncludeTagClick"
                                             Padding="2,1"
                                             MinWidth="22"
+                                            Style="{StaticResource HiTechFilterIncludeStyle}"
                                             ToolTipService.ToolTip="Include this tag; click again to clear"
                                             AutomationProperties.Name="Include tag" />
                                     <Button Grid.Column="2"
@@ -187,6 +186,7 @@
                                             Click="OnExcludeTagClick"
                                             Padding="2,1"
                                             MinWidth="22"
+                                            Style="{StaticResource HiTechFilterExcludeStyle}"
                                             ToolTipService.ToolTip="Exclude this tag; click again to clear"
                                             AutomationProperties.Name="Exclude tag" />
                                 </Grid>

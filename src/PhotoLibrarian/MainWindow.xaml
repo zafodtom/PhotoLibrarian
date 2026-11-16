@@ -19,7 +19,7 @@
         <!-- Persistent global command / identity header -->
         <Grid x:Name="GlobalHeader"
               Grid.Row="0"
-              Background="#0A121A"
+              Background="{StaticResource HiTechPanelBackgroundBrush}"
               BorderBrush="{StaticResource HiTechAccentMutedBrush}"
               BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
@@ -49,7 +49,7 @@
                                Foreground="{StaticResource HiTechTextPrimaryBrush}" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="LOCAL VISUAL ARCHIVE"
-                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                                   Style="{StaticResource HiTechSystemCaptionStyle}" />
                         <Rectangle Width="30" Height="1"
                                    VerticalAlignment="Center"
                                    Fill="{StaticResource HiTechAccentMutedBrush}" />
@@ -76,7 +76,7 @@
                                FontSize="13" />
                     <TextBlock x:Name="WorkspaceSubtitleText" Text="CATALOG / INSPECT / CLASSIFY"
                                HorizontalAlignment="Center"
-                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                               Style="{StaticResource HiTechSystemCaptionStyle}" />
                     <TextBlock x:Name="ViewerHeaderAssetName"
                                Visibility="Collapsed"
                                HorizontalAlignment="Center"
@@ -117,12 +117,12 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center" Spacing="3">
                     <TextBlock Text="SYSTEM STATUS"
-                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                               Style="{StaticResource HiTechSystemCaptionStyle}" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Ellipse Width="7" Height="7"
                                  Fill="{StaticResource HiTechAccentBrush}"
                                  VerticalAlignment="Center" />
-                        <TextBlock Text="INDEX ONLINE"
+                        <TextBlock Text="LOCAL WORKSPACE"
                                    FontFamily="Consolas"
                                    FontSize="11"
                                    Foreground="{StaticResource HiTechTextPrimaryBrush}" />
@@ -180,7 +180,7 @@
             <!-- Left system rail: viewer commands use existing side width. -->
             <Grid x:Name="SystemRail"
                   Grid.Column="0"
-                  Background="#091018"
+                  Background="{StaticResource HiTechPanelBackgroundBrush}"
                   BorderBrush="{StaticResource HiTechBorderBrush}"
                   BorderThickness="0,0,1,0">
                 <StackPanel x:Name="NavigationRailDecorations"
@@ -236,50 +236,50 @@
                             AutomationProperties.Name="Crop photo"
                             ToolTipService.ToolTip="Crop photo"
                             Click="OnSideViewerCrop"
-                            Style="{StaticResource HiTechIconButtonStyle}">
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE7A8;" FontSize="20" />
                     </Button>
                     <Rectangle Width="24" Height="1" Margin="0,2" Fill="{StaticResource HiTechAccentMutedBrush}" />
                     <Button x:Name="SideZoomOutButton" Width="40" Height="36" Padding="3"
                             Click="OnSideZoomOut" ToolTipService.ToolTip="Zoom out"
                             AutomationProperties.Name="Zoom out"
-                            Style="{StaticResource HiTechIconButtonStyle}">
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE71F;" FontSize="16" />
                     </Button>
                     <Button x:Name="SideZoomFitButton" Width="40" Height="36" Padding="3"
                             Click="OnSideZoomFit" ToolTipService.ToolTip="Fit photo to window"
                             AutomationProperties.Name="Fit photo to window"
-                            Style="{StaticResource HiTechIconButtonStyle}">
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE9A6;" FontSize="16" />
                     </Button>
                     <Button x:Name="SideZoom100Button" Width="40" Height="36" Padding="3"
                             Click="OnSideZoom100" ToolTipService.ToolTip="Actual size (100%)"
                             AutomationProperties.Name="Actual size (100%)"
-                            Style="{StaticResource HiTechIconButtonStyle}">
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <TextBlock Text="100" FontFamily="Consolas" FontSize="12" />
                     </Button>
                     <Button x:Name="SideZoomInButton" Width="40" Height="36" Padding="3"
                             Click="OnSideZoomIn" ToolTipService.ToolTip="Zoom in"
                             AutomationProperties.Name="Zoom in"
-                            Style="{StaticResource HiTechIconButtonStyle}">
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE8A3;" FontSize="16" />
                     </Button>
                     <Button x:Name="SideFullscreenButton" Width="40" Height="36" Padding="3"
                             Click="OnSideFullscreen" ToolTipService.ToolTip="Toggle fullscreen (F11)"
                             AutomationProperties.Name="Toggle fullscreen (F11)"
-                            Style="{StaticResource HiTechIconButtonStyle}">
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE740;" FontSize="16" />
                     </Button>
                     <Button x:Name="SideDeleteButton" Width="40" Height="36" Padding="3"
                             Click="OnSideDelete" ToolTipService.ToolTip="Delete current item"
                             AutomationProperties.Name="Delete current item"
-                            Style="{StaticResource HiTechIconButtonStyle}">
+                            Style="{StaticResource HiTechRailDangerButtonStyle}">
                         <FontIcon Glyph="&#xE74D;" FontSize="16" />
                     </Button>
                     <Button x:Name="SideCancelFaceButton" Width="40" Height="36" Padding="3"
                             Click="OnSideCancelFace" ToolTipService.ToolTip="Cancel adding a people tag"
                             AutomationProperties.Name="Cancel adding a people tag" Visibility="Collapsed"
-                            Style="{StaticResource HiTechIconButtonStyle}">
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE711;" FontSize="16" />
                     </Button>
                     <Rectangle Width="24" Height="1" Margin="0,2" Fill="{StaticResource HiTechAccentMutedBrush}" />
@@ -290,7 +290,7 @@
                             AutomationProperties.Name="Back to gallery"
                             ToolTipService.ToolTip="Back to gallery (Esc)"
                             Click="OnSideViewerBack"
-                            Style="{StaticResource HiTechIconButtonStyle}">
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE72B;" FontSize="20" />
                     </Button>
                 </StackPanel>
@@ -298,8 +298,8 @@
 
             <!-- Navigation bay -->
             <Grid Grid.Column="1" Margin="8,4,0,4">
-                <Border Background="#C90A1118"
-                        BorderBrush="{StaticResource HiTechBorderBrush}"
+                <Border Background="{StaticResource HiTechPanelBackgroundBrush}"
+                        BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1">
                     <views:FolderNavigationPanel x:Name="FolderNavPanel" />
                 </Border>
@@ -331,7 +331,7 @@
                   Grid.Column="3"
                   Margin="2,4">
                 <Border x:Name="MainViewportBorder"
-                        Background="#0A121A"
+                        Background="{StaticResource HiTechPanelBackgroundBrush}"
                         BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1">
                     <Grid>
@@ -383,8 +383,8 @@
 
             <!-- Inspection bay -->
             <Grid Grid.Column="5" Margin="0,4,10,4">
-                <Border Background="#C90A1118"
-                        BorderBrush="{StaticResource HiTechBorderBrush}"
+                <Border Background="{StaticResource HiTechPanelBackgroundBrush}"
+                        BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1">
                     <views:MetadataPanel x:Name="MetadataDetailPanel" />
                 </Border>
@@ -419,57 +419,57 @@
                 <Button x:Name="FullscreenCropButton" Width="40" Height="38" Padding="3"
                         Click="OnSideViewerCrop" ToolTipService.ToolTip="Crop photo"
                         AutomationProperties.Name="Crop photo"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE7A8;" FontSize="16" />
                 </Button>
                 <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
                 <Button x:Name="FullscreenZoomOutButton" Width="40" Height="38" Padding="3"
                         Click="OnSideZoomOut" ToolTipService.ToolTip="Zoom out"
                         AutomationProperties.Name="Zoom out"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE71F;" FontSize="16" />
                 </Button>
                 <Button x:Name="FullscreenZoomFitButton" Width="40" Height="38" Padding="3"
                         Click="OnSideZoomFit" ToolTipService.ToolTip="Fit photo to window"
                         AutomationProperties.Name="Fit photo to window"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE9A6;" FontSize="16" />
                 </Button>
                 <Button x:Name="FullscreenZoom100Button" Width="40" Height="38" Padding="3"
                         Click="OnSideZoom100" ToolTipService.ToolTip="Actual size (100%)"
                         AutomationProperties.Name="Actual size (100%)"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <TextBlock Text="100" FontFamily="Consolas" FontSize="12" />
                 </Button>
                 <Button x:Name="FullscreenZoomInButton" Width="40" Height="38" Padding="3"
                         Click="OnSideZoomIn" ToolTipService.ToolTip="Zoom in"
                         AutomationProperties.Name="Zoom in"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE8A3;" FontSize="16" />
                 </Button>
                 <Button x:Name="FullscreenToggleButton" Width="40" Height="38" Padding="3"
                         Click="OnSideFullscreen" ToolTipService.ToolTip="Exit fullscreen (F11)"
                         AutomationProperties.Name="Exit fullscreen (F11)"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE740;" FontSize="16" />
                 </Button>
                 <Button x:Name="FullscreenDeleteButton" Width="40" Height="38" Padding="3"
                         Click="OnSideDelete" ToolTipService.ToolTip="Delete current item"
                         AutomationProperties.Name="Delete current item"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailDangerButtonStyle}">
                     <FontIcon Glyph="&#xE74D;" FontSize="16" />
                 </Button>
                 <Button x:Name="FullscreenCancelFaceButton" Width="40" Height="38" Padding="3"
                         Click="OnSideCancelFace" ToolTipService.ToolTip="Cancel adding people tag"
                         AutomationProperties.Name="Cancel adding people tag"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE711;" FontSize="16" />
                 </Button>
                 <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
                 <Button x:Name="FullscreenBackButton" Width="40" Height="38" Padding="3"
                         Click="OnSideViewerBack" ToolTipService.ToolTip="Back to gallery"
                         AutomationProperties.Name="Back to gallery"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE72B;" FontSize="16" />
                 </Button>
             </StackPanel>
@@ -524,7 +524,7 @@
                 Visibility="Collapsed"
                 Background="#F2070B10">
             <Grid Margin="18">
-                <Border Background="#0A121A"
+                <Border Background="{StaticResource HiTechPanelBackgroundBrush}"
                         BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1">
                     <views:SettingsPanel x:Name="SettingsPanel" />
@@ -549,12 +549,12 @@
             </Grid>
         </Border>
 
-        <!-- Bottom system rail -->
+        <!-- Bottom system rail: functional status and version remain unchanged. -->
         <Grid x:Name="StatusBar"
               Grid.Row="3"
               Padding="12,3"
-              Background="#091018"
-              BorderBrush="{StaticResource HiTechBorderBrush}"
+              Background="{StaticResource HiTechPanelBackgroundBrush}"
+              BorderBrush="{StaticResource HiTechAccentMutedBrush}"
               BorderThickness="0,1,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -566,7 +566,7 @@
             <StackPanel Orientation="Horizontal"
                         Spacing="10"
                         VerticalAlignment="Center">
-                <TextBlock Text="SYS"
+                <TextBlock Text="SYS //"
                            Foreground="{StaticResource HiTechAccentBrush}"
                            Style="{StaticResource HiTechCaptionStyle}" />
                 <Rectangle Width="26" Height="1"
@@ -605,7 +605,7 @@
                     AutomationProperties.Name="Settings"
                     Click="OnSettingsClick"
                     ToolTipService.ToolTip="Settings"
-                    Style="{StaticResource HiTechIconButtonStyle}">
+                    Style="{StaticResource HiTechRailButtonStyle}">
                 <Viewbox Width="19" Height="19"><Grid Width="24" Height="24"><Path Data="M12,2 L12,5 M12,19 L12,22 M2,12 L5,12 M19,12 L22,12 M4.9,4.9 L7,7 M17,17 L19.1,19.1 M19.1,4.9 L17,7 M7,17 L4.9,19.1" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/><Ellipse Width="13" Height="13" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6"/><Ellipse Width="4" Height="4" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2"/></Grid></Viewbox>
             </Button>
         </Grid>

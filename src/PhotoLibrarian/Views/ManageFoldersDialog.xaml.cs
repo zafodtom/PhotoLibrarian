@@ -57,17 +57,17 @@ public sealed partial class ManageFoldersDialog : ContentDialog
 
     private async void OnClearDatabaseClick(object sender, RoutedEventArgs e)
     {
-        // Confirm with user
-        var confirmDialog = new ContentDialog
-        {
-            Title = "Clear Database?",
-            Content = "This will delete all cached metadata and thumbnails. Your original photos are safe. The library will be re-indexed automatically.\n\nThis may take several minutes depending on library size.\n\nContinue?",
-            PrimaryButtonText = "Clear and Re-Index",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = this.XamlRoot
-        };
-
+        // Database rebuild is an album-wide maintenance operation.
+        var confirmDialog = CinematicDialogShowcase.Create(
+            XamlRoot,
+            CinematicDialogShowcase.Variant.Warning,
+            subjectOverride: "CLEAR CACHE DATABASE?",
+            detailOverride:
+                "This removes all cached metadata and thumbnails. Original photos " +
+                "are preserved, but the application must restart before the library " +
+                "can be indexed again. This can take several minutes.",
+            confirmLabel: "CLEAR AND RE-INDEX",
+            preview: false);
         var result = await confirmDialog.ShowAsync();
         if (result != ContentDialogResult.Primary)
             return;
@@ -99,14 +99,14 @@ public sealed partial class ManageFoldersDialog : ContentDialog
                 File.Delete(dbPath + "-wal");
             }
 
-            // Show success and close dialog
-            var successDialog = new ContentDialog
-            {
-                Title = "Database Cleared",
-                Content = "Database has been cleared. Please restart the application to re-index your library.",
-                CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
-            };
+            var successDialog = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Complete,
+                subjectOverride: "CACHE DATABASE CLEARED",
+                detailOverride:
+                    "The cache database was removed. PhotoLibrarian will now restart " +
+                    "and rebuild the local library index.",
+                preview: false);
             await successDialog.ShowAsync();
 
             // Close this dialog
@@ -117,13 +117,15 @@ public sealed partial class ManageFoldersDialog : ContentDialog
         }
         catch (Exception ex)
         {
-            var errorDialog = new ContentDialog
-            {
-                Title = "Error",
-                Content = $"Failed to clear database: {ex.Message}\n\nYou may need to close the application and manually delete the database file at:\n%LOCALAPPDATA%\\PhotoLibrarian\\cache.db",
-                CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
-            };
+            var errorDialog = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Error,
+                subjectOverride: "CACHE RESET FAILED",
+                detailOverride:
+                    $"Failed to clear database: {ex.Message}\n\n" +
+                    "You may need to close the application and manually remove " +
+                    "the cache database from %LOCALAPPDATA%\\PhotoLibrarian\\cache.db.",
+                preview: false);
             await errorDialog.ShowAsync();
         }
         finally

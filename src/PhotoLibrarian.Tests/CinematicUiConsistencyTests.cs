@@ -1,0 +1,130 @@
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
+using Xunit;
+
+namespace PhotoLibrarian.Tests;
+
+/// <summary>
+/// Offline XAML smoke checks for the Cinematic UI. These do not replace
+/// interactive WinUI checks of pointer, focus or fullscreen behavior.
+/// </summary>
+public sealed class CinematicUiConsistencyTests
+{
+    private static readonly string[] Screens =
+    [
+        "MainWindow.xaml",
+        "BootWindow.xaml",
+        "FolderNavigationPanel.xaml",
+        "ImageGridView.xaml",
+        "ImageViewerOverlay.xaml",
+        "ImageEditorView.xaml",
+        "ManageFoldersDialog.xaml",
+        "PeopleReviewView.xaml",
+        "MetadataPanel.xaml",
+        "SettingsPanel.xaml",
+        "TopRibbon.xaml",
+        "CropOverlay.xaml"
+    ];
+
+    private static string Read(string name) =>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", name));
+
+    [Fact]
+    public void AllCinematicScreensRemainWellFormedXaml()
+    {
+        _ = XDocument.Parse(Read("HiTechTheme.xaml"));
+        foreach (var screen in Screens)
+        {
+            var document = XDocument.Parse(Read(screen));
+            Assert.NotNull(document.Root);
+        }
+    }
+
+    [Fact]
+    public void EveryUsedHiTechStaticResourceExistsInSharedTheme()
+    {
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var theme = XDocument.Parse(Read("HiTechTheme.xaml"));
+        var keys = theme.Descendants()
+            .Select(node => (string?)node.Attribute(x + "Key"))
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Select(key => key!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var screen in Screens)
+        {
+            var references = Regex.Matches(Read(screen), @"\{StaticResource (HiTech\w+)\}");
+            foreach (Match match in references)
+            {
+                var key = match.Groups[1].Value;
+                Assert.True(keys.Contains(key),
+                    $"Missing {key} referenced by {screen}.");
+            }
+        }
+    }
+
+    [Fact]
+    public void CinematicWarningsUseNativeCenteredPlacementAndAvoidDefaultAccentButtons()
+    {
+        var source = Read("CinematicDialogShowcase.cs");
+        // Keep fixed dimensions on the INNER CONTENT, not on the dialog:
+        // WinUI's popup presenter otherwise places the dialog at the edge.
+        var dialogSection = source.Split("var dialog = new ContentDialog", 2)[1]
+            .Split("return dialog;", 2)[0];
+        Assert.DoesNotContain("Width = dialogWidth,", dialogSection);
+        Assert.DoesNotContain("MaxWidth = dialogWidth", dialogSection);
+        Assert.DoesNotContain("HorizontalAlignment = HorizontalAlignment.Center,", dialogSection);
+        Assert.DoesNotContain("VerticalAlignment = VerticalAlignment.Center,", dialogSection);
+        Assert.Contains("ContentDialogMaxWidth", dialogSection);
+        Assert.Contains("DefaultButton = ContentDialogButton.None", dialogSection);
+        Assert.Contains("dialog.PrimaryButtonStyle = ActionStyle(", dialogSection);
+        Assert.Contains("dialog.CloseButtonStyle = ActionStyle(", dialogSection);
+    }
+
+    [Fact]
+    public void OrdinaryDialogsLeavePopupPlacementToWinUi()
+    {
+        var source = Read("CinematicDialogStyling.cs");
+        var theme = Read("HiTechTheme.xaml");
+        Assert.Contains("dialog.ClearValue(FrameworkElement.HorizontalAlignmentProperty)", source);
+        Assert.Contains("dialog.ClearValue(FrameworkElement.VerticalAlignmentProperty)", source);
+        Assert.DoesNotContain("dialog.HorizontalAlignment = HorizontalAlignment.Center", source);
+        Assert.Contains("HiTechSecondaryButtonStyle", source);
+        Assert.Contains("HiTechDangerButtonStyle", source);
+        Assert.Contains("x:Key=\"HiTechDangerButtonStyle\"", theme);
+
+        var folders = XDocument.Parse(Read("ManageFoldersDialog.xaml"));
+        Assert.Null(folders.Root?.Attribute("MinWidth"));
+        Assert.Null(folders.Root?.Attribute("HorizontalAlignment"));
+        Assert.Null(folders.Root?.Attribute("VerticalAlignment"));
+    }
+
+    [Fact]
+    public void SecondaryActionsAndDisabledButtonsUseSharedCinematicPalette()
+    {
+        var theme = Read("HiTechTheme.xaml");
+        var settings = Read("SettingsPanel.xaml");
+        var metadata = Read("MetadataPanel.xaml.cs");
+        var navigation = Read("FolderNavigationPanel.xaml.cs");
+
+        Assert.Contains("x:Key=\"HiTechSecondaryButtonStyle\"", theme);
+        Assert.Contains("x:Key=\"ButtonBackgroundDisabled\"", theme);
+        Assert.Contains("x:Key=\"ButtonForegroundDisabled\"", theme);
+        Assert.Contains("x:Key=\"ButtonBorderBrushDisabled\"", theme);
+        Assert.Contains("HiTechSecondaryButtonStyle", settings);
+        Assert.Contains("HiTechSecondaryButtonStyle", metadata);
+        Assert.Contains("HiTechSecondaryButtonStyle", navigation);
+    }
+
+    [Fact]
+    public void ViewerControlsKeepActualSizeSeparateFromActualZoomReadout()
+    {
+        var window = Read("MainWindow.xaml");
+        var viewer = Read("ImageViewerOverlay.xaml");
+
+        Assert.Contains("SideZoom100Button", window);
+        Assert.Contains("FullscreenZoom100Button", window);
+        Assert.Contains("ZoomPercentBadge", viewer);
+        Assert.Contains("ZoomPercentText", viewer);
+    }
+}

@@ -5,7 +5,7 @@
     xmlns:vm="using:PhotoLibrarian.ViewModels">
 
     <UserControl.Resources>
-        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource HiTechSectionHeaderStyle}">
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource HiTechPanelHeadingStyle}">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Margin" Value="0,14,0,4" />
         </Style>
@@ -14,7 +14,7 @@
             <Setter Property="FontSize" Value="13" />
         </Style>
         <Style x:Key="InfoLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource HiTechAccentMutedBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource HiTechTextSecondaryBrush}" />
             <Setter Property="FontFamily" Value="Consolas" />
             <Setter Property="FontSize" Value="10" />
             <Setter Property="CharacterSpacing" Value="60" />
@@ -52,7 +52,7 @@
 
                 <!-- ═══ Row 0: Editable sections ═══ -->
                 <Border Grid.Row="0"
-                        Background="#66070D13"
+                        Background="{StaticResource HiTechPanelBackgroundBrush}"
                         Margin="0,0,0,8"
                         IsHitTestVisible="False" />
                 <StackPanel Grid.Row="0" Spacing="0">
@@ -70,13 +70,13 @@
                                     Margin="10,0,0,0"
                                     VerticalAlignment="Center">
                             <TextBlock Text="ASSET METADATA"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="EDIT / INDEX / INSPECT"
-                                       Style="{StaticResource HiTechTinyLabelStyle}" />
+                                       Style="{StaticResource HiTechSystemCaptionStyle}" />
                         </StackPanel>
                         <TextBlock Grid.Column="2"
                                    Text="M03"
-                                   Style="{StaticResource HiTechTinyLabelStyle}"
+                                   Style="{StaticResource HiTechSystemCaptionStyle}"
                                    VerticalAlignment="Center" />
                     </Grid>
                     <Border Height="1"
@@ -96,7 +96,7 @@
                     <TextBlock Text="Geotag" Style="{StaticResource SectionHeaderStyle}" Visibility="Collapsed" />
                     <TextBlock x:Name="GeotagText" Style="{StaticResource PlaceholderStyle}" Margin="0,2,0,0" Visibility="Collapsed" />
 
-                    <TextBlock Text="Caption" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="CAPTION" Style="{StaticResource SectionHeaderStyle}" />
                     <TextBox x:Name="CaptionBox"
                              Style="{StaticResource HiTechInputStyle}"
                              PlaceholderText="Add caption"
@@ -112,7 +112,7 @@
                                Foreground="{ThemeResource SystemAccentColorLight2}"
                                Margin="0,2,0,0" />
 
-                    <TextBlock Text="Tags" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="TAGS / ASSIGNED" Style="{StaticResource SectionHeaderStyle}" />
                     <ItemsRepeater x:Name="TagsList" Margin="0,4,0,0">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Vertical" Spacing="2" />
@@ -131,14 +131,15 @@
                                             Click="OnRemoveTagClick"
                                             Tag="{Binding Tag}"
                                             ToolTipService.ToolTip="Remove tag from all selected"
-                                            AutomationProperties.Name="Remove selected tag">
+                                            AutomationProperties.Name="Remove selected tag"
+                                            Foreground="{StaticResource HiTechDangerBrush}">
                                         <FontIcon Glyph="&#xE10A;" FontSize="10" />
                                     </Button>
                                     <TextBlock Grid.Column="1" Text="{Binding Tag}" FontSize="13"
                                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Grid.Column="2" Text="{Binding CountDisplay}"
                                                FontSize="11"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               Foreground="{StaticResource HiTechTextSecondaryBrush}"
                                                VerticalAlignment="Center" Margin="4,0,0,0" />
                                 </Grid>
                             </DataTemplate>
@@ -160,14 +161,14 @@
                                      FontSize="13" />
                             <Button x:Name="ShowAllTagsButton" Grid.Column="1"
                                     Click="OnShowAllTagsClick"
-                                    Style="{StaticResource HiTechIconButtonStyle}"
+                                    Style="{StaticResource HiTechSectionActionStyle}"
                                     ToolTipService.ToolTip="Show all available tags"
                                     AutomationProperties.Name="Show all available tags">
                                 <FontIcon Glyph="&#xE70D;" FontSize="12" />
                             </Button>
                             <Button Grid.Column="2"
                                     Click="OnAddTagClick"
-                                    Style="{StaticResource HiTechIconButtonStyle}"
+                                    Style="{StaticResource HiTechSectionActionStyle}"
                                     ToolTipService.ToolTip="Add tag to all selected">
                                 <FontIcon Glyph="&#xE109;" FontSize="12" />
                             </Button>
@@ -183,7 +184,7 @@
                             <StackPanel Spacing="6">
                                 <Button Content="New tag"
                                         Click="OnNewCatalogTagClick"
-                                        HorizontalAlignment="Stretch" />
+                                        HorizontalAlignment="Stretch"  Style="{StaticResource HiTechSectionActionStyle}"/>
                                 <ListView x:Name="TagSuggestionsList"
                                           MaxHeight="320"
                                           IsItemClickEnabled="True"
@@ -217,7 +218,7 @@
                                                         Click="OnToggleAlbumTagSelectionClick"
                                                         Padding="4,2"
                                                         Visibility="{x:Bind PinVisibility}"
-                                                        ToolTipService.ToolTip="Pin/unpin in album catalog">
+                                                        ToolTipService.ToolTip="Pin/unpin in album catalog" Style="{StaticResource HiTechSectionActionStyle}">
                                                     <FontIcon Glyph="{x:Bind PinGlyph}"
                                                               FontSize="11" />
                                                 </Button>
@@ -225,7 +226,7 @@
                                                         Tag="{x:Bind}"
                                                         Click="OnManageCatalogItemClick"
                                                         Padding="4,2"
-                                                        ToolTipService.ToolTip="Manage tag">
+                                                        ToolTipService.ToolTip="Manage tag" Style="{StaticResource HiTechSectionActionStyle}">
                                                     <FontIcon Glyph="&#xE70F;"
                                                               FontSize="11" />
                                                 </Button>
@@ -253,7 +254,7 @@
                                                 HorizontalContentAlignment="Left"
                                                 Padding="8,4"
                                                 FontSize="12"
-                                                AutomationProperties.Name="{Binding FullTag}" />
+                                                AutomationProperties.Name="{Binding FullTag}"  Style="{StaticResource HiTechSectionActionStyle}"/>
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>
@@ -282,7 +283,7 @@
                                 <Button Grid.Column="2" x:Name="DatePickerBtn"
                                         Padding="6,4"
                                         VerticalAlignment="Center"
-                                        ToolTipService.ToolTip="Pick from calendar">
+                                        ToolTipService.ToolTip="Pick from calendar" Style="{StaticResource HiTechSectionActionStyle}">
                                     <FontIcon Glyph="&#xE787;" FontSize="12" />
                                     <Button.Flyout>
                                         <Flyout>
@@ -295,7 +296,7 @@
                                                             HorizontalAlignment="Stretch" />
                                                 <Button Content="Apply"
                                                         Click="OnApplyDatePopupClick"
-                                                        HorizontalAlignment="Stretch" />
+                                                        HorizontalAlignment="Stretch"  Style="{StaticResource HiTechPrimaryButtonStyle}"/>
                                             </StackPanel>
                                         </Flyout>
                                     </Button.Flyout>
@@ -380,7 +381,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Button Grid.Column="0" Click="OnApplyShiftClick"
                                         x:Name="ApplyShiftButton"
-                                        Content="Apply shift" HorizontalAlignment="Stretch" />
+                                        Content="Apply shift" HorizontalAlignment="Stretch"  Style="{StaticResource HiTechPrimaryButtonStyle}"/>
                                 <HyperlinkButton Grid.Column="1" Click="OnSwitchToAbsolute"
                                                  Content="Cancel"
                                                  FontSize="12" />
@@ -411,7 +412,7 @@
                                        VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1"
                                        Text="FILE / EXIF"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}"
+                                       Style="{StaticResource HiTechPanelHeadingStyle}"
                                        Margin="8,0,0,0"
                                        VerticalAlignment="Center" />
                             <TextBlock Grid.Column="2"

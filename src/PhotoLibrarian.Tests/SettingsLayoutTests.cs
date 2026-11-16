@@ -39,6 +39,33 @@ public sealed class SettingsLayoutTests
         Assert.Contains(content, element => (string?)element.Attribute("Grid.Column") == "1");
     }
     [Fact]
+    public void PublishedSettingsDoNotExposeDiagnosticDialogPreviews()
+    {
+        var settings = XDocument.Load(Path.Combine(
+            AppContext.BaseDirectory, "TestAssets", "SettingsPanel.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+
+        var previewControls = new[]
+        {
+            "PreviewAllDialogsButton", "UiShowcaseSectionHeader",
+            "CinematicShowcaseSequenceButton", "ShowcaseFatalButton",
+            "ShowcaseErrorButton", "ShowcaseWarningButton",
+            "ShowcaseCompleteButton", "ShowcaseInfoButton",
+            "ShowcaseProgressButton"
+        };
+        foreach (var id in previewControls)
+        {
+            Assert.DoesNotContain(settings.Descendants(), element =>
+                (string?)element.Attribute(x + "Name") == id ||
+                (string?)element.Attribute("AutomationProperties.AutomationId") == id);
+        }
+
+        Assert.DoesNotContain(settings.Descendants(presentation + "Button"),
+            button => ((string?)button.Attribute("Content"))?.Contains("UI SHOWCASE") == true);
+    }
+
+    [Fact]
     public void RecentTagNumberBoxIsInitializedOnlyAfterXamlConstruction()
     {
         // Assigning Value while XAML loads can trigger a ValueChanged callback

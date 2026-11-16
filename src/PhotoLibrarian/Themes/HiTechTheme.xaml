@@ -3,21 +3,35 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- PhotoLibrarian Hi-Tech / FUI theme -->
-    <SolidColorBrush x:Key="HiTechAppBackgroundBrush" Color="#070B10" />
-    <SolidColorBrush x:Key="HiTechPanelBackgroundBrush" Color="#0C131B" />
-    <SolidColorBrush x:Key="HiTechPanelBackgroundAltBrush" Color="#101A24" />
-    <SolidColorBrush x:Key="HiTechPanelHoverBrush" Color="#142433" />
-    <SolidColorBrush x:Key="HiTechBorderBrush" Color="#244252" />
-    <SolidColorBrush x:Key="HiTechBorderStrongBrush" Color="#34738A" />
-    <SolidColorBrush x:Key="HiTechAccentBrush" Color="#53D7E8" />
-    <SolidColorBrush x:Key="HiTechAccentMutedBrush" Color="#1D6B78" />
-    <SolidColorBrush x:Key="HiTechAccentFillBrush" Color="#17313A" />
-    <SolidColorBrush x:Key="HiTechTextPrimaryBrush" Color="#E6F7FA" />
-    <SolidColorBrush x:Key="HiTechTextSecondaryBrush" Color="#8CA9B3" />
-    <SolidColorBrush x:Key="HiTechDangerBrush" Color="#FF6E78" />
+    <SolidColorBrush x:Key="HiTechAppBackgroundBrush" Color="#070C12" />
+    <SolidColorBrush x:Key="HiTechPanelBackgroundBrush" Color="#0B151F" />
+    <SolidColorBrush x:Key="HiTechPanelBackgroundAltBrush" Color="#112230" />
+    <SolidColorBrush x:Key="HiTechPanelHoverBrush" Color="#193447" />
+    <SolidColorBrush x:Key="HiTechBorderBrush" Color="#2C5061" />
+    <SolidColorBrush x:Key="HiTechBorderStrongBrush" Color="#42859A" />
+    <SolidColorBrush x:Key="HiTechAccentBrush" Color="#65D5E5" />
+    <SolidColorBrush x:Key="HiTechAccentMutedBrush" Color="#397887" />
+    <SolidColorBrush x:Key="HiTechAccentFillBrush" Color="#153842" />
+    <SolidColorBrush x:Key="HiTechTextPrimaryBrush" Color="#E8F5F7" />
+    <SolidColorBrush x:Key="HiTechTextSecondaryBrush" Color="#9AB7C2" />
+    <SolidColorBrush x:Key="HiTechDangerBrush" Color="#FF737B" />
 
-    <CornerRadius x:Key="HiTechPanelCornerRadius">2</CornerRadius>
-    <CornerRadius x:Key="HiTechControlCornerRadius">2</CornerRadius>
+    <!-- Shared color roles for visual feedback. Keep warning destructive actions red,
+         confirmation controls cyan, neutral labels desaturated. -->
+    <SolidColorBrush x:Key="HiTechSuccessBrush" Color="#73D9AA" />
+    <SolidColorBrush x:Key="HiTechWarningBrush" Color="#F4BF68" />
+    <SolidColorBrush x:Key="HiTechOverlayBrush" Color="#E60B151F" />
+    <SolidColorBrush x:Key="HiTechInactiveSurfaceBrush" Color="#13212D" />
+
+    <!-- WinUI Button's built-in Disabled visual state uses theme resources,
+         not the custom Button Style setters. Keep disabled actions visually
+         recognizable but muted, rather than reverting to Fluent grey. -->
+    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#101F2A" />
+    <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#718B9B" />
+    <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#294757" />
+
+    <CornerRadius x:Key="HiTechPanelCornerRadius">1</CornerRadius>
+    <CornerRadius x:Key="HiTechControlCornerRadius">1</CornerRadius>
 
     <Style x:Key="HiTechPanelStyle" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundBrush}" />
@@ -60,7 +74,61 @@
         <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource HiTechControlCornerRadius}" />
+        <Setter Property="FontFamily" Value="Consolas" />
         <Setter Property="Padding" Value="8,6" />
+    </Style>
+
+    <!-- Cinematic UI 2.0: industrial, flat side-rail controls.
+         Inherit normal WinUI pointer, pressed, focus and disabled behavior.
+         No new dimensions, transitions or layout changes. -->
+    <Style x:Key="HiTechRailButtonStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechIconButtonStyle}">
+        <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechAccentMutedBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,2,0" />
+        <Setter Property="CornerRadius" Value="0" />
+    </Style>
+
+    <!-- A destructive action stays recognizable without repainting other tools. -->
+    <Style x:Key="HiTechRailDangerButtonStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechRailButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource HiTechDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechDangerBrush}" />
+    </Style>
+
+    <!-- Compact filter actions, with same silhouette as the viewer controls. -->
+    <Style x:Key="HiTechFilterIncludeStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechRailButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource HiTechAccentBrush}" />
+        <Setter Property="MinWidth" Value="22" />
+        <Setter Property="Padding" Value="2,1" />
+    </Style>
+
+    <Style x:Key="HiTechFilterExcludeStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechRailButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource HiTechWarningBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechWarningBrush}" />
+        <Setter Property="MinWidth" Value="22" />
+        <Setter Property="Padding" Value="2,1" />
+    </Style>
+
+    <Style x:Key="HiTechSectionActionStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechIconButtonStyle}">
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechAccentMutedBrush}" />
+        <Setter Property="CornerRadius" Value="0" />
+    </Style>
+
+    <!-- Shared neutral secondary action: Cancel / Close / Back / Abort.
+         Deliberately not an accent or destructive command. -->
+    <Style x:Key="HiTechSecondaryButtonStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechSectionActionStyle}">
+        <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundAltBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderStrongBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="12,8" />
     </Style>
 
     <Style x:Key="HiTechPrimaryButtonStyle" TargetType="Button">
@@ -74,21 +142,31 @@
         <Setter Property="Padding" Value="14,9" />
     </Style>
 
+    <!-- Destructive confirmation: warning actions are clearly distinct from
+         neutral cancellation and ordinary primary actions. -->
+    <Style x:Key="HiTechDangerButtonStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechPrimaryButtonStyle}">
+        <Setter Property="Background" Value="#351418" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechDangerBrush}" />
+        <Setter Property="CornerRadius" Value="0" />
+    </Style>
+
     <Style x:Key="HiTechTreeViewStyle" TargetType="TreeView">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
     </Style>
 
     <Style x:Key="HiTechModuleStyle" TargetType="Border">
-        <Setter Property="Background" Value="#A60A1118" />
+        <Setter Property="Background" Value="#D00B151F" />
         <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="1" />
+        <Setter Property="CornerRadius" Value="0" />
         <Setter Property="Padding" Value="10" />
     </Style>
 
     <Style x:Key="HiTechInputStyle" TargetType="TextBox">
-        <Setter Property="Background" Value="#C90A121A" />
+        <Setter Property="Background" Value="#E5112230" />
         <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderStrongBrush}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -98,7 +176,7 @@
     </Style>
 
     <Style x:Key="HiTechComboStyle" TargetType="ComboBox">
-        <Setter Property="Background" Value="#C90A121A" />
+        <Setter Property="Background" Value="#E5112230" />
         <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderStrongBrush}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -111,6 +189,21 @@
         <Setter Property="FontFamily" Value="Consolas" />
         <Setter Property="FontSize" Value="9" />
         <Setter Property="CharacterSpacing" Value="160" />
+    </Style>
+
+    <!-- Visual phase: section labels carry one consistent industrial accent.
+         These styles are presentation only; no control templates or handlers. -->
+    <Style x:Key="HiTechPanelHeadingStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource HiTechSectionHeaderStyle}">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="CharacterSpacing" Value="130" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechAccentBrush}" />
+    </Style>
+
+    <Style x:Key="HiTechSystemCaptionStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource HiTechTinyLabelStyle}">
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextSecondaryBrush}" />
+        <Setter Property="CharacterSpacing" Value="110" />
     </Style>
 
 </ResourceDictionary>

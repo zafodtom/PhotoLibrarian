@@ -499,7 +499,7 @@ public sealed partial class FolderNavigationPanel : UserControl
         var removeButton = new Button
         {
             Content = "REMOVE",
-            Style = iconButtonStyle,
+            Style = (Style)Application.Current.Resources["HiTechDangerButtonStyle"],
             IsEnabled = false
         };
 
@@ -668,12 +668,13 @@ public sealed partial class FolderNavigationPanel : UserControl
             BorderThickness = new Thickness(1)
         };
 
+        CinematicDialogStyling.Apply(dialog);
         var closeConsole = new Button
         {
             Content = "CLOSE CONSOLE",
             Width = 152,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Style = iconButtonStyle
+            Style = (Style)Application.Current.Resources["HiTechSecondaryButtonStyle"]
         };
         closeConsole.Click += (_, _) => dialog.Hide();
         var footerRail = new Border
@@ -881,6 +882,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             };
 
             dialog.Hide();
+            CinematicDialogStyling.Apply(createDialog);
             var createTagResult = await createDialog.ShowAsync();
             _ = dialog.ShowAsync();
             if (createTagResult != ContentDialogResult.Primary)
@@ -989,6 +991,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             };
 
             dialog.Hide();
+            CinematicDialogStyling.Apply(editDialog);
             var editResult = await editDialog.ShowAsync();
             _ = dialog.ShowAsync();
             if (editResult != ContentDialogResult.Primary)
@@ -1056,8 +1059,8 @@ public sealed partial class FolderNavigationPanel : UserControl
                 Foreground = secondaryTextBrush
             });
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            var proceed = new Button { Content = "CONFIRM REMOVE", Style = iconButtonStyle };
-            var abort = new Button { Content = "ABORT", Style = iconButtonStyle };
+            var proceed = new Button { Content = "CONFIRM REMOVE", Style = (Style)Application.Current.Resources["HiTechDangerButtonStyle"] };
+            var abort = new Button { Content = "ABORT", Style = (Style)Application.Current.Resources["HiTechSecondaryButtonStyle"] };
             actions.Children.Add(proceed);
             actions.Children.Add(abort);
             warningBody.Children.Add(actions);
@@ -1421,6 +1424,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             XamlRoot = XamlRoot
         };
 
+        CinematicDialogStyling.Apply(dialog);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
@@ -1452,13 +1456,12 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
         catch (Exception ex)
         {
-            var dialog = new ContentDialog
-            {
-                Title = "Could not open album",
-                Content = ex.Message,
-                CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
-            };
+            var dialog = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Error,
+                subjectOverride: "COULD NOT OPEN ALBUM",
+                detailOverride: ex.Message,
+                preview: false);
             await dialog.ShowAsync();
         }
     }

@@ -460,14 +460,12 @@ public sealed partial class MainWindow : Window
             }
             else
             {
-                var dialog = new ContentDialog
-                {
-                    Title = "FATAL ERROR // ALBUM OPEN",
-                    Content = ex.Message,
-                    CloseButtonText = "ACKNOWLEDGE",
-                    XamlRoot = AppRoot.XamlRoot,
-                    RequestedTheme = ElementTheme.Dark
-                };
+                var dialog = PhotoLibrarian.Views.CinematicDialogShowcase.Create(
+                    AppRoot.XamlRoot,
+                    PhotoLibrarian.Views.CinematicDialogShowcase.Variant.Fatal,
+                    subjectOverride: "ALBUM SWITCH FAILED",
+                    detailOverride: ex.Message,
+                    preview: false);
                 await dialog.ShowAsync();
             }
         }

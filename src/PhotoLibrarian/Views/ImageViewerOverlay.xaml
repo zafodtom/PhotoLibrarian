@@ -40,13 +40,14 @@
                                 HorizontalAlignment="Right"
                                 Spacing="8">
                         <Button Content="Cancel"
-                                Click="OnCancelManualFaceTagClick" />
+                                Click="OnCancelManualFaceTagClick"
+                                 Style="{StaticResource HiTechSectionActionStyle}" />
                         <Button x:Name="SaveManualFaceTagButton"
                                 AutomationProperties.AutomationId="SaveManualFaceTag"
                                 AutomationProperties.Name="Save people tag"
                                 Content="Save"
                                 Click="OnSaveManualFaceTagClick"
-                                Style="{StaticResource AccentButtonStyle}" />
+                                Style="{StaticResource HiTechPrimaryButtonStyle}" />
                     </StackPanel>
                 </StackPanel>
             </Flyout>
@@ -290,15 +291,15 @@
                 Grid.Column="1"
                 Width="304"
                 Padding="20"
-                Background="{ThemeResource LayerFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                Background="{StaticResource HiTechPanelBackgroundAltBrush}"
+                BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                 BorderThickness="1,0,0,0"
                 Visibility="Collapsed">
             <StackPanel Spacing="16">
-                <TextBlock Text="Fine-tune"
-                           Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock Text="IMAGE // STRAIGHTEN"
+                           Style="{StaticResource HiTechPanelHeadingStyle}" />
                 <TextBlock Text="Drag along the horizon, use Auto, or fine-tune the angle until features align with the grid."
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Foreground="{StaticResource HiTechTextSecondaryBrush}"
                            TextWrapping="Wrap" />
 
                 <Grid ColumnSpacing="8">
@@ -306,15 +307,16 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Angle"
+                    <TextBlock Text="ANGLE / DEG"
                                VerticalAlignment="Center"
-                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                               Style="{StaticResource HiTechPanelHeadingStyle}" />
                     <TextBlock x:Name="StraightenAngleText"
                                Grid.Column="1"
                                MinWidth="64"
                                HorizontalTextAlignment="Right"
                                Text="0.0°"
-                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                               FontFamily="Consolas"
+                               Foreground="{StaticResource HiTechAccentBrush}" />
                 </Grid>
 
                 <Slider x:Name="StraightenAngleSlider"
@@ -331,7 +333,8 @@
                         AutomationProperties.AutomationId="StraightenAuto"
                         AutomationProperties.Name="Automatically detect straightening angle"
                         HorizontalAlignment="Stretch"
-                        Click="OnAutoStraightenClick">
+                        Click="OnAutoStraightenClick"
+                         Style="{StaticResource HiTechSectionActionStyle}">
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Center"
                                 Spacing="8">
@@ -340,7 +343,7 @@
                     </StackPanel>
                 </Button>
                 <TextBlock x:Name="AutoStraightenStatus"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Foreground="{StaticResource HiTechTextSecondaryBrush}"
                            Text="Auto detects a dominant horizon or vertical line."
                            TextWrapping="Wrap"
                            Style="{StaticResource CaptionTextBlockStyle}" />
