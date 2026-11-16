@@ -632,9 +632,14 @@ public sealed partial class ImageGridView : UserControl
             {
                 var result = await App.ViewModel.AnonymizePhotoMetadataAsync(
                     selected.Select(vm => vm.Entry).ToArray(), keepBackups: true);
+                var backupSummary = result.Cleaned > 0
+                    ? $"Backups: {result.BackupDirectory}. "
+                    : result.Failed == 0
+                        ? "No photos were changed; no backups were needed. "
+                        : $"No photos were successfully anonymized. Recovery backups, if any: {result.BackupDirectory}. ";
                 var description =
                     $"Cleaned: {result.Cleaned:N0}. Skipped: {result.Skipped:N0}. " +
-                    $"Failed: {result.Failed:N0}. Backups: {result.BackupDirectory}. " +
+                    $"Failed: {result.Failed:N0}. " + backupSummary +
                     (result.Errors.Count > 0
                         ? "First issues: " + string.Join("; ", result.Errors.Take(3))
                         : "File metadata and album photo assignments were cleared.");
