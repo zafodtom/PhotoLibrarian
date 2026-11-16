@@ -23,8 +23,8 @@
     <SolidColorBrush x:Key="HiTechOverlayBrush" Color="#E60B151F" />
     <SolidColorBrush x:Key="HiTechInactiveSurfaceBrush" Color="#13212D" />
 
-    <CornerRadius x:Key="HiTechPanelCornerRadius">2</CornerRadius>
-    <CornerRadius x:Key="HiTechControlCornerRadius">2</CornerRadius>
+    <CornerRadius x:Key="HiTechPanelCornerRadius">1</CornerRadius>
+    <CornerRadius x:Key="HiTechControlCornerRadius">1</CornerRadius>
 
     <Style x:Key="HiTechPanelStyle" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundBrush}" />
@@ -128,15 +128,15 @@
     </Style>
 
     <Style x:Key="HiTechModuleStyle" TargetType="Border">
-        <Setter Property="Background" Value="#A60A1118" />
+        <Setter Property="Background" Value="#D00B151F" />
         <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="1" />
+        <Setter Property="CornerRadius" Value="0" />
         <Setter Property="Padding" Value="10" />
     </Style>
 
     <Style x:Key="HiTechInputStyle" TargetType="TextBox">
-        <Setter Property="Background" Value="#C90A121A" />
+        <Setter Property="Background" Value="#E5112230" />
         <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderStrongBrush}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -146,7 +146,7 @@
     </Style>
 
     <Style x:Key="HiTechComboStyle" TargetType="ComboBox">
-        <Setter Property="Background" Value="#C90A121A" />
+        <Setter Property="Background" Value="#E5112230" />
         <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderStrongBrush}" />
         <Setter Property="BorderThickness" Value="1" />
