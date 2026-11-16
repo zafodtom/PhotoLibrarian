@@ -48,6 +48,7 @@ public static class CropService
         var temporaryImagePath = TemporaryImagePath(filePath);
         var stagedKeywordSidecar = Path.ChangeExtension(temporaryImagePath, ".xmp");
         string? temporaryFaceSidecar = null;
+        string? temporaryExistingTagSidecar = null;
         try
         {
             var encoded = await WindowsImagingCodec.EncodeAsync(
@@ -67,9 +68,9 @@ public static class CropService
                 sidecars[sidecar.Value.Path] = temporaryFaceSidecar;
             }
 
+            var destinationSidecar = Path.ChangeExtension(filePath, ".xmp");
             if (File.Exists(stagedKeywordSidecar))
             {
-                var destinationSidecar = Path.ChangeExtension(filePath, ".xmp");
                 if (sidecars.TryGetValue(destinationSidecar, out var alreadyStaged))
                 {
                     // BMP/TIFF face sidecars and keyword fallbacks can share one
@@ -84,6 +85,21 @@ public static class CropService
                     sidecars[destinationSidecar] = stagedKeywordSidecar;
                 }
             }
+            else if (preservedTags is not null &&
+                     !sidecars.ContainsKey(destinationSidecar) &&
+                     File.Exists(destinationSidecar))
+            {
+                // An older metadata fallback can coexist with a newly
+                // written embedded keyword list. Keep that old XMP in sync
+                // rather than allowing a future scan to resurrect stale tags.
+                var existingXmp = XmpMetaFactory.ParseFromString(
+                    await File.ReadAllTextAsync(destinationSidecar));
+                SetSidecarKeywords(existingXmp, preservedTags);
+                temporaryExistingTagSidecar = $"{destinationSidecar}.{Guid.NewGuid():N}.tmp";
+                await File.WriteAllTextAsync(temporaryExistingTagSidecar,
+                    XmpMetaFactory.SerializeToString(existingXmp, new SerializeOptions()));
+                sidecars[destinationSidecar] = temporaryExistingTagSidecar;
+            }
 
             CommitOutputs(filePath, temporaryImagePath, sidecars);
         }
@@ -93,6 +109,8 @@ public static class CropService
             DeleteIfPresent(stagedKeywordSidecar);
             if (temporaryFaceSidecar is not null)
                 DeleteIfPresent(temporaryFaceSidecar);
+            if (temporaryExistingTagSidecar is not null)
+                DeleteIfPresent(temporaryExistingTagSidecar);
         }
 
         return new CropResult(crop.Width, crop.Height, sourceWidth, sourceHeight, crop);
