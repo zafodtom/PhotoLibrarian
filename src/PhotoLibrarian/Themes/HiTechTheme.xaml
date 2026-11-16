@@ -16,6 +16,13 @@
     <SolidColorBrush x:Key="HiTechTextSecondaryBrush" Color="#9AB7C2" />
     <SolidColorBrush x:Key="HiTechDangerBrush" Color="#FF737B" />
 
+    <!-- Shared color roles for visual feedback. Keep warning destructive actions red,
+         confirmation controls cyan, neutral labels desaturated. -->
+    <SolidColorBrush x:Key="HiTechSuccessBrush" Color="#73D9AA" />
+    <SolidColorBrush x:Key="HiTechWarningBrush" Color="#F4BF68" />
+    <SolidColorBrush x:Key="HiTechOverlayBrush" Color="#E60B151F" />
+    <SolidColorBrush x:Key="HiTechInactiveSurfaceBrush" Color="#13212D" />
+
     <CornerRadius x:Key="HiTechPanelCornerRadius">2</CornerRadius>
     <CornerRadius x:Key="HiTechControlCornerRadius">2</CornerRadius>
 
@@ -60,6 +67,7 @@
         <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource HiTechControlCornerRadius}" />
+        <Setter Property="FontFamily" Value="Consolas" />
         <Setter Property="Padding" Value="8,6" />
     </Style>
 
@@ -79,6 +87,28 @@
            BasedOn="{StaticResource HiTechRailButtonStyle}">
         <Setter Property="Foreground" Value="{StaticResource HiTechDangerBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource HiTechDangerBrush}" />
+    </Style>
+
+    <!-- Compact filter actions, with same silhouette as the viewer controls. -->
+    <Style x:Key="HiTechFilterIncludeStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechRailButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource HiTechAccentBrush}" />
+        <Setter Property="MinWidth" Value="22" />
+        <Setter Property="Padding" Value="2,1" />
+    </Style>
+
+    <Style x:Key="HiTechFilterExcludeStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechRailButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource HiTechWarningBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechWarningBrush}" />
+        <Setter Property="MinWidth" Value="22" />
+        <Setter Property="Padding" Value="2,1" />
+    </Style>
+
+    <Style x:Key="HiTechSectionActionStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechIconButtonStyle}">
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechAccentMutedBrush}" />
+        <Setter Property="CornerRadius" Value="0" />
     </Style>
 
     <Style x:Key="HiTechPrimaryButtonStyle" TargetType="Button">
