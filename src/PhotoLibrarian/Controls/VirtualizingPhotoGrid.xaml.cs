@@ -1414,11 +1414,24 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     {
         _pendingViewerReturnItem = _primaryItem;
         _viewerReturnScrollAttempts = 0;
-        TryScrollToLastViewedPhoto();
-        // Run again after the viewer overlay has collapsed and layout settles.
+        // A viewer close can trigger selection before the gallery receives
+        // its next layout pass. Keep listening until the requested row is
+        // positioned, instead of relying on a one-shot ChangeView call.
+        ScrollContainer.LayoutUpdated -= OnViewerReturnLayoutUpdated;
+        if (_pendingViewerReturnItem is null) return;
+        ScrollContainer.LayoutUpdated += OnViewerReturnLayoutUpdated;
         DispatcherQueue.TryEnqueue(
             Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
             TryScrollToLastViewedPhoto);
+    }
+
+    private void OnViewerReturnLayoutUpdated(object? sender, object e) =>
+        TryScrollToLastViewedPhoto();
+
+    private void ClearPendingViewerReturnScroll()
+    {
+        _pendingViewerReturnItem = null;
+        ScrollContainer.LayoutUpdated -= OnViewerReturnLayoutUpdated;
     }
 
     private void TryScrollToLastViewedPhoto()
@@ -1433,7 +1446,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         if (bounds is null)
         {
             // The last photo is no longer in the filtered/grouped gallery.
-            _pendingViewerReturnItem = null;
+            ClearPendingViewerReturnScroll();
             return;
         }
 
@@ -1448,13 +1461,13 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
             0, maxOffset);
         if (Math.Abs(ScrollContainer.VerticalOffset - targetOffset) < 2)
         {
-            _pendingViewerReturnItem = null;
+            ClearPendingViewerReturnScroll();
             return;
         }
 
         if (_viewerReturnScrollAttempts++ >= MaxViewerReturnScrollAttempts)
         {
-            _pendingViewerReturnItem = null;
+            ClearPendingViewerReturnScroll();
             return;
         }
 
