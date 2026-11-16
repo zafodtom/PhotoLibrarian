@@ -151,7 +151,6 @@ public sealed partial class ImageGridView : UserControl
 
         var isIndexing = App.ViewModel.IsIndexing;
         EmptyStateProgress.IsActive = isIndexing;
-        EmptyStateProgress.Visibility = Visibility.Visible;
 
         if (isIndexing)
         {
