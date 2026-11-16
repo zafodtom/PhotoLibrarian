@@ -177,11 +177,12 @@
                                             Spacing="8">
                                     <Button AutomationProperties.AutomationId="FilterClearAll"
                                             Click="OnClearAllFilters"
-                                            Content="Clear all" />
+                                            Content="Clear all"
+                                            Style="{StaticResource HiTechSectionActionStyle}" />
                                     <Button AutomationProperties.AutomationId="FilterApply"
                                             Click="OnApplyFilters"
                                             Content="Apply"
-                                            Style="{StaticResource AccentButtonStyle}" />
+                                            Style="{StaticResource HiTechPrimaryButtonStyle}" />
                                 </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
