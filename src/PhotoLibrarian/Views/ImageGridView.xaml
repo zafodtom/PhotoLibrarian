@@ -46,13 +46,14 @@
                            Style="{StaticResource HiTechPanelHeadingStyle}" />
                 <ComboBox x:Name="SortByCombo"
                           SelectedIndex="0"
-                          MinWidth="140" Height="34"
+                          MinWidth="180" Height="34"
                           Style="{StaticResource HiTechComboStyle}"
                           SelectionChanged="OnSortByChanged">
                     <ComboBoxItem Content="File Name" Tag="FileName" />
                     <ComboBoxItem Content="Date Taken" Tag="DateTaken" />
                     <ComboBoxItem Content="Date Modified" Tag="DateModified" />
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
+                    <ComboBoxItem Content="Folder → File Name" Tag="FolderThenFileName" />
                 </ComboBox>
                 <Button x:Name="SortOrderBtn" Click="OnToggleSortOrder"
                         Width="34" Height="34" Padding="0"
