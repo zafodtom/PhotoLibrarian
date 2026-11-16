@@ -380,6 +380,15 @@ public sealed class ImageRepository
             tags.Parameters.AddWithValue("$id", imageId);
             await tags.ExecuteNonQueryAsync();
         }
+        // Remove orphan identities and their cached representative face images
+        // when the anonymized photo supplied their last remaining face.
+        using (var persons = conn.CreateCommand())
+        {
+            persons.Transaction = transaction;
+            persons.CommandText = "DELETE FROM persons WHERE NOT EXISTS " +
+                "(SELECT 1 FROM face_regions WHERE person_id = persons.id)";
+            await persons.ExecuteNonQueryAsync();
+        }
         using (var image = conn.CreateCommand())
         {
             image.Transaction = transaction;
