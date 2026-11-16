@@ -468,6 +468,7 @@ public sealed partial class MainWindow : Window
                     XamlRoot = AppRoot.XamlRoot,
                     RequestedTheme = ElementTheme.Dark
                 };
+                PhotoLibrarian.Views.CinematicDialogStyling.Apply(dialog);
                 await dialog.ShowAsync();
             }
         }
