@@ -409,6 +409,72 @@
             </Grid>
         </Grid>
 
+        <!-- Fullscreen actions float over the image. They consume no viewport width. -->
+        <Border x:Name="FullscreenSideRail" Grid.Row="2" Visibility="Collapsed"
+                HorizontalAlignment="Left" VerticalAlignment="Top"
+                Width="48" Margin="0,10,0,0" Padding="3,6"
+                Background="#E6091018" BorderBrush="{StaticResource HiTechBorderStrongBrush}"
+                BorderThickness="0,1,1,1" CornerRadius="0,2,2,0">
+            <StackPanel HorizontalAlignment="Center" Spacing="4">
+                <Button x:Name="FullscreenCropButton" Width="40" Height="38" Padding="3"
+                        Click="OnSideViewerCrop" ToolTipService.ToolTip="Crop photo"
+                        AutomationProperties.Name="Crop photo"
+                        Style="{StaticResource HiTechIconButtonStyle}">
+                    <FontIcon Glyph="&#xE7A8;" FontSize="16" />
+                </Button>
+                <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
+                <Button x:Name="FullscreenZoomOutButton" Width="40" Height="38" Padding="3"
+                        Click="OnSideZoomOut" ToolTipService.ToolTip="Zoom out"
+                        AutomationProperties.Name="Zoom out"
+                        Style="{StaticResource HiTechIconButtonStyle}">
+                    <FontIcon Glyph="&#xE71F;" FontSize="16" />
+                </Button>
+                <Button x:Name="FullscreenZoomFitButton" Width="40" Height="38" Padding="3"
+                        Click="OnSideZoomFit" ToolTipService.ToolTip="Fit photo to window"
+                        AutomationProperties.Name="Fit photo to window"
+                        Style="{StaticResource HiTechIconButtonStyle}">
+                    <FontIcon Glyph="&#xE9A6;" FontSize="16" />
+                </Button>
+                <Button x:Name="FullscreenZoom100Button" Width="40" Height="38" Padding="3"
+                        Click="OnSideZoom100" ToolTipService.ToolTip="Actual size (100%)"
+                        AutomationProperties.Name="Actual size (100%)"
+                        Style="{StaticResource HiTechIconButtonStyle}">
+                    <TextBlock Text="100" FontFamily="Consolas" FontSize="12" />
+                </Button>
+                <Button x:Name="FullscreenZoomInButton" Width="40" Height="38" Padding="3"
+                        Click="OnSideZoomIn" ToolTipService.ToolTip="Zoom in"
+                        AutomationProperties.Name="Zoom in"
+                        Style="{StaticResource HiTechIconButtonStyle}">
+                    <FontIcon Glyph="&#xE8A3;" FontSize="16" />
+                </Button>
+                <Button x:Name="FullscreenToggleButton" Width="40" Height="38" Padding="3"
+                        Click="OnSideFullscreen" ToolTipService.ToolTip="Exit fullscreen (F11)"
+                        AutomationProperties.Name="Exit fullscreen (F11)"
+                        Style="{StaticResource HiTechIconButtonStyle}">
+                    <FontIcon Glyph="&#xE740;" FontSize="16" />
+                </Button>
+                <Button x:Name="FullscreenDeleteButton" Width="40" Height="38" Padding="3"
+                        Click="OnSideDelete" ToolTipService.ToolTip="Delete current item"
+                        AutomationProperties.Name="Delete current item"
+                        Style="{StaticResource HiTechIconButtonStyle}">
+                    <FontIcon Glyph="&#xE74D;" FontSize="16" />
+                </Button>
+                <Button x:Name="FullscreenCancelFaceButton" Width="40" Height="38" Padding="3"
+                        Click="OnSideCancelFace" ToolTipService.ToolTip="Cancel adding people tag"
+                        AutomationProperties.Name="Cancel adding people tag"
+                        Style="{StaticResource HiTechIconButtonStyle}">
+                    <FontIcon Glyph="&#xE711;" FontSize="16" />
+                </Button>
+                <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
+                <Button x:Name="FullscreenBackButton" Width="40" Height="38" Padding="3"
+                        Click="OnSideViewerBack" ToolTipService.ToolTip="Back to gallery"
+                        AutomationProperties.Name="Back to gallery"
+                        Style="{StaticResource HiTechIconButtonStyle}">
+                    <FontIcon Glyph="&#xE72B;" FontSize="16" />
+                </Button>
+            </StackPanel>
+        </Border>
+
         <!-- Start screen -->
         <Grid x:Name="AlbumStartOverlay"
               Grid.Row="2"
