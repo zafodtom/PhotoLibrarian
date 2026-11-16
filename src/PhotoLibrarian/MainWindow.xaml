@@ -19,7 +19,7 @@
         <!-- Persistent global command / identity header -->
         <Grid x:Name="GlobalHeader"
               Grid.Row="0"
-              Background="#0A121A"
+              Background="{StaticResource HiTechPanelBackgroundBrush}"
               BorderBrush="{StaticResource HiTechAccentMutedBrush}"
               BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
@@ -49,7 +49,7 @@
                                Foreground="{StaticResource HiTechTextPrimaryBrush}" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="LOCAL VISUAL ARCHIVE"
-                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                                   Style="{StaticResource HiTechSystemCaptionStyle}" />
                         <Rectangle Width="30" Height="1"
                                    VerticalAlignment="Center"
                                    Fill="{StaticResource HiTechAccentMutedBrush}" />
@@ -76,7 +76,7 @@
                                FontSize="13" />
                     <TextBlock x:Name="WorkspaceSubtitleText" Text="CATALOG / INSPECT / CLASSIFY"
                                HorizontalAlignment="Center"
-                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                               Style="{StaticResource HiTechSystemCaptionStyle}" />
                     <TextBlock x:Name="ViewerHeaderAssetName"
                                Visibility="Collapsed"
                                HorizontalAlignment="Center"
@@ -117,12 +117,12 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center" Spacing="3">
                     <TextBlock Text="SYSTEM STATUS"
-                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                               Style="{StaticResource HiTechSystemCaptionStyle}" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Ellipse Width="7" Height="7"
                                  Fill="{StaticResource HiTechAccentBrush}"
                                  VerticalAlignment="Center" />
-                        <TextBlock Text="INDEX ONLINE"
+                        <TextBlock Text="ARCHIVE READY"
                                    FontFamily="Consolas"
                                    FontSize="11"
                                    Foreground="{StaticResource HiTechTextPrimaryBrush}" />
@@ -180,7 +180,7 @@
             <!-- Left system rail: viewer commands use existing side width. -->
             <Grid x:Name="SystemRail"
                   Grid.Column="0"
-                  Background="#091018"
+                  Background="{StaticResource HiTechPanelBackgroundBrush}"
                   BorderBrush="{StaticResource HiTechBorderBrush}"
                   BorderThickness="0,0,1,0">
                 <StackPanel x:Name="NavigationRailDecorations"
@@ -298,8 +298,8 @@
 
             <!-- Navigation bay -->
             <Grid Grid.Column="1" Margin="8,4,0,4">
-                <Border Background="#C90A1118"
-                        BorderBrush="{StaticResource HiTechBorderBrush}"
+                <Border Background="{StaticResource HiTechPanelBackgroundBrush}"
+                        BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1">
                     <views:FolderNavigationPanel x:Name="FolderNavPanel" />
                 </Border>
@@ -331,7 +331,7 @@
                   Grid.Column="3"
                   Margin="2,4">
                 <Border x:Name="MainViewportBorder"
-                        Background="#0A121A"
+                        Background="{StaticResource HiTechPanelBackgroundBrush}"
                         BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1">
                     <Grid>
@@ -383,8 +383,8 @@
 
             <!-- Inspection bay -->
             <Grid Grid.Column="5" Margin="0,4,10,4">
-                <Border Background="#C90A1118"
-                        BorderBrush="{StaticResource HiTechBorderBrush}"
+                <Border Background="{StaticResource HiTechPanelBackgroundBrush}"
+                        BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1">
                     <views:MetadataPanel x:Name="MetadataDetailPanel" />
                 </Border>
@@ -524,7 +524,7 @@
                 Visibility="Collapsed"
                 Background="#F2070B10">
             <Grid Margin="18">
-                <Border Background="#0A121A"
+                <Border Background="{StaticResource HiTechPanelBackgroundBrush}"
                         BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1">
                     <views:SettingsPanel x:Name="SettingsPanel" />
@@ -553,7 +553,7 @@
         <Grid x:Name="StatusBar"
               Grid.Row="3"
               Padding="12,3"
-              Background="#091018"
+              Background="{StaticResource HiTechPanelBackgroundBrush}"
               BorderBrush="{StaticResource HiTechBorderBrush}"
               BorderThickness="0,1,0,0">
             <Grid.ColumnDefinitions>
