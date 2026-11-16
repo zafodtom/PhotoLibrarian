@@ -158,12 +158,17 @@ public sealed class MetadataReaderService
         }
         catch { /* File may not have XMP */ }
 
-        // Metadata writes can fall back to a portable .xmp file (e.g. BMP or a
-        // Windows property-handler failure). Give that explicit fallback
-        // priority when it actually contains keywords; otherwise retain the
-        // embedded set. This also recovers RAW copy tags on reimport.
+        // Metadata writes can fall back to a portable .xmp file (e.g. BMP or
+        // a Windows property-handler failure). If both copies exist, the newest
+        // one is authoritative: an older fallback must not resurrect stale
+        // tags after a crop has updated the embedded metadata.
         var sidecarTags = TagWriterService.ReadTagsFromSidecar(filePath);
-        return (sidecarTags.Count > 0 ? sidecarTags : tags)
+        var sidecarPath = Path.ChangeExtension(filePath, ".xmp");
+        var useSidecar = sidecarTags.Count > 0 &&
+            (tags.Count == 0 ||
+             (File.Exists(sidecarPath) &&
+              File.GetLastWriteTimeUtc(sidecarPath) >= File.GetLastWriteTimeUtc(filePath)));
+        return (useSidecar ? sidecarTags : tags)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
