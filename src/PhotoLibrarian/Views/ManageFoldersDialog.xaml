@@ -7,7 +7,8 @@
     VerticalAlignment="Center"
     RequestedTheme="Dark"
     PrimaryButtonText="Close"
-    DefaultButton="Primary"
+    PrimaryButtonStyle="{StaticResource HiTechSectionActionStyle}"
+    DefaultButton="None"
     MinWidth="600"
     MinHeight="400">
 
