@@ -242,11 +242,10 @@
                                   X2="64" Y2="35"
                                   Stroke="{StaticResource HiTechAccentMutedBrush}"
                                   StrokeThickness="1" />
-                            <ProgressRing x:Name="EmptyStateProgress"
-                                          Width="34"
-                                          Height="34"
-                                          IsActive="False"
-                                          Foreground="{StaticResource HiTechAccentBrush}" />
+                            <local:CinematicProgressBar x:Name="EmptyStateProgress"
+                                                        Width="54"
+                                                        IsIndeterminate="True"
+                                                        IsActive="False" />
                         </Grid>
 
                         <StackPanel Grid.Column="1"
