@@ -6,7 +6,7 @@
 
     <!-- UserControl.Background is not rendered, so the opaque surface lives on the root Grid
          to keep the viewer and metadata panel underneath from showing through. -->
-    <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+    <Grid Background="{StaticResource HiTechAppBackgroundBrush}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="300" />
@@ -21,44 +21,50 @@
 
             <!-- Top bar -->
             <Grid Padding="12,8"
-                  Background="{ThemeResource LayerFillColorDefaultBrush}"
-                  BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                  Background="{StaticResource HiTechPanelBackgroundAltBrush}"
+                  BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                   BorderThickness="0,0,0,1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="TitleText"
-                           Style="{StaticResource BodyStrongTextBlockStyle}"
+                           Style="{StaticResource HiTechPanelHeadingStyle}"
                            TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
                     <Button Click="OnZoomOut" ToolTipService.ToolTip="Zoom out (Ctrl+-)" Padding="8"
-                            AutomationProperties.Name="Zoom out">
+                            AutomationProperties.Name="Zoom out"
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE71F;" FontSize="14" />
                     </Button>
                     <TextBlock x:Name="ZoomText" MinWidth="48" TextAlignment="Center"
                                VerticalAlignment="Center" Text="Fit"
                                AutomationProperties.Name="Zoom level" />
                     <Button Click="OnZoomIn" ToolTipService.ToolTip="Zoom in (Ctrl++)" Padding="8"
-                            AutomationProperties.Name="Zoom in">
+                            AutomationProperties.Name="Zoom in"
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE8A3;" FontSize="14" />
                     </Button>
                     <Button Click="OnZoomFit" ToolTipService.ToolTip="Fit to window (Ctrl+0)" Padding="8"
-                            AutomationProperties.Name="Fit to window">
+                            AutomationProperties.Name="Fit to window"
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE9A6;" FontSize="14" />
                     </Button>
                     <Button Click="OnZoomActual" ToolTipService.ToolTip="Actual size (Ctrl+1)" Padding="8"
-                            AutomationProperties.Name="Actual size">
+                            AutomationProperties.Name="Actual size"
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE71E;" FontSize="14" />
                     </Button>
                     <AppBarSeparator />
                     <Button x:Name="SaveBtn" Click="OnSave" ToolTipService.ToolTip="Save edits" Padding="8"
-                            AutomationProperties.Name="Save edits">
+                            AutomationProperties.Name="Save edits"
+                            Style="{StaticResource HiTechPrimaryButtonStyle}">
                         <FontIcon Glyph="&#xE74E;" FontSize="14" />
                     </Button>
                     <Button Click="OnClose" ToolTipService.ToolTip="Close editor" Padding="8"
-                            AutomationProperties.Name="Close editor">
+                            AutomationProperties.Name="Close editor"
+                            Style="{StaticResource HiTechRailButtonStyle}">
                         <FontIcon Glyph="&#xE711;" FontSize="14" />
                     </Button>
                 </StackPanel>
@@ -80,101 +86,101 @@
 
         <!-- Adjustment sliders panel -->
         <ScrollViewer Grid.Column="1" Padding="12"
-                      Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
-                      BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                      Background="{StaticResource HiTechPanelBackgroundBrush}"
+                      BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                       BorderThickness="1,0,0,0">
             <StackPanel Spacing="12">
-                <TextBlock Text="Adjustments" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock Text="IMAGE // ADJUSTMENTS" Style="{StaticResource HiTechPanelHeadingStyle}" />
 
                 <!-- Quick actions -->
                 <StackPanel Orientation="Horizontal" Spacing="4">
-                    <Button Content="Auto" Click="OnAutoEnhance" Padding="8,4" />
-                    <Button Content="Reset" Click="OnReset" Padding="8,4" />
-                    <Button x:Name="RevertBtn" Content="Revert" Click="OnRevert" Padding="8,4"
+                    <Button Content="Auto" Click="OnAutoEnhance" Padding="8,4" Style="{StaticResource HiTechSectionActionStyle}" />
+                    <Button Content="Reset" Click="OnReset" Padding="8,4" Style="{StaticResource HiTechSectionActionStyle}" />
+                    <Button x:Name="RevertBtn" Content="Revert" Click="OnRevert" Padding="8,4" Style="{StaticResource HiTechSectionActionStyle}"
                             Visibility="Collapsed" />
                 </StackPanel>
 
-                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <Border Height="1" Background="{StaticResource HiTechAccentMutedBrush}" />
 
                 <!-- Tone section -->
-                <TextBlock Text="Tone" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock Text="TONE" Style="{StaticResource HiTechPanelHeadingStyle}" />
 
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Exposure" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Exposure" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="ExposureSlider" Minimum="-1" Maximum="1" StepFrequency="0.01"
                             TickFrequency="1" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Brightness" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Brightness" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="BrightnessSlider" Minimum="-1" Maximum="1" StepFrequency="0.01"
                             TickFrequency="1" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Contrast" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Contrast" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="ContrastSlider" Minimum="-1" Maximum="1" StepFrequency="0.01"
                             TickFrequency="1" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Highlights" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Highlights" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="HighlightsSlider" Minimum="-1" Maximum="1" StepFrequency="0.01"
                             TickFrequency="1" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Shadows" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Shadows" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="ShadowsSlider" Minimum="-1" Maximum="1" StepFrequency="0.01"
                             TickFrequency="1" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
 
-                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <Border Height="1" Background="{StaticResource HiTechAccentMutedBrush}" />
 
                 <!-- Color section -->
-                <TextBlock Text="Color" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock Text="COLOR" Style="{StaticResource HiTechPanelHeadingStyle}" />
 
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Saturation" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Saturation" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="SaturationSlider" Minimum="-1" Maximum="1" StepFrequency="0.01"
                             TickFrequency="1" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Temperature" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Temperature" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="TemperatureSlider" Minimum="-1" Maximum="1" StepFrequency="0.01"
                             TickFrequency="1" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Tint" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Tint" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="TintSlider" Minimum="-1" Maximum="1" StepFrequency="0.01"
                             TickFrequency="1" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
 
-                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <Border Height="1" Background="{StaticResource HiTechAccentMutedBrush}" />
 
                 <!-- Detail section -->
-                <TextBlock Text="Detail" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock Text="DETAIL" Style="{StaticResource HiTechPanelHeadingStyle}" />
 
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Clarity" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Clarity" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="ClaritySlider" Minimum="-1" Maximum="1" StepFrequency="0.01"
                             TickFrequency="1" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Sharpness" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Sharpness" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="SharpnessSlider" Minimum="0" Maximum="1" StepFrequency="0.01"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
 
-                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <Border Height="1" Background="{StaticResource HiTechAccentMutedBrush}" />
 
                 <!-- Levels section -->
-                <TextBlock Text="Levels" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock Text="LEVELS" Style="{StaticResource HiTechPanelHeadingStyle}" />
                 <canvas:CanvasControl x:Name="HistogramCanvas"
                                       Height="112"
                                       Draw="OnHistogramDraw"
@@ -184,28 +190,28 @@
                                       PointerCanceled="OnHistogramPointerCanceled" />
 
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Black Point" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Black Point" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="BlackPointSlider" Minimum="0" Maximum="0.5" StepFrequency="0.01"
                             Value="0" ValueChanged="OnSliderChanged" />
                 </StackPanel>
                 <StackPanel Spacing="2">
-                    <TextBlock Text="White Point" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="White Point" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="WhitePointSlider" Minimum="0.5" Maximum="1" StepFrequency="0.01"
                             Value="1" ValueChanged="OnSliderChanged" />
                 </StackPanel>
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Midtones" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Midtones" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="MidtonesSlider" Minimum="0.1" Maximum="0.9" StepFrequency="0.01"
                             TickFrequency="0.4" TickPlacement="Inline"
                             Value="0.5" ValueChanged="OnSliderChanged" />
                 </StackPanel>
 
-                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <Border Height="1" Background="{StaticResource HiTechAccentMutedBrush}" />
 
                 <!-- Rotation -->
-                <TextBlock Text="Transform" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <TextBlock Text="TRANSFORM" Style="{StaticResource HiTechPanelHeadingStyle}" />
                 <StackPanel Spacing="2">
-                    <TextBlock Text="Rotation" Style="{StaticResource CaptionTextBlockStyle}" />
+                    <TextBlock Text="Rotation" Style="{StaticResource HiTechCaptionStyle}" />
                     <Slider x:Name="RotationSlider" Minimum="-180" Maximum="180" StepFrequency="0.5"
                             TickFrequency="180" TickPlacement="Inline"
                             Value="0" ValueChanged="OnSliderChanged" />
