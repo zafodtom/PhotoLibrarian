@@ -366,6 +366,22 @@ public sealed class ImageRepository
         if (imageId <= 0) return;
         using var conn = _db.CreateConnection();
         using var transaction = conn.BeginTransaction();
+        // A person can have faces in other photos yet still use this image
+        // as their representative thumbnail. Drop that stored crop before
+        // deleting the originating face-region row.
+        using (var representatives = conn.CreateCommand())
+        {
+            representatives.Transaction = transaction;
+            representatives.CommandText = """
+                UPDATE persons SET
+                    thumbnail = NULL,
+                    representative_face_region_id = NULL
+                WHERE representative_face_region_id IN
+                    (SELECT id FROM face_regions WHERE image_id = $id)
+                """;
+            representatives.Parameters.AddWithValue("$id", imageId);
+            await representatives.ExecuteNonQueryAsync();
+        }
         using (var faces = conn.CreateCommand())
         {
             faces.Transaction = transaction;
