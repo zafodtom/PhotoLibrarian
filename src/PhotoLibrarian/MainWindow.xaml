@@ -10,10 +10,10 @@
           RequestedTheme="Dark"
           Background="{StaticResource HiTechAppBackgroundBrush}">
         <Grid.RowDefinitions>
-            <RowDefinition x:Name="GlobalHeaderRow" Height="66" />
+            <RowDefinition x:Name="GlobalHeaderRow" Height="48" />
             <RowDefinition x:Name="ViewerCommandRow" Height="Auto" />
             <RowDefinition x:Name="WorkspaceRow" Height="*" />
-            <RowDefinition x:Name="StatusRow" Height="42" />
+            <RowDefinition x:Name="StatusRow" Height="32" />
         </Grid.RowDefinitions>
 
         <!-- Persistent global command / identity header -->
@@ -168,13 +168,14 @@
                 <ColumnDefinition x:Name="RightPanelColumn" Width="330" MinWidth="230" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left system rail -->
+            <!-- Left system rail: viewer commands use existing side width. -->
             <Grid x:Name="SystemRail"
                   Grid.Column="0"
                   Background="#091018"
                   BorderBrush="{StaticResource HiTechBorderBrush}"
                   BorderThickness="0,0,1,0">
-                <StackPanel VerticalAlignment="Top"
+                <StackPanel x:Name="NavigationRailDecorations"
+                            VerticalAlignment="Top"
                             HorizontalAlignment="Center"
                             Margin="0,14,0,0"
                             Spacing="8">
@@ -211,10 +212,39 @@
                                FontSize="9"
                                Foreground="{StaticResource HiTechTextSecondaryBrush}" />
                 </StackPanel>
+                <!-- Viewer controls stay on the edge, freeing the full viewer height.
+                     Crop-specific options temporarily reopen the horizontal ribbon. -->
+                <StackPanel x:Name="ViewerSideCommands"
+                            Visibility="Collapsed"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Top"
+                            Margin="0,12,0,0"
+                            Spacing="10">
+                    <Button x:Name="SideCropButton"
+                            Width="40" Height="44"
+                            Padding="5"
+                            AutomationProperties.AutomationId="SideViewerCrop"
+                            AutomationProperties.Name="Crop photo"
+                            ToolTipService.ToolTip="Crop photo"
+                            Click="OnSideViewerCrop"
+                            Style="{StaticResource HiTechIconButtonStyle}">
+                        <FontIcon Glyph="&#xE7A8;" FontSize="20" />
+                    </Button>
+                    <Button x:Name="SideBackButton"
+                            Width="40" Height="44"
+                            Padding="5"
+                            AutomationProperties.AutomationId="SideViewerBack"
+                            AutomationProperties.Name="Back to gallery"
+                            ToolTipService.ToolTip="Back to gallery (Esc)"
+                            Click="OnSideViewerBack"
+                            Style="{StaticResource HiTechIconButtonStyle}">
+                        <FontIcon Glyph="&#xE72B;" FontSize="20" />
+                    </Button>
+                </StackPanel>
             </Grid>
 
             <!-- Navigation bay -->
-            <Grid Grid.Column="1" Margin="8,10,0,10">
+            <Grid Grid.Column="1" Margin="8,4,0,4">
                 <Border Background="#C90A1118"
                         BorderBrush="{StaticResource HiTechBorderBrush}"
                         BorderThickness="1">
@@ -246,7 +276,7 @@
             <!-- Main viewport -->
             <Grid x:Name="MainViewportFrame"
                   Grid.Column="3"
-                  Margin="2,10">
+                  Margin="2,4">
                 <Border x:Name="MainViewportBorder"
                         Background="#0A121A"
                         BorderBrush="{StaticResource HiTechBorderStrongBrush}"
@@ -299,7 +329,7 @@
                                    HorizontalAlignment="Stretch" />
 
             <!-- Inspection bay -->
-            <Grid Grid.Column="5" Margin="0,10,10,10">
+            <Grid Grid.Column="5" Margin="0,4,10,4">
                 <Border Background="#C90A1118"
                         BorderBrush="{StaticResource HiTechBorderBrush}"
                         BorderThickness="1">
@@ -448,7 +478,7 @@
 
             <Button x:Name="SettingsButton"
                     Grid.Column="3"
-                    Width="40" Height="32" MinWidth="40" MinHeight="32"
+                    Width="40" Height="26" MinWidth="40" MinHeight="26"
                     Padding="6,4"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
@@ -457,7 +487,7 @@
                     Click="OnSettingsClick"
                     ToolTipService.ToolTip="Settings"
                     Style="{StaticResource HiTechIconButtonStyle}">
-                <Viewbox Width="22" Height="22"><Grid Width="24" Height="24"><Path Data="M12,2 L12,5 M12,19 L12,22 M2,12 L5,12 M19,12 L22,12 M4.9,4.9 L7,7 M17,17 L19.1,19.1 M19.1,4.9 L17,7 M7,17 L4.9,19.1" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/><Ellipse Width="13" Height="13" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6"/><Ellipse Width="4" Height="4" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2"/></Grid></Viewbox>
+                <Viewbox Width="19" Height="19"><Grid Width="24" Height="24"><Path Data="M12,2 L12,5 M12,19 L12,22 M2,12 L5,12 M19,12 L22,12 M4.9,4.9 L7,7 M17,17 L19.1,19.1 M19.1,4.9 L17,7 M7,17 L4.9,19.1" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/><Ellipse Width="13" Height="13" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6"/><Ellipse Width="4" Height="4" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2"/></Grid></Viewbox>
             </Button>
         </Grid>
     </Grid>
