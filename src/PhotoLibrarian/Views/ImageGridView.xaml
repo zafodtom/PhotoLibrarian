@@ -24,7 +24,7 @@
         <!-- Toolbar -->
         <Grid Grid.Row="0"
               Padding="10,6"
-              Background="{StaticResource HiTechPanelBackgroundAltBrush}">
+              Background="{StaticResource HiTechPanelBackgroundBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -44,7 +44,7 @@
                 <TextBlock Text="GROUP"
                            VerticalAlignment="Center"
                            Margin="4,0"
-                           Style="{StaticResource HiTechSectionHeaderStyle}" />
+                           Style="{StaticResource HiTechPanelHeadingStyle}" />
                 <ComboBox x:Name="GroupByCombo" 
                           SelectedIndex="0" 
                           MinWidth="140"
@@ -63,7 +63,7 @@
                 <TextBlock Text="SORT"
                            VerticalAlignment="Center"
                            Margin="4,0"
-                           Style="{StaticResource HiTechSectionHeaderStyle}" />
+                           Style="{StaticResource HiTechPanelHeadingStyle}" />
                 <ComboBox x:Name="SortByCombo" 
                           SelectedIndex="0" 
                           MinWidth="120"
@@ -74,7 +74,7 @@
                     <ComboBoxItem Content="File Size" Tag="FileSize" />
                 </ComboBox>
                 <Button x:Name="SortOrderBtn" Click="OnToggleSortOrder" ToolTipService.ToolTip="Toggle sort order"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon x:Name="SortOrderIcon" Glyph="&#xE014;" FontSize="12" />
                 </Button>
             </StackPanel>
@@ -86,7 +86,7 @@
                         Spacing="1">
                 <TextBlock Text="VISUAL INDEX"
                            HorizontalAlignment="Center"
-                           Style="{StaticResource HiTechSectionHeaderStyle}" />
+                           Style="{StaticResource HiTechPanelHeadingStyle}" />
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Center"
                             Spacing="6">
@@ -128,7 +128,7 @@
                     Grid.Column="3"
                     Margin="0,0,12,0"
                     ToolTipService.ToolTip="Refine the current left-pane results"
-                    Style="{StaticResource HiTechIconButtonStyle}">
+                    Style="{StaticResource HiTechRailButtonStyle}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE71C;" FontSize="16" />
                     <TextBlock Text="Filter" VerticalAlignment="Center" />
@@ -147,17 +147,17 @@
                                 <!-- Tag-first refinement. The historical hidden rating,
                                      date, person and flag filters were retired. -->
                                 <StackPanel Spacing="10">
-                                    <TextBlock Text="Include tags" Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                    <TextBlock Text="Include tags" Style="{StaticResource HiTechPanelHeadingStyle}" />
                                     <TextBox x:Name="IncludeTagsBox"
                                              AutomationProperties.AutomationId="FilterIncludeTags"
                                              PlaceholderText="Comma-separated tags (all must match)"
                                              Style="{StaticResource HiTechInputStyle}" />
-                                    <TextBlock Text="Exclude tags" Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                    <TextBlock Text="Exclude tags" Style="{StaticResource HiTechPanelHeadingStyle}" />
                                     <TextBox x:Name="ExcludeTagsBox"
                                              AutomationProperties.AutomationId="FilterExcludeTags"
                                              PlaceholderText="Comma-separated tags"
                                              Style="{StaticResource HiTechInputStyle}" />
-                                    <TextBlock Text="Media type" Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                    <TextBlock Text="Media type" Style="{StaticResource HiTechPanelHeadingStyle}" />
                                     <ComboBox x:Name="MediaKindCombo" SelectedIndex="0"
                                               Style="{StaticResource HiTechComboStyle}"
                                               AutomationProperties.AutomationId="FilterMediaKind">
@@ -165,7 +165,7 @@
                                         <ComboBoxItem Content="Photos" Tag="Photos" />
                                         <ComboBoxItem Content="Videos" Tag="Videos" />
                                     </ComboBox>
-                                    <TextBlock Text="File extensions" Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                    <TextBlock Text="File extensions" Style="{StaticResource HiTechPanelHeadingStyle}" />
                                     <TextBox x:Name="ExtensionsBox"
                                              AutomationProperties.AutomationId="FilterExtensions"
                                              PlaceholderText="JPG, PNG, MP4"
@@ -192,13 +192,13 @@
             <!-- Thumbnail size slider -->
             <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4">
                 <Button Click="OnDecreaseSize" ToolTipService.ToolTip="Smaller thumbnails"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE71F;" FontSize="12" />
                 </Button>
                 <Slider x:Name="SizeSlider" Width="120" Minimum="100" Maximum="400" Value="180"
                         VerticalAlignment="Center" ValueChanged="OnSizeSliderChanged" />
                 <Button Click="OnIncreaseSize" ToolTipService.ToolTip="Larger thumbnails"
-                        Style="{StaticResource HiTechIconButtonStyle}">
+                        Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE8A3;" FontSize="12" />
                 </Button>
             </StackPanel>
@@ -273,7 +273,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="VISUAL FEED"
-                                   Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                   Style="{StaticResource HiTechPanelHeadingStyle}" />
                         <Rectangle Grid.Column="1"
                                    Height="1"
                                    Margin="12,0"
