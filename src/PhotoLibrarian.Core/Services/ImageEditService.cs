@@ -117,9 +117,22 @@ public sealed class ImageEditService
 
     private static void WriteSidecar(string filePath, IXmpMeta xmp)
     {
-        // Full embedded XMP write requires WIC — saving as .xmp sidecar for now.
-        using var writer = File.CreateText(GetSidecarPath(filePath));
-        writer.Write(XmpMetaFactory.SerializeToString(xmp, new XmpCore.Options.SerializeOptions()));
+        // Keep pre-existing XMP intact if writing the new edit parameters
+        // fails. A temporary file is not a retained backup.
+        var destination = GetSidecarPath(filePath);
+        var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temporary,
+                XmpMetaFactory.SerializeToString(xmp,
+                    new XmpCore.Options.SerializeOptions()));
+            File.Move(temporary, destination, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary))
+                File.Delete(temporary);
+        }
     }
 
     private static string GetSidecarPath(string filePath) => Path.ChangeExtension(filePath, ".xmp");
