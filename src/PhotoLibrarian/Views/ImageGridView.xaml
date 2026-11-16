@@ -262,7 +262,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <Grid Grid.Row="1">
+                    <Grid Grid.Row="2">
                         <TextBlock x:Name="EmptyStateCode"
                                    Text="STATE / STANDBY"
                                    Style="{StaticResource HiTechSystemCaptionStyle}" />
