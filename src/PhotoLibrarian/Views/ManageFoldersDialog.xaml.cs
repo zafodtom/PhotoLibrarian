@@ -68,6 +68,7 @@ public sealed partial class ManageFoldersDialog : ContentDialog
             XamlRoot = this.XamlRoot
         };
 
+        CinematicDialogStyling.Apply(confirmDialog, destructive: true);
         var result = await confirmDialog.ShowAsync();
         if (result != ContentDialogResult.Primary)
             return;
@@ -107,6 +108,7 @@ public sealed partial class ManageFoldersDialog : ContentDialog
                 CloseButtonText = "OK",
                 XamlRoot = this.XamlRoot
             };
+            CinematicDialogStyling.Apply(successDialog);
             await successDialog.ShowAsync();
 
             // Close this dialog
@@ -124,6 +126,7 @@ public sealed partial class ManageFoldersDialog : ContentDialog
                 CloseButtonText = "OK",
                 XamlRoot = this.XamlRoot
             };
+            CinematicDialogStyling.Apply(errorDialog);
             await errorDialog.ShowAsync();
         }
         finally
