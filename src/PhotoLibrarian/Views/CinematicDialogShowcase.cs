@@ -249,7 +249,10 @@ internal static class CinematicDialogShowcase
                 HorizontalAlignment = HorizontalAlignment.Center
             },
             PrimaryButtonText = preview ? "NEXT PREVIEW" : confirmLabel,
-            CloseButtonText = preview ? "CLOSE SHOWCASE" : "CANCEL",
+            CloseButtonText = preview ? "CLOSE SHOWCASE" :
+                string.IsNullOrWhiteSpace(confirmLabel)
+                    ? (critical ? "ACKNOWLEDGE" : "CLOSE")
+                    : "CANCEL",
             // Avoid WinUI's blue accent-default button overriding our severity styles.
             // ESC and the explicit CANCEL button still dismiss safely; no destructive
             // action is selected automatically by Enter.
