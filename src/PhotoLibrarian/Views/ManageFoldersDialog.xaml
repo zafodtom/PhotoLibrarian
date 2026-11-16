@@ -5,7 +5,7 @@
     Title="Manage Library Folders"
     RequestedTheme="Dark"
     PrimaryButtonText="Close"
-    PrimaryButtonStyle="{StaticResource HiTechSectionActionStyle}"
+    PrimaryButtonStyle="{StaticResource HiTechSecondaryButtonStyle}"
     DefaultButton="None">
 
     <ContentDialog.Resources>
