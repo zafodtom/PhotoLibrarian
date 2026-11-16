@@ -40,6 +40,8 @@ public sealed class SinglePhotoBackupPolicyTests
         // Context privacy cleanup has no retained backup, but the full album
         // continues to honor the explicit user's backup preference.
         Assert.Contains("keepBackups: false", gallery);
+        Assert.Contains("var retainBackups = allAlbum && keepBackups;", main);
+        Assert.Contains("progress, cancellationToken, retainBackups", main);
         Assert.Contains("keepBackups: retain", Read("SettingsPanel.xaml.cs"));
     }
 
