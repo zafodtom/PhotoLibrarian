@@ -1174,6 +1174,39 @@ public partial class MainViewModel : ObservableObject
             invalidateFaceScan: false);
     }
 
+    /// <summary>
+    /// Preserve previously assigned people during a 90-degree rotation by
+    /// rotating their normalized rectangles in both the local DB and portable
+    /// face metadata. The pixels have already been saved by the renderer.
+    /// </summary>
+    public async Task RefreshAfterRotationAsync(
+        string filePath, uint newWidth, uint newHeight, bool clockwise)
+    {
+        var entry = await _imageRepo.GetByPathAsync(filePath);
+        if (entry is { Id: > 0 })
+        {
+            var faces = await _faceRepo.GetFacesForImageAsync(entry.Id);
+            if (faces.Count > 0)
+            {
+                await _faceRepo.RotateFaceRegionsAsync(entry.Id, clockwise);
+                try
+                {
+                    var portable = await _faceRepo.GetPhotoFaceMetadataAsync(
+                        entry.Id, (int)newWidth, (int)newHeight);
+                    await new FaceMetadataStore().WriteAsync(filePath, portable);
+                }
+                catch
+                {
+                    // The database must not disagree with an unwritten XMP update.
+                    await _faceRepo.RotateFaceRegionsAsync(entry.Id, !clockwise);
+                    throw;
+                }
+            }
+        }
+        await RefreshAfterPixelEditAsync(
+            filePath, newWidth, newHeight, "Rotated", invalidateFaceScan: false);
+    }
+
     public Task RefreshAfterStraightenAsync(
         string filePath,
         uint newPixelWidth,
