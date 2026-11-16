@@ -5,7 +5,7 @@
     xmlns:vm="using:PhotoLibrarian.ViewModels">
 
     <UserControl.Resources>
-        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource HiTechSectionHeaderStyle}">
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource HiTechPanelHeadingStyle}">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Margin" Value="0,14,0,4" />
         </Style>
@@ -14,7 +14,7 @@
             <Setter Property="FontSize" Value="13" />
         </Style>
         <Style x:Key="InfoLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource HiTechAccentMutedBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource HiTechTextSecondaryBrush}" />
             <Setter Property="FontFamily" Value="Consolas" />
             <Setter Property="FontSize" Value="10" />
             <Setter Property="CharacterSpacing" Value="60" />
@@ -96,7 +96,7 @@
                     <TextBlock Text="Geotag" Style="{StaticResource SectionHeaderStyle}" Visibility="Collapsed" />
                     <TextBlock x:Name="GeotagText" Style="{StaticResource PlaceholderStyle}" Margin="0,2,0,0" Visibility="Collapsed" />
 
-                    <TextBlock Text="Caption" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="CAPTION" Style="{StaticResource SectionHeaderStyle}" />
                     <TextBox x:Name="CaptionBox"
                              Style="{StaticResource HiTechInputStyle}"
                              PlaceholderText="Add caption"
@@ -112,7 +112,7 @@
                                Foreground="{ThemeResource SystemAccentColorLight2}"
                                Margin="0,2,0,0" />
 
-                    <TextBlock Text="Tags" Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="TAGS / ASSIGNED" Style="{StaticResource SectionHeaderStyle}" />
                     <ItemsRepeater x:Name="TagsList" Margin="0,4,0,0">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Vertical" Spacing="2" />
@@ -138,7 +138,7 @@
                                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Grid.Column="2" Text="{Binding CountDisplay}"
                                                FontSize="11"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               Foreground="{StaticResource HiTechTextSecondaryBrush}"
                                                VerticalAlignment="Center" Margin="4,0,0,0" />
                                 </Grid>
                             </DataTemplate>
@@ -160,14 +160,14 @@
                                      FontSize="13" />
                             <Button x:Name="ShowAllTagsButton" Grid.Column="1"
                                     Click="OnShowAllTagsClick"
-                                    Style="{StaticResource HiTechIconButtonStyle}"
+                                    Style="{StaticResource HiTechSectionActionStyle}"
                                     ToolTipService.ToolTip="Show all available tags"
                                     AutomationProperties.Name="Show all available tags">
                                 <FontIcon Glyph="&#xE70D;" FontSize="12" />
                             </Button>
                             <Button Grid.Column="2"
                                     Click="OnAddTagClick"
-                                    Style="{StaticResource HiTechIconButtonStyle}"
+                                    Style="{StaticResource HiTechSectionActionStyle}"
                                     ToolTipService.ToolTip="Add tag to all selected">
                                 <FontIcon Glyph="&#xE109;" FontSize="12" />
                             </Button>
