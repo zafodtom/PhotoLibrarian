@@ -185,40 +185,95 @@ public static class PhotoMetadataAnonymizer
         // a recognizable second picture, Live Photo video or huge unknown
         // payload: those are separate media and need dedicated handling.
         var trailer = input[position..];
-        if (trailer.Length > 0 && ContainsAdditionalMedia(trailer))
+        var unsafeReason = GetUnsafeJpegTrailerReason(trailer);
+        if (unsafeReason is not null)
             throw new NotSupportedException(
-                "JPEG contains a possible appended photo/video or oversized payload. " +
-                "It was not changed; please inspect this multi-media file manually.");
+                $"JPEG trailer: {unsafeReason}. The original photo was not changed.");
         return output.ToArray();
     }
 
-    private static bool ContainsAdditionalMedia(ReadOnlySpan<byte> trailer)
+    /// <summary>
+    /// Confirm an actual media container, rather than matching four bytes
+    /// anywhere in vendor-specific metadata. Report a specific reason for
+    /// files that cannot be safely flattened into a single JPEG.
+    /// </summary>
+    private static string? GetUnsafeJpegTrailerReason(ReadOnlySpan<byte> trailer)
     {
-        // Most camera metadata trailers are small. A very large attachment is
-        // more likely to contain additional visual media or another container.
         const int MaxMetadataTrailerBytes = 256 * 1024;
-        if (trailer.Length > MaxMetadataTrailerBytes) return true;
-
-        for (var index = 0; index < trailer.Length; index++)
+        // Scan a bounded prefix for recognisable secondary containers. Larger
+        // unknown trailers remain unsupported, irrespective of marker matches.
+        var maxScan = Math.Min(trailer.Length, MaxMetadataTrailerBytes);
+        for (var index = 0; index < maxScan; index++)
         {
-            var remaining = trailer.Length - index;
-            if (remaining >= 2 &&
-                trailer[index] == 0xff && trailer[index + 1] == 0xd8)
-                return true; // Another JPEG SOI (stereo/multi-image).
-            if (remaining >= 8 &&
-                trailer.Slice(index, 8).SequenceEqual(PngSignature))
-                return true;
-            if (remaining >= 12 &&
-                trailer.Slice(index, 4).SequenceEqual("RIFF"u8) &&
-                (trailer.Slice(index + 8, 4).SequenceEqual("WEBP"u8) ||
-                 trailer.Slice(index + 8, 4).SequenceEqual("AVI "u8)))
-                return true;
-            if (remaining >= 8 &&
-                trailer.Slice(index + 4, 4).SequenceEqual("ftyp"u8))
-                return true; // ISO BMFF: MP4, MOV, HEIF, AVIF, etc.
+            var remaining = trailer[index..];
+            if (LooksLikeEmbeddedJpeg(remaining))
+                return "an additional JPEG picture was detected";
+            if (LooksLikeEmbeddedPng(remaining))
+                return "an additional PNG picture was detected";
+            if (LooksLikeEmbeddedRiffMedia(remaining, out var riffType))
+                return $"an additional {riffType} container was detected";
+            if (LooksLikeEmbeddedIsoMedia(remaining))
+                return "an additional MP4/MOV/HEIF-style media container was detected";
         }
+        if (trailer.Length > MaxMetadataTrailerBytes)
+            return $"unknown appended data ({trailer.Length:N0} bytes) exceeds the " +
+                   $"safe metadata limit ({MaxMetadataTrailerBytes:N0} bytes)";
 
-        return false; // Only detached metadata/padding; safe to discard.
+        return null;
+    }
+
+    private static bool LooksLikeEmbeddedJpeg(ReadOnlySpan<byte> data)
+    {
+        // SOI followed by a syntactically valid first marker and segment.
+        // A stray FF D8 in vendor metadata is NOT enough to prove a second
+        // image. Require both a plausible header and its closing EOI.
+        if (data.Length < 10 || data[0] != 0xff || data[1] != 0xd8 ||
+            data[2] != 0xff || data[3] is 0x00 or 0xff or 0xd8 or 0xd9)
+            return false;
+        var length = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(4, 2));
+        if (length < 2 || length > data.Length - 4) return false;
+        return data[(4 + length)..].IndexOf(new byte[] { 0xff, 0xd9 }) >= 0;
+    }
+
+    private static bool LooksLikeEmbeddedPng(ReadOnlySpan<byte> data) =>
+        data.Length >= 33 &&
+        data[..8].SequenceEqual(PngSignature) &&
+        BinaryPrimitives.ReadUInt32BigEndian(data.Slice(8, 4)) == 13 &&
+        data.Slice(12, 4).SequenceEqual("IHDR"u8);
+
+    private static bool LooksLikeEmbeddedRiffMedia(
+        ReadOnlySpan<byte> data, out string mediaType)
+    {
+        mediaType = string.Empty;
+        if (data.Length < 12 || !data[..4].SequenceEqual("RIFF"u8))
+            return false;
+        var bytes = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(4, 4));
+        if (bytes < 4) return false;
+        if (data.Slice(8, 4).SequenceEqual("WEBP"u8)) mediaType = "WebP";
+        else if (data.Slice(8, 4).SequenceEqual("AVI "u8)) mediaType = "AVI";
+        else return false;
+        // Even a truncated payload with a valid RIFF header must be treated
+        // as an embedded/auxiliary media object rather than stripped blindly.
+        return true;
+    }
+
+    private static bool LooksLikeEmbeddedIsoMedia(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 16 || !data.Slice(4, 4).SequenceEqual("ftyp"u8))
+            return false;
+        var boxSize = BinaryPrimitives.ReadUInt32BigEndian(data[..4]);
+        if (boxSize < 16) return false;
+        // Check the first major brand. The word "ftyp" alone inside text or
+        // binary metadata is not sufficient evidence of a video attachment.
+        var brand = data.Slice(8, 4);
+        foreach (var c in brand)
+        {
+            if (c is not (>= (byte)'0' and <= (byte)'9' or
+                          >= (byte)'A' and <= (byte)'Z' or
+                          >= (byte)'a' and <= (byte)'z' or (byte)' '))
+                return false;
+        }
+        return true;
     }
 
     private static bool HasApngAnimation(ReadOnlySpan<byte> input)
