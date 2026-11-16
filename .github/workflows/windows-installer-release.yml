@@ -89,6 +89,20 @@ jobs:
             "DEV_RELEASE_TAG=v${version}-dev.$nextBuild" |
               Out-File $env:GITHUB_ENV -Append -Encoding utf8
           }
+      # Detect version/tag problems before spending minutes on installer work.
+      - name: Validate stable release prerequisites
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/master' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v$env:VERSION"
+          $notes = "docs/releases/$env:VERSION.md"
+          if (-not (Test-Path $notes)) { throw "Release notes missing: $notes" }
+          $existing = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" --silent 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Stable release $tag already exists. Bump the project version; published assets are immutable." }
+          $existingTag = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Git tag $tag already exists. Use a new version." }
       - name: Compile application and tests
         shell: pwsh
         run: |
