@@ -38,6 +38,9 @@ public sealed record ImageRefinementFilter
 {
     public static ImageRefinementFilter Empty { get; } = new();
 
+    /// <summary>Case-insensitive filename substring search (independent of tag filtering).</summary>
+    public string FileNameQuery { get; init; } = string.Empty;
+
     public int? Rating { get; init; }
     public RatingFilterMode RatingMode { get; init; } = RatingFilterMode.AndHigher;
     public DateTime? DateFrom { get; init; }
@@ -51,6 +54,7 @@ public sealed record ImageRefinementFilter
     public MissingMetadataFilter MissingMetadata { get; init; }
 
     public bool IsActive =>
+        !string.IsNullOrWhiteSpace(FileNameQuery) ||
         Rating.HasValue ||
         DateFrom.HasValue ||
         DateTo.HasValue ||
@@ -74,6 +78,11 @@ public sealed record ImageRefinementFilter
         IReadOnlyCollection<string>? tags = null,
         IReadOnlyCollection<long>? personIds = null)
     {
+        if (!string.IsNullOrWhiteSpace(FileNameQuery) &&
+            !(image.FileName ?? Path.GetFileName(image.FilePath))
+                .Contains(FileNameQuery.Trim(), StringComparison.OrdinalIgnoreCase))
+            return false;
+
         tags ??= Array.Empty<string>();
         personIds ??= Array.Empty<long>();
 
