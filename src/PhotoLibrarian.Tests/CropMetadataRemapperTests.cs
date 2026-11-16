@@ -10,7 +10,7 @@ public sealed class CropMetadataRemapperTests
 {
     [Theory]
     [InlineData(true, 0.70, 0.10, 0.20, 0.30)]
-    [InlineData(false, 0.10, 0.70, 0.20, 0.30)]
+    [InlineData(false, 0.10, 0.60, 0.20, 0.30)]
     public void RotateQuarterTurnPreservesNormalizedFaceGeometry(
         bool clockwise, double expectedX, double expectedY,
         double expectedWidth, double expectedHeight)
