@@ -89,7 +89,7 @@ public sealed class CinematicUiConsistencyTests
         Assert.Contains("dialog.ClearValue(FrameworkElement.HorizontalAlignmentProperty)", source);
         Assert.Contains("dialog.ClearValue(FrameworkElement.VerticalAlignmentProperty)", source);
         Assert.DoesNotContain("dialog.HorizontalAlignment = HorizontalAlignment.Center", source);
-        Assert.Contains("HiTechSectionActionStyle", source);
+        Assert.Contains("HiTechSecondaryButtonStyle", source);
         Assert.Contains("HiTechDangerButtonStyle", source);
         Assert.Contains("x:Key=\"HiTechDangerButtonStyle\"", theme);
 
@@ -97,6 +97,23 @@ public sealed class CinematicUiConsistencyTests
         Assert.Null(folders.Root?.Attribute("MinWidth"));
         Assert.Null(folders.Root?.Attribute("HorizontalAlignment"));
         Assert.Null(folders.Root?.Attribute("VerticalAlignment"));
+    }
+
+    [Fact]
+    public void SecondaryActionsAndDisabledButtonsUseSharedCinematicPalette()
+    {
+        var theme = Read("HiTechTheme.xaml");
+        var settings = Read("SettingsPanel.xaml");
+        var metadata = Read("MetadataPanel.xaml.cs");
+        var navigation = Read("FolderNavigationPanel.xaml.cs");
+
+        Assert.Contains("x:Key=\"HiTechSecondaryButtonStyle\"", theme);
+        Assert.Contains("x:Key=\"ButtonBackgroundDisabled\"", theme);
+        Assert.Contains("x:Key=\"ButtonForegroundDisabled\"", theme);
+        Assert.Contains("x:Key=\"ButtonBorderBrushDisabled\"", theme);
+        Assert.Contains("HiTechSecondaryButtonStyle", settings);
+        Assert.Contains("HiTechSecondaryButtonStyle", metadata);
+        Assert.Contains("HiTechSecondaryButtonStyle", navigation);
     }
 
     [Fact]
