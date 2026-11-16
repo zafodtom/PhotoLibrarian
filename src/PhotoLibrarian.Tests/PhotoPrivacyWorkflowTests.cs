@@ -46,6 +46,84 @@ public sealed class PhotoPrivacyWorkflowTests
         Assert.Contains("footerOverride ??", factory);
     }
 
+    private const string TinyJpegFixture = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAACAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDi6KKK+ZP3E//Z";
+
+    [Fact]
+    public async Task ContextMenuAnonymizationLeavesNoRetainedBackupOrSidecar()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "plib-privacy-no-backup-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        var file = Path.Combine(root, "photo.jpg");
+        var xmp = Path.Combine(root, "photo.xmp");
+        var originalJpeg = Convert.FromBase64String(TinyJpegFixture);
+        await File.WriteAllBytesAsync(file,
+            originalJpeg.Concat("Private owner name and GPS"u8.ToArray()).ToArray());
+        await File.WriteAllTextAsync(xmp, "Personal keyword and GPS");
+
+        try
+        {
+            var committed = false;
+            var result = await PhotoPrivacyCleanupService.RunAsync(
+                root,
+                new[] { new ImageEntry { FilePath = file, FileName = "photo.jpg" } },
+                (_, _, _, _, _) =>
+                {
+                    committed = true;
+                    return Task.CompletedTask;
+                },
+                keepBackups: false);
+            Assert.True(committed);
+            Assert.Equal(1, result.Cleaned);
+            Assert.Equal(0, result.Failed);
+            Assert.False(File.Exists(xmp));
+            Assert.Equal(PhotoMetadataAnonymizer.StripJpeg(originalJpeg),
+                await File.ReadAllBytesAsync(file));
+            Assert.False(Directory.Exists(Path.Combine(
+                root, ".album", "privacy-rollback")));
+            Assert.False(Directory.Exists(Path.Combine(
+                root, ".album", "privacy-backups")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task NoBackupModeDiscardsRollbackCopyAfterDatabaseFailureAndRestoration()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "plib-privacy-recovery-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, ".album"));
+        var file = Path.Combine(root, "photo.jpg");
+        var xmp = Path.Combine(root, "photo.xmp");
+        var original = Convert.FromBase64String(TinyJpegFixture)
+            .Concat("Private owner name and GPS"u8.ToArray()).ToArray();
+        await File.WriteAllBytesAsync(file, original);
+        await File.WriteAllTextAsync(xmp, "Original XMP tags");
+
+        try
+        {
+            var result = await PhotoPrivacyCleanupService.RunAsync(
+                root,
+                new[] { new ImageEntry { FilePath = file, FileName = "photo.jpg" } },
+                (_, _, _, _, _) => throw new InvalidOperationException(
+                    "Simulated database failure after file replacement"),
+                keepBackups: false);
+            Assert.Equal(0, result.Cleaned);
+            Assert.Equal(1, result.Failed);
+            Assert.Equal(original, await File.ReadAllBytesAsync(file));
+            Assert.Equal("Original XMP tags", await File.ReadAllTextAsync(xmp));
+            Assert.False(Directory.Exists(Path.Combine(
+                root, ".album", "privacy-rollback")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task UnsupportedRawFilesAndTheirXmpRemainUntouched()
     {
