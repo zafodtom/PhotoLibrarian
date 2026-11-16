@@ -31,7 +31,7 @@ internal static class CinematicDialogStyling
                 out var primary) && primary is Style primaryStyle)
             dialog.PrimaryButtonStyle = primaryStyle;
 
-        if (resources.TryGetValue("HiTechSectionActionStyle", out var neutral)
+        if (resources.TryGetValue("HiTechSecondaryButtonStyle", out var neutral)
             && neutral is Style neutralStyle)
         {
             dialog.SecondaryButtonStyle = neutralStyle;
