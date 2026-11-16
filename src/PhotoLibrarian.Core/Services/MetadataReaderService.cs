@@ -144,20 +144,28 @@ public sealed class MetadataReaderService
         {
             var directories = ImageMetadataReader.ReadMetadata(filePath);
             var xmp = directories.OfType<XmpDirectory>().FirstOrDefault();
-            if (xmp?.XmpMeta is null) return tags;
-
-            const string dcNs = "http://purl.org/dc/elements/1.1/";
-            int count = xmp.XmpMeta.CountArrayItems(dcNs, "dc:subject");
-            for (int i = 1; i <= count; i++)
+            if (xmp?.XmpMeta is not null)
             {
-                var tag = xmp.XmpMeta.GetArrayItem(dcNs, "dc:subject", i)?.Value;
-                if (!string.IsNullOrWhiteSpace(tag))
-                    tags.Add(tag);
+                const string dcNs = "http://purl.org/dc/elements/1.1/";
+                int count = xmp.XmpMeta.CountArrayItems(dcNs, "dc:subject");
+                for (int i = 1; i <= count; i++)
+                {
+                    var tag = xmp.XmpMeta.GetArrayItem(dcNs, "dc:subject", i)?.Value;
+                    if (!string.IsNullOrWhiteSpace(tag))
+                        tags.Add(tag);
+                }
             }
         }
         catch { /* File may not have XMP */ }
 
-        return tags;
+        // Metadata writes can fall back to a portable .xmp file (e.g. BMP or a
+        // Windows property-handler failure). Give that explicit fallback
+        // priority when it actually contains keywords; otherwise retain the
+        // embedded set. This also recovers RAW copy tags on reimport.
+        var sidecarTags = TagWriterService.ReadTagsFromSidecar(filePath);
+        return (sidecarTags.Count > 0 ? sidecarTags : tags)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>
