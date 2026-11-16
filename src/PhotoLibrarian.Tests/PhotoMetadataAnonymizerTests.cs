@@ -28,16 +28,57 @@ public sealed class PhotoMetadataAnonymizerTests
     }
 
     [Fact]
-    public void MultiImageOrAppendedPayloadJpegsAreSkippedWithoutDataLoss()
+    public void JpegScrubDiscardsProprietaryMetadataTrailerWithoutReencodingScan()
+    {
+        // Camera JPEG with EXIF, a normal image and vendor data after EOI.
+        // This is exactly the previously skipped privacy-cleanup case.
+        var picture = new byte[]
+        {
+            0xff, 0xd8,
+            0xff, 0xe1, 0, 8, (byte)'E', (byte)'x', (byte)'i', (byte)'f', 0, 0,
+            0xff, 0xda, 0, 2,
+            0x12, 0x13, 0xff, 0x00, 0x14, 0xff, 0xd9
+        };
+        var cameraTrailer = "KODAK vendor photo metadata: name, date, GPS"u8.ToArray();
+        var padded = picture.Concat(cameraTrailer).Concat(new byte[] { 0, 0xff }).ToArray();
+
+        var clean = PhotoMetadataAnonymizer.StripJpeg(padded);
+
+        Assert.Equal(new byte[]
+        {
+            0xff, 0xd8, 0xff, 0xda, 0, 2,
+            0x12, 0x13, 0xff, 0x00, 0x14, 0xff, 0xd9
+        }, clean);
+        Assert.DoesNotContain("KODAK", Encoding.ASCII.GetString(clean));
+    }
+
+    [Fact]
+    public void MultiPictureJpegAndAppendedVideoRemainUnsupported()
     {
         var ordinary = new byte[]
         {
             0xff, 0xd8, 0xff, 0xda, 0, 2,
             1, 2, 3, 0xff, 0xd9
         };
-        var withTrailer = ordinary.Concat("second-image"u8.ToArray()).ToArray();
+        var appendedJpeg = ordinary.Concat(new byte[]
+        {
+            0xff, 0xd8, 0xff, 0xda, 0, 2, 0x22, 0xff, 0xd9
+        }).ToArray();
         Assert.Throws<NotSupportedException>(() =>
-            PhotoMetadataAnonymizer.StripJpeg(withTrailer));
+            PhotoMetadataAnonymizer.StripJpeg(appendedJpeg));
+
+        var appendedMp4 = ordinary.Concat(new byte[]
+        {
+            0, 0, 0, 20, (byte)'f', (byte)'t', (byte)'y', (byte)'p',
+            (byte)'i', (byte)'s', (byte)'o', (byte)'m'
+        }).ToArray();
+        Assert.Throws<NotSupportedException>(() =>
+            PhotoMetadataAnonymizer.StripJpeg(appendedMp4));
+
+        var largeUnknownPayload = ordinary.Concat(
+            Enumerable.Repeat((byte)0x31, 256 * 1024 + 1)).ToArray();
+        Assert.Throws<NotSupportedException>(() =>
+            PhotoMetadataAnonymizer.StripJpeg(largeUnknownPayload));
 
         var mpf = new byte[]
         {
