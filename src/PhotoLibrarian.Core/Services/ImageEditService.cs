@@ -4,31 +4,31 @@ using XmpCore;
 namespace PhotoLibrarian.Core.Services;
 
 /// <summary>
-/// Applies image edits to a file: backs the original up, hands the pixel rendering to the
-/// platform-specific renderer supplied by the caller, and keeps the XMP edit record in sync.
+/// Applies image edits directly to a file via the platform renderer without
+/// retaining backups of single-photo actions. Keeps XMP edit records in sync.
 ///
 /// The rendering itself lives in the UI layer because it needs Win2D, which this assembly does
 /// not reference — see <c>PhotoLibrarian.Services.ImageEditRenderer</c>.
 /// </summary>
 public sealed class ImageEditService
 {
-    private readonly OriginalBackupService _backupService;
-
     /// <summary>
     /// Bakes <paramref name="parameters"/> into the pixels of the file at the given path,
     /// returning the new pixel dimensions.
     /// </summary>
     public delegate Task<(uint Width, uint Height)> PixelRenderer(string filePath, EditParameters parameters);
 
+    // Keep the constructor parameter for compatibility with existing callers.
+    // Creating permanent originals is reserved for album-wide operations.
     public ImageEditService(OriginalBackupService backupService)
     {
-        _backupService = backupService;
+        ArgumentNullException.ThrowIfNull(backupService);
     }
 
     /// <summary>
-    /// Applies the edits to the file on disk. The original is backed up first (no-op when a
-    /// backup already exists), then <paramref name="renderer"/> bakes the adjustments into the
-    /// pixels, and finally any pending edit parameters are cleared from the XMP sidecar — the
+    /// Applies the edits to the file on disk without creating a retained backup.
+    /// The renderer bakes adjustments into the pixels and then pending edit
+    /// parameters are cleared from the XMP sidecar — the
     /// values now live in the pixels, so keeping them would double-apply on the next open.
     /// Returns the new pixel dimensions of the file.
     /// </summary>
@@ -37,21 +37,17 @@ public sealed class ImageEditService
     {
         ArgumentNullException.ThrowIfNull(renderer);
 
-        await _backupService.BackupOriginalAsync(filePath);
         var size = await renderer(filePath, parameters);
         await ClearPendingEditParametersAsync(filePath);
         return size;
     }
 
     /// <summary>
-    /// Saves edit parameters as pending (not yet rendered) edits in the image's XMP sidecar.
-    /// Backs up the original before first edit.
+    /// Saves edit parameters as pending edits in the image's XMP sidecar.
+    /// Single-photo edit parameter changes do not create retained backups.
     /// </summary>
     public async Task SaveEditParametersAsync(string filePath, EditParameters parameters)
     {
-        // Backup original first
-        await _backupService.BackupOriginalAsync(filePath);
-
         await Task.Run(() =>
         {
             var xmp = ReadXmp(filePath);
