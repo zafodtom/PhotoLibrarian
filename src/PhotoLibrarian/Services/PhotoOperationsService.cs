@@ -19,14 +19,14 @@ public sealed class PhotoOperationsService
     // The gate is instance-scoped so independent albums do not share state.
     private readonly SemaphoreSlim _transferGate = new(1, 1);
 
-    private readonly OriginalBackupService _backupService;
-
     public PhotoOperationsService(
         ImageRepository imageRepo,
         OriginalBackupService backupService)
     {
         _imageRepo = imageRepo;
-        _backupService = backupService;
+        // Keep this argument for existing dependency injection and callers.
+        // No retained backup is created for single-photo operations.
+        ArgumentNullException.ThrowIfNull(backupService);
     }
 
     /// <summary>
