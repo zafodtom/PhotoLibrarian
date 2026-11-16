@@ -1107,6 +1107,7 @@ public sealed partial class SettingsPanel : UserControl
         if (Application.Current.Resources.TryGetValue(
                 "HiTechIconButtonStyle", out var closeStyle) && closeStyle is Style closeButton)
             dialog.CloseButtonStyle = closeButton;
+        CinematicDialogStyling.Apply(dialog);
         return dialog;
     }
 
