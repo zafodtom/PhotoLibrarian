@@ -751,17 +751,21 @@ public sealed partial class MainWindow : Window
         var entry = ViewModel.ImageViewer.CurrentEntry;
         if (bounds is null || entry is null || !CropService.IsSupported(entry.FilePath)) return;
 
-        var picker = new Windows.Storage.Pickers.FileSavePicker
+        // The Windows App SDK picker accepts an exact folder. Always start in the
+        // current photo's directory rather than the system Pictures library or
+        // the last directory used by a different Save As operation.
+        var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)
         {
-            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary,
-            SuggestedFileName = System.IO.Path.GetFileNameWithoutExtension(entry.FilePath) + "_crop"
+            SuggestedFolder = System.IO.Path.GetDirectoryName(entry.FilePath)
+                ?? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+            SuggestedFileName = System.IO.Path.GetFileNameWithoutExtension(entry.FilePath) + "_crop",
+            DefaultFileExtension = ".jpg",
+            CommitButtonText = "Save crop"
         };
         picker.FileTypeChoices.Add("JPEG image", new System.Collections.Generic.List<string> { ".jpg" });
         picker.FileTypeChoices.Add("PNG image", new System.Collections.Generic.List<string> { ".png" });
-        picker.FileTypeChoices.Add("TIFF image", new System.Collections.Generic.List<string> { ".tif" });
+        picker.FileTypeChoices.Add("TIFF image", new System.Collections.Generic.List<string> { ".tif", ".tiff" });
         picker.FileTypeChoices.Add("Bitmap image", new System.Collections.Generic.List<string> { ".bmp" });
-        WinRT.Interop.InitializeWithWindow.Initialize(
-            picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
 
         var selected = await picker.PickSaveFileAsync();
         if (selected is null) return;
