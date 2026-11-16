@@ -1519,20 +1519,22 @@ public partial class MainViewModel : ObservableObject
             await foreach (var filePath in scanner.ScanFolderAsync(
                 root, includeSubfolders: true, cancellationToken))
             {
-                if (FolderScannerService.IsVideoFile(filePath)) continue;
+                // Count videos as unsupported rather than silently report a
+                // complete privacy purge of a mixed-media album.
                 if (indexed.TryGetValue(filePath, out var item))
                     found.Add(item);
                 else
                     found.Add(new ImageEntry
                     {
                         FilePath = filePath,
-                        FileName = Path.GetFileName(filePath)
+                        FileName = Path.GetFileName(filePath),
+                        MediaType = FolderScannerService.IsVideoFile(filePath)
+                            ? MediaType.Video : MediaType.Image
                     });
             }
             photos = found;
         }
         else photos = selection!
-            .Where(e => e.MediaType == MediaType.Image)
             .DistinctBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
