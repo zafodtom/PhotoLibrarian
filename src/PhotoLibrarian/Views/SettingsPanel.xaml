@@ -378,7 +378,7 @@
                                         Content="CANCEL"
                                         Click="OnCancelThumbnailGeneration"
                                         IsEnabled="False"
-                                        Style="{StaticResource HiTechSectionActionStyle}" />
+                                        Style="{StaticResource HiTechSecondaryButtonStyle}" />
                             </StackPanel>
                             <ProgressBar x:Name="ThumbnailGenerationProgressBar"
                                          Minimum="0" Maximum="100" Visibility="Collapsed" />
