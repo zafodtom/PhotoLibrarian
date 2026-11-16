@@ -88,9 +88,7 @@
                             <TextBlock Text="TAGS"
                                        Style="{StaticResource HiTechSectionHeaderStyle}"
                                        VerticalAlignment="Center" />
-                            <TextBlock Text="B02"
-                                       Style="{StaticResource HiTechTinyLabelStyle}"
-                                       VerticalAlignment="Center" />
+                            
                         </StackPanel>
                         <StackPanel Grid.Column="1"
                                     Orientation="Horizontal"
