@@ -37,6 +37,29 @@ public sealed class GallerySearchAndPhotoToolsTests
     }
 
     [Fact]
+    public void InitialViewportAlwaysRequestsThumbnailsWithoutWindowResize()
+    {
+        var virtualGrid = Read("VirtualizingPhotoGrid.xaml.cs");
+        var thumbnailModel = Read("ImageGridViewModel.cs");
+
+        // An album may be loaded before ScrollViewer.ActualWidth becomes
+        // nonzero. The initial real viewport must trigger realization.
+        Assert.Contains("ScrollContainer.SizeChanged += OnScrollContainerSizeChanged", virtualGrid);
+        Assert.Contains("private void OnScrollContainerSizeChanged(", virtualGrid);
+        Assert.Contains("RecalculateLayout();", virtualGrid.Split(
+            "private void OnLoaded(", 2)[1].Split(
+            "private void OnItemSizeUpdated(", 2)[0]);
+
+        var handler = thumbnailModel.Split("public void OnViewportChangedGrouped(", 2)[1]
+            .Split("public void OnViewportChanged(", 2)[0];
+        Assert.Contains("foreach (var item in visibleItems)", handler);
+        Assert.Contains("_loadQueue.Enqueue(item)", handler);
+        Assert.Contains("StartBackgroundLoadingIfNeeded()", handler);
+        Assert.DoesNotContain("ScrollReorderThrottleMs", thumbnailModel);
+        Assert.DoesNotContain("if ((now - _lastScrollReorder)", handler);
+    }
+
+    [Fact]
     public void CropRibbonExposesSeparateSaveAsAndExistingApply()
     {
         var ribbon = Read("TopRibbon.xaml");
