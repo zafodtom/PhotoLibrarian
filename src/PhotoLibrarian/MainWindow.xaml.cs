@@ -584,10 +584,16 @@ public sealed partial class MainWindow : Window
         if (!ViewModel.ImageViewer.IsOpen && _isViewerFullscreen)
             ExitViewerFullscreen();
 
-        TopRibbon.Visibility =
-            ViewModel.ImageViewer.IsOpen && !_isViewerFullscreen
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+        // Normal viewing uses the existing narrow side rail. Only crop mode
+        // needs a horizontal strip for aspect ratio and Apply/Cancel controls.
+        var viewerOpen = ViewModel.ImageViewer.IsOpen && !_isViewerFullscreen;
+        TopRibbon.Visibility = viewerOpen && ViewerOverlay.IsCropping
+            ? Visibility.Visible : Visibility.Collapsed;
+        ViewerSideCommands.Visibility = viewerOpen && !ViewerOverlay.IsCropping
+            ? Visibility.Visible : Visibility.Collapsed;
+        NavigationRailDecorations.Visibility = viewerOpen
+            ? Visibility.Collapsed : Visibility.Visible;
+        SideCropButton.IsEnabled = viewerOpen && !ViewModel.ImageViewer.IsVideo;
         if (!ViewModel.ImageViewer.IsOpen && ViewerOverlay.IsCropping)
         {
             ViewerOverlay.ExitCropMode();
@@ -603,6 +609,7 @@ public sealed partial class MainWindow : Window
         ViewerOverlay.EnterCropMode();
         ViewerOverlay.CropOverlay.AspectRatio = _pendingAspect;
         TopRibbon.EnterCropMode();
+        UpdateRibbonVisibility();
     }
 
     private async void OnRibbonAdjustClicked(object? sender, EventArgs e)
@@ -630,6 +637,7 @@ public sealed partial class MainWindow : Window
     {
         ViewerOverlay.ExitCropMode();
         TopRibbon.ExitCropMode();
+        UpdateRibbonVisibility();
     }
 
     private void OnRibbonCropAspectChanged(object? sender, CropAspectRatio ratio)
@@ -669,6 +677,7 @@ public sealed partial class MainWindow : Window
             ViewerOverlay.ExitCropMode();
             TopRibbon.ExitCropMode();
             TopRibbon.IsEnabled = true;
+            UpdateRibbonVisibility();
         }
     }
 
@@ -681,6 +690,15 @@ public sealed partial class MainWindow : Window
         {
             SettingsPanel.Loaded += (s, e) => ViewModel.Settings.OpenCommand.Execute(null);
         }
+    }
+
+    private void OnSideViewerCrop(object sender, RoutedEventArgs e) =>
+        OnRibbonCropClicked(sender, EventArgs.Empty);
+
+    private void OnSideViewerBack(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.ImageViewer.IsOpen)
+            ViewModel.ImageViewer.CloseCommand.Execute(null);
     }
 
     private void OnSettingsClick(object sender, RoutedEventArgs e)
