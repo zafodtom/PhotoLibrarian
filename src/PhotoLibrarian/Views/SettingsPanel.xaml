@@ -36,7 +36,7 @@
                                CharacterSpacing="100"
                                Foreground="{StaticResource HiTechTextPrimaryBrush}" />
                     <TextBlock Text="PHOTOLIBRARIAN CONTROL MATRIX"
-                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                               Style="{StaticResource HiTechSystemCaptionStyle}" />
                 </StackPanel>
             </Grid>
 
@@ -378,7 +378,7 @@
                                         Content="CANCEL"
                                         Click="OnCancelThumbnailGeneration"
                                         IsEnabled="False"
-                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Style="{StaticResource HiTechSectionActionStyle}" />
                             </StackPanel>
                             <ProgressBar x:Name="ThumbnailGenerationProgressBar"
                                          Minimum="0" Maximum="100" Visibility="Collapsed" />
@@ -409,7 +409,7 @@
                                         VerticalAlignment="Bottom"
                                         Click="OnClearRecentTagHistory"
                                         AutomationProperties.AutomationId="ClearRecentTagsButton"
-                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Style="{StaticResource HiTechSectionActionStyle}" />
                             </StackPanel>
                             <TextBlock x:Name="RecentTagsSettingsStatusText"
                                        Text="History changes apply to the current album only."
@@ -463,7 +463,7 @@
                                 <Button x:Name="CancelJpegConversionButton" Content="CANCEL"
                                         IsEnabled="False"
                                         Click="OnCancelJpegConversion"
-                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Style="{StaticResource HiTechSectionActionStyle}" />
                             </StackPanel>
                             <ProgressBar x:Name="JpegConversionProgressBar"
                                          Minimum="0" Maximum="100" Value="0"
@@ -510,12 +510,12 @@
                                         Content="RETRY FAILED ONLY"
                                         Click="OnRetryFailedAlbumMetadata"
                                         AutomationProperties.AutomationId="RetryFailedAlbumMetadataButton"
-                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Style="{StaticResource HiTechSectionActionStyle}" />
                                 <Button x:Name="CancelClearAlbumButton"
                                         Content="CANCEL"
                                         Click="OnCancelClearAlbum"
                                         IsEnabled="False"
-                                        Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Style="{StaticResource HiTechSectionActionStyle}" />
                             </StackPanel>
                             <ProgressBar x:Name="ClearAlbumProgressBar"
                                          Minimum="0" Maximum="100"
@@ -690,24 +690,24 @@
                             <StackPanel Orientation="Horizontal" Spacing="9">
                                 <Button Content="FATAL ERROR" Click="OnShowcaseFatal"
                                         AutomationProperties.AutomationId="ShowcaseFatalButton"
-                                        Foreground="#FF4C57" Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Foreground="#FF4C57" Style="{StaticResource HiTechSectionActionStyle}" />
                                 <Button Content="WARNING" Click="OnShowcaseWarning"
                                         AutomationProperties.AutomationId="ShowcaseWarningButton"
-                                        Foreground="#FFC341" Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Foreground="#FFC341" Style="{StaticResource HiTechSectionActionStyle}" />
                                 <Button Content="PROCESS COMPLETE" Click="OnShowcaseComplete"
                                         AutomationProperties.AutomationId="ShowcaseCompleteButton"
-                                        Foreground="#53D7E8" Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Foreground="#53D7E8" Style="{StaticResource HiTechSectionActionStyle}" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="9">
                                 <Button Content="ERROR" Click="OnShowcaseError"
                                         AutomationProperties.AutomationId="ShowcaseErrorButton"
-                                        Foreground="#FF4C57" Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Foreground="#FF4C57" Style="{StaticResource HiTechSectionActionStyle}" />
                                 <Button Content="INFORMATION" Click="OnShowcaseInformation"
                                         AutomationProperties.AutomationId="ShowcaseInfoButton"
-                                        Foreground="#9AB0BF" Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Foreground="#9AB0BF" Style="{StaticResource HiTechSectionActionStyle}" />
                                 <Button Content="PROCESSING" Click="OnShowcaseProgress"
                                         AutomationProperties.AutomationId="ShowcaseProgressButton"
-                                        Foreground="#54A1CE" Style="{StaticResource HiTechIconButtonStyle}" />
+                                        Foreground="#54A1CE" Style="{StaticResource HiTechSectionActionStyle}" />
                             </StackPanel>
                             <Button x:Name="CinematicShowcaseSequenceButton"
                                     Content="PREVIEW CINEMATIC SEQUENCE"
@@ -778,7 +778,7 @@
                         <Button Content="CANCEL"
                                 MinWidth="105"
                                 Click="OnUpdateCancelClick"
-                                Style="{StaticResource HiTechIconButtonStyle}"/>
+                                Style="{StaticResource HiTechSectionActionStyle}"/>
                         <Button x:Name="UpdateAcceptButton"
                                 Content="CONTINUE"
                                 MinWidth="155"
@@ -820,7 +820,7 @@
                     AutomationProperties.AutomationId="CloseSettingsButton"
                     Content="CLOSE CONFIG"
                     Click="OnClose"
-                    Style="{StaticResource HiTechIconButtonStyle}" />
+                    Style="{StaticResource HiTechSectionActionStyle}" />
         </Grid>
     </Grid>
 </UserControl>
