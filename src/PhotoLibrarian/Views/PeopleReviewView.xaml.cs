@@ -828,14 +828,12 @@ public sealed partial class PeopleReviewView : UserControl
 
     private async Task ShowErrorAsync(string title, Exception exception)
     {
-        var dialog = new ContentDialog
-        {
-            Title = title,
-            Content = exception.Message,
-            CloseButtonText = "Close",
-            XamlRoot = XamlRoot
-        };
-        CinematicDialogStyling.Apply(dialog);
+        var dialog = CinematicDialogShowcase.Create(
+            XamlRoot,
+            CinematicDialogShowcase.Variant.Error,
+            subjectOverride: title.ToUpperInvariant(),
+            detailOverride: exception.Message,
+            preview: false);
         await dialog.ShowAsync();
     }
 
