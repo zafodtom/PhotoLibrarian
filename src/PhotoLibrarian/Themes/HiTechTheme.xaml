@@ -63,6 +63,24 @@
         <Setter Property="Padding" Value="8,6" />
     </Style>
 
+    <!-- Cinematic UI 2.0: industrial, flat side-rail controls.
+         Inherit normal WinUI pointer, pressed, focus and disabled behavior.
+         No new dimensions, transitions or layout changes. -->
+    <Style x:Key="HiTechRailButtonStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechIconButtonStyle}">
+        <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechAccentMutedBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,2,0" />
+        <Setter Property="CornerRadius" Value="0" />
+    </Style>
+
+    <!-- A destructive action stays recognizable without repainting other tools. -->
+    <Style x:Key="HiTechRailDangerButtonStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechRailButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource HiTechDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechDangerBrush}" />
+    </Style>
+
     <Style x:Key="HiTechPrimaryButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource HiTechAccentFillBrush}" />
         <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
