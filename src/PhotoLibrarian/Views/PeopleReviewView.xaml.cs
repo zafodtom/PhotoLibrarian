@@ -529,6 +529,7 @@ public sealed partial class PeopleReviewView : UserControl
             UpdateDialogState();
         };
 
+        CinematicDialogStyling.Apply(dialog);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         await RunGridActionAsync(
             SuggestionGrid,
@@ -552,6 +553,7 @@ public sealed partial class PeopleReviewView : UserControl
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot
         };
+        CinematicDialogStyling.Apply(dialog, destructive: true);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         await RunGridActionAsync(
             SuggestionGrid,
@@ -587,6 +589,7 @@ public sealed partial class PeopleReviewView : UserControl
         name.TextChanged += (_, _) =>
             dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(name.Text);
 
+        CinematicDialogStyling.Apply(dialog);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         await RunActionAsync(() => ViewModel.RenamePersonAsync(person, name.Text));
     }
@@ -624,6 +627,7 @@ public sealed partial class PeopleReviewView : UserControl
             dialog.IsPrimaryButtonEnabled =
                 targetPicker.SelectedItem is PersonManagementItemViewModel;
 
+        CinematicDialogStyling.Apply(dialog);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary ||
             targetPicker.SelectedItem is not PersonManagementItemViewModel target)
         {
@@ -701,6 +705,7 @@ public sealed partial class PeopleReviewView : UserControl
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot
         };
+        CinematicDialogStyling.Apply(dialog, destructive: true);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         await RunActionAsync(() => ViewModel.DeletePersonAsync(person));
     }
@@ -825,6 +830,7 @@ public sealed partial class PeopleReviewView : UserControl
             CloseButtonText = "Close",
             XamlRoot = XamlRoot
         };
+        CinematicDialogStyling.Apply(dialog);
         await dialog.ShowAsync();
     }
 
