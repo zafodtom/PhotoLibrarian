@@ -101,7 +101,7 @@
 
                     <StackPanel Spacing="8">
                         <TextBlock Text="CONFIG MAP"
-                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                                   Style="{StaticResource HiTechSystemCaptionStyle}" />
                         <Rectangle Height="1"
                                    Fill="{StaticResource HiTechAccentMutedBrush}" />
 
@@ -110,31 +110,31 @@
                                 HorizontalContentAlignment="Left"
                                 Padding="12,10"
                                 ToolTipService.ToolTip="External metadata"
-                                Style="{StaticResource HiTechIconButtonStyle}" />
+                                Style="{StaticResource HiTechRailButtonStyle}" />
                         <Button Content="02  CACHE"
                                 Click="OnNavigateCache"
                                 HorizontalContentAlignment="Left"
                                 Padding="12,10"
                                 ToolTipService.ToolTip="Thumbnails and storage"
-                                Style="{StaticResource HiTechIconButtonStyle}" />
+                                Style="{StaticResource HiTechRailButtonStyle}" />
                         <Button Content="03  ALBUM"
                                 Click="OnNavigateAlbum"
                                 HorizontalContentAlignment="Left"
                                 Padding="12,10"
                                 ToolTipService.ToolTip="Conversion and cleanup"
-                                Style="{StaticResource HiTechIconButtonStyle}" />
+                                Style="{StaticResource HiTechRailButtonStyle}" />
                         <Button Content="04  ABOUT"
                                 Click="OnNavigateAbout"
                                 HorizontalContentAlignment="Left"
                                 Padding="12,10"
                                 ToolTipService.ToolTip="Version and updates"
-                                Style="{StaticResource HiTechIconButtonStyle}" />
+                                Style="{StaticResource HiTechRailButtonStyle}" />
                         <Button Content="05  UI SHOWCASE"
                                 Click="OnNavigateUiShowcase"
                                 HorizontalContentAlignment="Left"
                                 Padding="12,10"
                                 ToolTipService.ToolTip="Cinematic dialog previews"
-                                Style="{StaticResource HiTechIconButtonStyle}" />
+                                Style="{StaticResource HiTechRailButtonStyle}" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="2" Spacing="5">
