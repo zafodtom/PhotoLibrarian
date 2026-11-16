@@ -262,9 +262,11 @@ public static class PhotoMetadataAnonymizer
         if (data.Length < 16 || !data.Slice(4, 4).SequenceEqual("ftyp"u8))
             return false;
         var boxSize = BinaryPrimitives.ReadUInt32BigEndian(data[..4]);
-        if (boxSize < 16) return false;
-        // Check the first major brand. The word "ftyp" alone inside text or
-        // binary metadata is not sufficient evidence of a video attachment.
+        // Real ftyp boxes are tiny (typically 16–32 bytes). The four ASCII
+        // bytes preceding the word 'ftyp' in free-form text otherwise decode
+        // to a huge length and can falsely trigger media detection.
+        const uint MaxPlausibleFtypBoxSize = 1024 * 1024;
+        if (boxSize < 16 || boxSize > MaxPlausibleFtypBoxSize) return false;
         var brand = data.Slice(8, 4);
         foreach (var c in brand)
         {
@@ -273,7 +275,21 @@ public static class PhotoMetadataAnonymizer
                           >= (byte)'a' and <= (byte)'z' or (byte)' '))
                 return false;
         }
-        return true;
+        var recognizedBrand = brand.SequenceEqual("isom"u8) ||
+            brand.SequenceEqual("iso2"u8) ||
+            brand.SequenceEqual("mp41"u8) ||
+            brand.SequenceEqual("mp42"u8) ||
+            brand.SequenceEqual("qt  "u8) ||
+            brand.SequenceEqual("M4V "u8) ||
+            brand.SequenceEqual("heic"u8) ||
+            brand.SequenceEqual("heix"u8) ||
+            brand.SequenceEqual("mif1"u8) ||
+            brand.SequenceEqual("msf1"u8) ||
+            brand.SequenceEqual("avif"u8) ||
+            brand.SequenceEqual("avis"u8);
+        // Incomplete known media headers are unsafe too. Unknown brands
+        // must at least have a complete, plausibly sized ftyp box.
+        return recognizedBrand || boxSize <= data.Length;
     }
 
     private static bool HasApngAnimation(ReadOnlySpan<byte> input)
