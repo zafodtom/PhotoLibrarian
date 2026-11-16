@@ -64,6 +64,7 @@
 
         <!-- Top bar -->
         <Grid x:Name="TopBar"
+              Visibility="Collapsed"
               Grid.Row="0"
               Grid.ColumnSpan="2"
               Padding="14,8"
@@ -375,6 +376,20 @@
                        Text="100 %" />
         </Border>
 
+
+        <!-- Manual face-tagging instructions remain available without an
+             always-visible horizontal toolbar. This is an image overlay. -->
+        <Border Grid.Row="1" Grid.ColumnSpan="2" x:Name="ManualFaceFloatingHint"
+                Visibility="Collapsed" HorizontalAlignment="Center"
+                VerticalAlignment="Top" Margin="12,8" Padding="10,6"
+                Background="{StaticResource HiTechPanelBackgroundBrush}"
+                BorderBrush="{StaticResource HiTechAccentMutedBrush}"
+                BorderThickness="1"
+                IsHitTestVisible="False">
+            <TextBlock Text="Draw a box around a face, then choose or add a person."
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource HiTechTextPrimaryBrush}" />
+        </Border>
 
         <!-- Persistent viewer HUD framing -->
         <Grid Grid.Row="1"
