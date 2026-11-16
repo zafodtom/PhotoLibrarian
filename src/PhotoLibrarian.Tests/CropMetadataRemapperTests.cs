@@ -9,6 +9,24 @@ namespace PhotoLibrarian.Tests;
 public sealed class CropMetadataRemapperTests
 {
     [Theory]
+    [InlineData(true, 0.70, 0.10, 0.20, 0.30)]
+    [InlineData(false, 0.10, 0.60, 0.20, 0.30)]
+    public void RotateQuarterTurnPreservesNormalizedFaceGeometry(
+        bool clockwise, double expectedX, double expectedY,
+        double expectedWidth, double expectedHeight)
+    {
+        var original = new NormalizedRegion(0.10, 0.10, 0.30, 0.20);
+        var rotated = CropMetadataRemapper.RotateNormalizedRegion(original, clockwise);
+        Assert.Equal(expectedX, rotated.X, 6);
+        Assert.Equal(expectedY, rotated.Y, 6);
+        Assert.Equal(expectedWidth, rotated.Width, 6);
+        Assert.Equal(expectedHeight, rotated.Height, 6);
+        var restored = CropMetadataRemapper.RotateNormalizedRegion(rotated, !clockwise);
+        Assert.Equal(original.X, restored.X, 6);
+        Assert.Equal(original.Y, restored.Y, 6);
+    }
+
+    [Theory]
     [InlineData(".jpg", true)]
     [InlineData(".png", false)]
     [InlineData(".tiff", false)]

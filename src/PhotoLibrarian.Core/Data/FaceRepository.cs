@@ -73,6 +73,42 @@ public sealed class FaceRepository : IFaceScanStore
         return faces;
     }
 
+    /// <summary>Rotate stored face coordinates without losing person assignments.</summary>
+    public async Task RotateFaceRegionsAsync(long imageId, bool clockwise)
+    {
+        using var conn = _db.CreateConnection();
+        using var transaction = conn.BeginTransaction();
+        var faces = new List<FaceRegion>();
+        using (var select = conn.CreateCommand())
+        {
+            select.Transaction = transaction;
+            select.CommandText = "SELECT * FROM face_regions WHERE image_id = $id";
+            select.Parameters.AddWithValue("$id", imageId);
+            using var reader = await select.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                faces.Add(ReadFaceRegion(reader));
+        }
+        foreach (var face in faces)
+        {
+            var rotated = CropMetadataRemapper.RotateNormalizedRegion(
+                new NormalizedRegion(face.X, face.Y, face.Width, face.Height),
+                clockwise);
+            using var update = conn.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = """
+                UPDATE face_regions SET x=$x, y=$y, width=$w, height=$h
+                WHERE id=$id
+                """;
+            update.Parameters.AddWithValue("$x", rotated.X);
+            update.Parameters.AddWithValue("$y", rotated.Y);
+            update.Parameters.AddWithValue("$w", rotated.Width);
+            update.Parameters.AddWithValue("$h", rotated.Height);
+            update.Parameters.AddWithValue("$id", face.Id);
+            await update.ExecuteNonQueryAsync();
+        }
+        transaction.Commit();
+    }
+
     public async Task RemapFaceRegionsAfterCropAsync(
         long imageId,
         uint sourceWidth,

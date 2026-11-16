@@ -1,0 +1,278 @@
+using System.Reflection;
+using System.Xml.Linq;
+using PhotoLibrarian.Core.Models;
+using PhotoLibrarian.ViewModels;
+using Xunit;
+
+namespace PhotoLibrarian.Tests;
+
+/// <summary>Guards viewer action wiring and the simplified gallery toolbar.</summary>
+public sealed class GallerySearchAndPhotoToolsTests
+{
+    private static string Read(string file) => File.ReadAllText(
+        Path.Combine(AppContext.BaseDirectory, "TestAssets", file));
+
+    [Fact]
+    public void GalleryHasSearchAndSortButNoGroupOrFacetFilterControls()
+    {
+        var grid = XDocument.Parse(Read("ImageGridView.xaml"));
+        var all = grid.ToString();
+        Assert.Contains("GalleryFileSearch", all);
+        Assert.Contains("GallerySearchApply", all);
+        Assert.Contains("GallerySearchClear", all);
+        Assert.Contains("SortByCombo", all);
+        Assert.DoesNotContain("GroupByCombo", all);
+        Assert.DoesNotContain("GridFilterButton", all);
+        Assert.DoesNotContain("FilterIncludeTags", all);
+        Assert.DoesNotContain("FilterExcludeTags", all);
+    }
+
+    [Fact]
+    public void GalleryFolderThenFileNameSortGroupsPathsAndSortsNamesWithinEachFolder()
+    {
+        var markup = XDocument.Parse(Read("ImageGridView.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var options = markup.Descendants().Where(element =>
+            element.Name.LocalName == "ComboBoxItem").ToList();
+        Assert.Contains(options, option =>
+            (string?)option.Attribute("Tag") == "FolderThenFileName" &&
+            (string?)option.Attribute("Content") == "Folder → File Name");
+
+        var viewSource = Read("ImageGridView.xaml.cs");
+        Assert.Contains("SortByOption.FolderThenFileName => 4", viewSource);
+
+        var root = Path.Combine(Path.GetTempPath(), "PhotoLibrarian-FolderSort");
+        ImageThumbnailViewModel Photo(string folder, string name) =>
+            new(new ImageEntry
+            {
+                FilePath = Path.Combine(root, folder, name),
+                FileName = name
+            });
+
+        var mixed = new List<ImageThumbnailViewModel>
+        {
+            Photo("B", "z.jpg"),
+            Photo("A", "b.jpg"),
+            Photo("B", "a.jpg"),
+            Photo("A", "a.jpg"),
+            Photo(Path.Combine("A", "Sub"), "ignored.jpg")
+        };
+
+        var sortMethod = typeof(ImageGridViewModel).GetMethod(
+            "ApplySortToGroup", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(sortMethod);
+
+        List<ImageThumbnailViewModel> Sort(bool descending) =>
+            Assert.IsType<List<ImageThumbnailViewModel>>(sortMethod!.Invoke(
+                null, new object[] { mixed, SortByOption.FolderThenFileName, descending }));
+
+        var asc = Sort(descending: false);
+        Assert.Equal(
+            new[] { "A/a.jpg", "A/b.jpg", "A/Sub/ignored.jpg", "B/a.jpg", "B/z.jpg" },
+            asc.Select(item => Path.GetRelativePath(root, item.Entry.FilePath)
+                .Replace('\\', '/')));
+        Assert.Equal(asc.Select(item => item.Entry.FilePath).Reverse(),
+            Sort(descending: true).Select(item => item.Entry.FilePath));
+    }
+
+    [Fact]
+    public void EmptyGalleryFooterStaysInBottomRow()
+    {
+        var document = XDocument.Parse(Read("ImageGridView.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var footerText = Assert.Single(document.Descendants()
+            .Where(element => (string?)element.Attribute(xaml + "Name") == "EmptyStateCode"));
+        var footerRow = Assert.IsType<XElement>(footerText.Parent);
+        Assert.Equal("Grid", footerRow.Name.LocalName);
+        Assert.Equal("2", (string?)footerRow.Attribute("Grid.Row"));
+    }
+
+    [Fact]
+    public void InitialViewportAlwaysRequestsThumbnailsWithoutWindowResize()
+    {
+        var virtualGrid = Read("VirtualizingPhotoGrid.xaml.cs");
+        var thumbnailModel = Read("ImageGridViewModel.cs");
+
+        // An album may be loaded before ScrollViewer.ActualWidth becomes
+        // nonzero. The initial real viewport must trigger realization.
+        Assert.Contains("ScrollContainer.SizeChanged += OnScrollContainerSizeChanged", virtualGrid);
+        Assert.Contains("private void OnScrollContainerSizeChanged(", virtualGrid);
+        Assert.Contains("RecalculateLayout();", virtualGrid.Split(
+            "private void OnLoaded(", 2)[1].Split(
+            "private void OnItemSizeUpdated(", 2)[0]);
+
+        var handler = thumbnailModel.Split("public void OnViewportChangedGrouped(", 2)[1]
+            .Split("public void OnViewportChanged(", 2)[0];
+        Assert.Contains("foreach (var item in visibleItems)", handler);
+        Assert.Contains("_loadQueue.Enqueue(item)", handler);
+        Assert.Contains("StartBackgroundLoadingIfNeeded()", handler);
+        Assert.DoesNotContain("ScrollReorderThrottleMs", thumbnailModel);
+        Assert.DoesNotContain("if ((now - _lastScrollReorder)", handler);
+    }
+
+    [Fact]
+    public void ViewerReturnCentersTheLastViewedPhotoAfterGalleryLayout()
+    {
+        var gridView = Read("ImageGridView.xaml.cs");
+        var grid = Read("VirtualizingPhotoGrid.xaml.cs");
+        var viewModel = Read("ImageGridViewModel.cs");
+
+        Assert.Contains("ViewerReturnSelectionRequested += OnViewerReturnSelectionRequested", gridView);
+        var handler = gridView.Split("private void OnViewerReturnSelectionRequested(", 2)[1]
+            .Split("private void OnResultsChanged(", 2)[0];
+        Assert.Contains("DispatcherQueuePriority.Low", handler);
+        Assert.Contains("PhotoGrid.RestoreSelection(ViewModel.SelectedImages, ViewModel.SelectedImage)", handler);
+        Assert.Contains("PhotoGrid.ScrollPrimarySelectionIntoView()", handler);
+
+        var scroll = grid.Split("public void ScrollPrimarySelectionIntoView()", 2)[1]
+            .Split("private void ScrollItemIntoView(", 2)[0];
+        Assert.Contains("_pendingViewerReturnItem = _primaryItem", scroll);
+        Assert.Contains("ScrollContainer.LayoutUpdated += OnViewerReturnLayoutUpdated", scroll);
+        Assert.Contains("ScrollContainer.ExtentHeight", scroll);
+        Assert.Contains("bounds.Value.Top + bounds.Value.Height / 2 - viewport / 2", scroll);
+        Assert.Contains("ScrollContainer.ChangeView(null, targetOffset, null, disableAnimation: true)", scroll);
+        Assert.Contains("ClearPendingViewerReturnScroll()", scroll);
+        Assert.Contains("GetItemRowBounds(vm)", grid);
+
+        Assert.Contains("SelectLastViewedImage(ImageEntry? entry)", viewModel);
+        Assert.Contains("ViewerReturnSelectionRequested?.Invoke(this, EventArgs.Empty)", viewModel);
+    }
+
+    [Fact]
+    public void SelectedThumbnailUsesStrongConsistentCinematicHighlight()
+    {
+        var grid = Read("VirtualizingPhotoGrid.xaml.cs");
+        Assert.Contains("grid.BorderThickness = selected ? new Thickness(3)", grid);
+        Assert.Contains("Height = 4", grid);
+        Assert.Contains("Margin = new Thickness(3, 0, 3, 24)", grid);
+        Assert.Contains("Text = \"SELECTED\"", grid);
+        Assert.Contains("Width = 27, Height = 27", grid);
+        Assert.Contains("bracket.Visibility = selected ? Visibility.Visible", grid);
+        Assert.Contains("hudElement.Visibility = selected ? Visibility.Visible", grid);
+    }
+
+    [Fact]
+    public void CropRibbonExposesSeparateSaveAsAndExistingApply()
+    {
+        var ribbon = Read("TopRibbon.xaml");
+        Assert.Contains("RibbonCropExport", ribbon);
+        Assert.Contains("OnExportCropClick", ribbon);
+        Assert.Contains("RibbonCropApply", ribbon);
+        Assert.Contains("RibbonCropCancel", ribbon);
+    }
+
+    [Fact]
+    public void RotationHasRecoveryPathIfFaceMetadataSaveFails()
+    {
+        var window = Read("MainWindow.xaml.cs");
+        var viewModel = Read("MainViewModel.cs");
+        Assert.Contains("GetBackupPathAsync(entry.FilePath)", window);
+        Assert.Contains("pixelsWereRotated", window);
+        Assert.Contains("System.IO.File.Copy(", window);
+        Assert.Contains("WriteBatchAsync(", viewModel);
+        Assert.Contains("RotateFaceRegionsAsync(entry.Id, !clockwise)", viewModel);
+    }
+
+    [Fact]
+    public void CropSaveAsStartsInTheOpenedPhotosDirectory()
+    {
+        var window = Read("MainWindow.xaml.cs");
+        Assert.Contains("new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)", window);
+        Assert.Contains("SuggestedFolder = System.IO.Path.GetDirectoryName(entry.FilePath)", window);
+        Assert.Contains("SuggestedFileName = System.IO.Path.GetFileNameWithoutExtension(entry.FilePath) + \"_crop\"", window);
+        Assert.DoesNotContain("new Windows.Storage.Pickers.FileSavePicker", window);
+    }
+
+    [Fact]
+    public void GalleryToolbarKeepsConsistentHeightAndControlStyles()
+    {
+        var document = XDocument.Parse(Read("ImageGridView.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement ByName(string name) => Assert.Single(document.Descendants()
+            .Where(element => (string?)element.Attribute(xaml + "Name") == name));
+        var sort = ByName("SortByCombo");
+        Assert.Contains("HiTechComboStyle", (string?)sort.Attribute("Style") ?? "");
+        foreach (var name in new[] { "SortByCombo", "SortOrderBtn", "SearchFileNameBox" })
+            Assert.Equal("34", (string?)ByName(name).Attribute("Height"));
+        foreach (var name in new[] { "GallerySearchApply", "GallerySearchClear" })
+        {
+            var button = Assert.Single(document.Descendants()
+                .Where(element => (string?)element.Attribute("AutomationProperties.AutomationId") == name));
+            Assert.Equal("34", (string?)button.Attribute("Height"));
+            Assert.Contains("HiTechRailButtonStyle", (string?)button.Attribute("Style") ?? "");
+        }
+        foreach (var clickHandler in new[] { "OnDecreaseSize", "OnIncreaseSize" })
+        {
+            var button = Assert.Single(document.Descendants()
+                .Where(element => (string?)element.Attribute("Click") == clickHandler));
+            Assert.Equal("34", (string?)button.Attribute("Height"));
+        }
+    }
+
+    [Fact]
+    public void RotationIconsAreDirectionalAndDoNotUseUnrelatedFontGlyphs()
+    {
+        var document = XDocument.Parse(Read("MainWindow.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        string RotationGeometry(string buttonName)
+        {
+            var button = Assert.Single(document.Descendants()
+                .Where(element => (string?)element.Attribute(xaml + "Name") == buttonName));
+            var path = Assert.Single(button.Descendants()
+                .Where(element => element.Name.LocalName == "Path"));
+            return (string?)path.Attribute("Data") ?? "";
+        }
+
+        var left = RotationGeometry("SideRotateLeftButton");
+        var right = RotationGeometry("SideRotateRightButton");
+        Assert.NotEqual(left, right);
+        Assert.Equal(left, RotationGeometry("FullscreenRotateLeftButton"));
+        Assert.Equal(right, RotationGeometry("FullscreenRotateRightButton"));
+        Assert.Contains("A 9,9", left);
+        Assert.Contains("A 9,9", right);
+    }
+
+    [Fact]
+    public void CropSaveAsOffersKeepTagsWithoutTagsAndCancel()
+    {
+        var window = Read("MainWindow.xaml.cs");
+        var export = window.Split("private async void OnRibbonExportCropClicked(", 2)[1]
+            .Split("private void UpdateSettingsVisibility(", 2)[0];
+
+        Assert.Contains("GetPhotoTagsForCropAsync(entry)", export);
+        Assert.Contains("subjectOverride: \"COPY ORIGINAL PHOTO TAGS?\"", export);
+        Assert.Contains("confirmLabel: \"KEEP TAGS\"", export);
+        Assert.Contains("SecondaryButtonText = \"WITHOUT TAGS\"", export);
+        Assert.Contains("CloseButtonText = \"CANCEL\"", export);
+        Assert.Contains("if (decision == ContentDialogResult.None)", export);
+        Assert.True(export.IndexOf("tagChoice.ShowAsync()", StringComparison.Ordinal) <
+                    export.IndexOf("picker.PickSaveFileAsync()", StringComparison.Ordinal));
+        Assert.Contains("RegisterExportedCropAsync(selected.Path, copiedTags)", export);
+    }
+
+    [Fact]
+    public void CropApplyPersistsOriginalTagAssignments()
+    {
+        var window = Read("MainWindow.xaml.cs");
+        var method = window.Split("private async void OnRibbonApplyCropClicked(", 2)[1]
+            .Split("private async void OnRibbonExportCropClicked(", 2)[0];
+        Assert.Contains("GetPhotoTagsForCropAsync(entry)", method);
+        Assert.Contains("CropImageAsync(", method);
+        Assert.Contains("bounds.Value, assignedTags", method);
+
+        var model = Read("MainViewModel.cs");
+        Assert.Contains("GetTagsAsync(image.Id)", model);
+        Assert.Contains("ClearImageTagsAsync(entry.Id)", model);
+        Assert.Contains("AddTagAsync(new ImageTag", model);
+    }
+
+    [Fact]
+    public void BothViewerRailsOfferTwoQuarterTurns()
+    {
+        var main = Read("MainWindow.xaml");
+        Assert.Contains("SideRotateLeftButton", main);
+        Assert.Contains("SideRotateRightButton", main);
+        Assert.Contains("FullscreenRotateLeftButton", main);
+        Assert.Contains("FullscreenRotateRightButton", main);
+    }
+}

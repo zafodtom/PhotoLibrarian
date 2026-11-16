@@ -130,6 +130,17 @@
                         <TextBlock Text="Apply" />
                     </StackPanel>
                 </Button>
+                <Button x:Name="ExportCropButton" Click="OnExportCropClick"
+                        Padding="14,6" VerticalAlignment="Center" Margin="0,0,8,0"
+                        AutomationProperties.AutomationId="RibbonCropExport"
+                        AutomationProperties.Name="Save crop as a separate image"
+                        ToolTipService.ToolTip="Save selected crop to a new file without modifying this photo"
+                        Style="{StaticResource HiTechSectionActionStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE74E;" FontSize="14" />
+                        <TextBlock Text="SAVE AS..." />
+                    </StackPanel>
+                </Button>
                 <Button x:Name="CancelCropButton" Click="OnCancelCropClick"
                         Padding="16,6" VerticalAlignment="Center"
                         AutomationProperties.AutomationId="RibbonCropCancel"

@@ -1154,6 +1154,61 @@ public partial class MainViewModel : ObservableObject
     /// Called after the image file at <paramref name="filePath"/> has been cropped on disk.
     /// Updates DB dimensions, refreshes the grid thumbnail and the open viewer.
     /// </summary>
+    /// <summary>
+    /// Capture the actual assigned leaf/path tags before pixel edits. The album DB
+    /// is authoritative (metadata writes may have fallen back to a sidecar).
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetPhotoTagsForCropAsync(ImageEntry image)
+    {
+        if (image.Id > 0)
+            return (await _tagRepo.GetTagsAsync(image.Id))
+                .Select(tag => tag.Tag)
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+        // An indexed image with zero tags must remain untagged even if its
+        // on-disk metadata is stale. Only non-indexed images read file tags.
+        return await Task.Run(() => _metadataReader.ReadTags(image.FilePath));
+    }
+
+    /// <summary>
+    /// Register a newly exported crop only if it belongs to the current album.
+    /// Reconcile the exact requested tag set even if the path was already indexed
+    /// (such as overwriting an existing file). External exports remain independent.
+    /// </summary>
+    public async Task RegisterExportedCropAsync(
+        string exportedPath, IReadOnlyCollection<string> copiedTags)
+    {
+        var root = App.CurrentAlbumPath;
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(root) ||
+            FolderScannerService.ContainsAlbumMetadataComponent(exportedPath))
+            return;
+
+        var relative = Path.GetRelativePath(root, exportedPath);
+        if (Path.IsPathRooted(relative) || relative == ".." ||
+            relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+            relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal))
+            return;
+
+        await _indexingService.IndexFileAsync(exportedPath);
+        var entry = await _imageRepo.GetByPathAsync(exportedPath)
+            ?? throw new IOException("The saved crop could not be registered in the active album.");
+        await _tagRepo.ClearImageTagsAsync(entry.Id);
+        foreach (var tag in copiedTags.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            await _tagRepo.AddTagAsync(new ImageTag
+            {
+                ImageId = entry.Id,
+                Tag = tag,
+                Source = TagSource.Metadata,
+                Confidence = 1.0f
+            });
+        }
+
+        await RefreshAfterIndexAsync();
+    }
+
     public async Task RefreshAfterCropAsync(string filePath, CropResult result)
     {
         var entry = await _imageRepo.GetByPathAsync(filePath);
@@ -1172,6 +1227,43 @@ public partial class MainViewModel : ObservableObject
             result.Height,
             "Cropped",
             invalidateFaceScan: false);
+    }
+
+    /// <summary>
+    /// Preserve previously assigned people during a 90-degree rotation by
+    /// rotating their normalized rectangles in both the local DB and portable
+    /// face metadata. The pixels have already been saved by the renderer.
+    /// </summary>
+    public async Task RefreshAfterRotationAsync(
+        string filePath, uint newWidth, uint newHeight, bool clockwise)
+    {
+        var entry = await _imageRepo.GetByPathAsync(filePath);
+        if (entry is { Id: > 0 })
+        {
+            var faces = await _faceRepo.GetFacesForImageAsync(entry.Id);
+            if (faces.Count > 0)
+            {
+                await _faceRepo.RotateFaceRegionsAsync(entry.Id, clockwise);
+                try
+                {
+                    var portable = await _faceRepo.GetPhotoFaceMetadataAsync(
+                        entry.Id, (int)newWidth, (int)newHeight);
+                    // Keep the current rotated image and its XMP/sidecar consistent:
+                    // if writing either fails, the metadata store restores its own
+                    // on-disk changes before this method reverses the DB rotation.
+                    await new FaceMetadataStore().WriteBatchAsync(
+                        new[] { (ImagePath: filePath, Metadata: portable) });
+                }
+                catch
+                {
+                    // The database must not disagree with an unwritten XMP update.
+                    await _faceRepo.RotateFaceRegionsAsync(entry.Id, !clockwise);
+                    throw;
+                }
+            }
+        }
+        await RefreshAfterPixelEditAsync(
+            filePath, newWidth, newHeight, "Rotated", invalidateFaceScan: false);
     }
 
     public Task RefreshAfterStraightenAsync(
@@ -1231,7 +1323,13 @@ public partial class MainViewModel : ObservableObject
         if (entry.MediaType != MediaType.Image)
             throw new NotSupportedException("Only photos can be copied for editing.");
 
+        var inheritedTags = await GetPhotoTagsForCropAsync(entry);
         var copyPath = await Services.PhotoOperationsService.MakeCopyForEditingAsync(entry.FilePath);
+        // The byte copy includes embedded XMP, but the source album can also
+        // hold authoritative tag assignments whose last file write fell back
+        // to an XMP sidecar. Persist that complete set on the new copy.
+        if (inheritedTags.Count > 0)
+            await TagWriterService.WriteTagsToSidecarAsync(copyPath, inheritedTags);
         var folderPath = System.IO.Path.GetDirectoryName(copyPath)
             ?? throw new InvalidOperationException("The copied photo has no parent folder.");
         await _indexingService.IndexFolderAsync(folderPath, includeSubfolders: false);

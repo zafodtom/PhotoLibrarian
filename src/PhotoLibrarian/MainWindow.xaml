@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:views="using:PhotoLibrarian.Views"
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:progress="using:PhotoLibrarian.Controls"
     Title="PhotoLibrarian">
 
     <Grid x:Name="AppRoot"
@@ -240,6 +241,29 @@
                         <FontIcon Glyph="&#xE7A8;" FontSize="20" />
                     </Button>
                     <Rectangle Width="24" Height="1" Margin="0,2" Fill="{StaticResource HiTechAccentMutedBrush}" />
+                    <Button x:Name="SideRotateLeftButton" Width="40" Height="36" Padding="3"
+                            Click="OnRotateLeft" ToolTipService.ToolTip="Rotate 90° left and save"
+                            AutomationProperties.Name="Rotate left and save" Style="{StaticResource HiTechRailButtonStyle}">
+                        <Viewbox Width="20" Height="20" Stretch="Uniform">
+                            <Path Width="24" Height="24" Data="M 3,2 L 3,8 L 9,8 M 3.5,13 A 9,9 0 1 0 6,5.5 L 3,8"
+                                  Stroke="{Binding Foreground, ElementName=SideRotateLeftButton}"
+                                  StrokeThickness="2" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Fill="Transparent" />
+                        </Viewbox>
+                    </Button>
+                    <Button x:Name="SideRotateRightButton" Width="40" Height="36" Padding="3"
+                            Click="OnRotateRight" ToolTipService.ToolTip="Rotate 90° right and save"
+                            AutomationProperties.Name="Rotate right and save" Style="{StaticResource HiTechRailButtonStyle}">
+                        <Viewbox Width="20" Height="20" Stretch="Uniform">
+                            <Path Width="24" Height="24" Data="M 21,2 L 21,8 L 15,8 M 20.5,13 A 9,9 0 1 1 18,5.5 L 21,8"
+                                  Stroke="{Binding Foreground, ElementName=SideRotateRightButton}"
+                                  StrokeThickness="2" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Fill="Transparent" />
+                        </Viewbox>
+                    </Button>
+                    <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
                     <Button x:Name="SideZoomOutButton" Width="40" Height="36" Padding="3"
                             Click="OnSideZoomOut" ToolTipService.ToolTip="Zoom out"
                             AutomationProperties.Name="Zoom out"
@@ -423,6 +447,29 @@
                     <FontIcon Glyph="&#xE7A8;" FontSize="16" />
                 </Button>
                 <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
+                <Button x:Name="FullscreenRotateLeftButton" Width="40" Height="36" Padding="3"
+                        Click="OnRotateLeft" ToolTipService.ToolTip="Rotate 90° left and save"
+                        AutomationProperties.Name="Rotate left and save" Style="{StaticResource HiTechRailButtonStyle}">
+                    <Viewbox Width="20" Height="20" Stretch="Uniform">
+                            <Path Width="24" Height="24" Data="M 3,2 L 3,8 L 9,8 M 3.5,13 A 9,9 0 1 0 6,5.5 L 3,8"
+                                  Stroke="{Binding Foreground, ElementName=FullscreenRotateLeftButton}"
+                                  StrokeThickness="2" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Fill="Transparent" />
+                        </Viewbox>
+                </Button>
+                <Button x:Name="FullscreenRotateRightButton" Width="40" Height="36" Padding="3"
+                        Click="OnRotateRight" ToolTipService.ToolTip="Rotate 90° right and save"
+                        AutomationProperties.Name="Rotate right and save" Style="{StaticResource HiTechRailButtonStyle}">
+                    <Viewbox Width="20" Height="20" Stretch="Uniform">
+                            <Path Width="24" Height="24" Data="M 21,2 L 21,8 L 15,8 M 20.5,13 A 9,9 0 1 1 18,5.5 L 21,8"
+                                  Stroke="{Binding Foreground, ElementName=FullscreenRotateRightButton}"
+                                  StrokeThickness="2" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Fill="Transparent" />
+                        </Viewbox>
+                </Button>
+                <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
                 <Button x:Name="FullscreenZoomOutButton" Width="40" Height="38" Padding="3"
                         Click="OnSideZoomOut" ToolTipService.ToolTip="Zoom out"
                         AutomationProperties.Name="Zoom out"
@@ -588,12 +635,12 @@
                        FontSize="11"
                        ToolTipService.ToolTip="Installed PhotoLibrarian version" />
 
-            <ProgressRing x:Name="IndexingProgress"
-                          Grid.Column="2"
-                          IsActive="False"
-                          Width="16"
-                          Height="16"
-                          Margin="0,0,8,0" />
+            <progress:CinematicProgressBar x:Name="IndexingProgress"
+                                           Grid.Column="2"
+                                           Width="84"
+                                           Margin="0,0,8,0"
+                                           IsIndeterminate="True"
+                                           IsActive="False" />
 
             <Button x:Name="SettingsButton"
                     Grid.Column="3"

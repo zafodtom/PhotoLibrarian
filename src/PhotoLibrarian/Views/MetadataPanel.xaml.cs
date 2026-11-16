@@ -502,10 +502,14 @@ public sealed partial class MetadataPanel : UserControl
         };
         var saveButton = new Button { Content = "SAVE CHANGES" };
         var removeButton = new Button { Content = "REMOVE FROM CATALOG" };
-        var cancelButton = new Button { Content = "CANCEL", Style = (Style)Application.Current.Resources["HiTechSecondaryButtonStyle"] };
+        var cancelButton = new Button
+        {
+            Content = "CANCEL",
+            MinWidth = 100,
+            Style = (Style)Application.Current.Resources["HiTechSecondaryButtonStyle"]
+        };
         saveButton.Style = (Style)Application.Current.Resources["HiTechPrimaryButtonStyle"];
         removeButton.Style = (Style)Application.Current.Resources["HiTechDangerButtonStyle"];
-        cancelButton.Style = (Style)Application.Current.Resources["HiTechIconButtonStyle"];
         actionRail.Children.Add(saveButton);
         actionRail.Children.Add(removeButton);
         actionRail.Children.Add(cancelButton);

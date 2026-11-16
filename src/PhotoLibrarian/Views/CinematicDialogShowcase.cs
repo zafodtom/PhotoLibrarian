@@ -21,7 +21,8 @@ internal static class CinematicDialogShowcase
 
     internal static ContentDialog Create(XamlRoot root, Variant variant,
         string? subjectOverride = null, string? detailOverride = null,
-        string? confirmLabel = null, bool preview = true, string? context = null)
+        string? confirmLabel = null, bool preview = true, string? context = null,
+        string? captionOverride = null, string? operationLabel = null)
     {
         var fatal = variant == Variant.Fatal;
         var warning = variant == Variant.Warning;
@@ -79,9 +80,10 @@ internal static class CinematicDialogShowcase
         var header = new Grid();
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var headerText = Label(caption, 11, accent, true);
+        var headerText = Label(captionOverride ?? caption, 11, accent, true);
         header.Children.Add(headerText);
-        var safe = Label(preview ? "PREVIEW ONLY" : "ALBUM OPERATION", 10, Brush(153, 169, 177), false);
+        var safe = Label(preview ? "PREVIEW ONLY" : (operationLabel ?? "ALBUM OPERATION"),
+            10, Brush(153, 169, 177), false);
         Grid.SetColumn(safe, 1);
         header.Children.Add(safe);
         stack.Children.Add(header);

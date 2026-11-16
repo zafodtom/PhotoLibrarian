@@ -10,6 +10,7 @@ public sealed partial class TopRibbon : UserControl
     public event EventHandler? AdjustClicked;
     public event EventHandler? CloseViewerClicked;
     public event EventHandler? ApplyCropClicked;
+    public event EventHandler? ExportCropClicked;
     public event EventHandler? CancelCropClicked;
     public event EventHandler<CropAspectRatio>? CropAspectChanged;
 
@@ -50,6 +51,7 @@ public sealed partial class TopRibbon : UserControl
     private void OnAdjustClick(object sender, RoutedEventArgs e) => AdjustClicked?.Invoke(this, EventArgs.Empty);
     private void OnCloseViewerClick(object sender, RoutedEventArgs e) => CloseViewerClicked?.Invoke(this, EventArgs.Empty);
     private void OnApplyCropClick(object sender, RoutedEventArgs e) => ApplyCropClicked?.Invoke(this, EventArgs.Empty);
+    private void OnExportCropClick(object sender, RoutedEventArgs e) => ExportCropClicked?.Invoke(this, EventArgs.Empty);
     private void OnCancelCropClick(object sender, RoutedEventArgs e) => CancelCropClicked?.Invoke(this, EventArgs.Empty);
 
     private void OnAspectChanged(object sender, SelectionChangedEventArgs e)

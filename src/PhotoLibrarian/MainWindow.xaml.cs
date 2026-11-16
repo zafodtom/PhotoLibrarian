@@ -261,6 +261,7 @@ public sealed partial class MainWindow : Window
         TopRibbon.CloseViewerClicked += (_, _) => ViewModel.ImageViewer.CloseCommand.Execute(null);
         TopRibbon.AdjustClicked += OnRibbonAdjustClicked;
         TopRibbon.ApplyCropClicked += OnRibbonApplyCropClicked;
+        TopRibbon.ExportCropClicked += OnRibbonExportCropClicked;
         TopRibbon.CancelCropClicked += OnRibbonCancelCropClicked;
         TopRibbon.CropAspectChanged += OnRibbonCropAspectChanged;
         ViewerOverlay.CropApplyRequested += OnRibbonApplyCropClicked;
@@ -617,6 +618,13 @@ public sealed partial class MainWindow : Window
             ? Visibility.Collapsed : Visibility.Visible;
         SideCropButton.IsEnabled = viewerOpen && !ViewModel.ImageViewer.IsVideo &&
             !ViewerOverlay.IsManualFaceTaggingActive;
+        var canRotate = viewerOpen && !ViewModel.ImageViewer.IsVideo &&
+            !ViewerOverlay.IsCropping && !ViewerOverlay.IsStraightening &&
+            !ViewerOverlay.IsManualFaceTaggingActive &&
+            ViewModel.ImageViewer.CurrentEntry is { } rotatingEntry &&
+            ImageEditRenderer.IsSupported(rotatingEntry.FilePath);
+        SideRotateLeftButton.IsEnabled = canRotate;
+        SideRotateRightButton.IsEnabled = canRotate;
         var zoomEnabled = viewerOpen && !ViewModel.ImageViewer.IsVideo &&
             !ViewerOverlay.IsManualFaceTaggingActive && !ViewerOverlay.IsStraightening;
         SideZoomOutButton.IsEnabled = zoomEnabled;
@@ -634,6 +642,12 @@ public sealed partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Collapsed;
         FullscreenCropButton.IsEnabled = fullscreenViewer && !ViewModel.ImageViewer.IsVideo &&
             !ViewerOverlay.IsManualFaceTaggingActive;
+        var canRotateFullscreen = fullscreenViewer && !ViewModel.ImageViewer.IsVideo &&
+            !ViewerOverlay.IsStraightening && !ViewerOverlay.IsManualFaceTaggingActive &&
+            ViewModel.ImageViewer.CurrentEntry is { } fullscreenEntry &&
+            ImageEditRenderer.IsSupported(fullscreenEntry.FilePath);
+        FullscreenRotateLeftButton.IsEnabled = canRotateFullscreen;
+        FullscreenRotateRightButton.IsEnabled = canRotateFullscreen;
         var fullscreenZoomEnabled = fullscreenViewer && !ViewModel.ImageViewer.IsVideo &&
             !ViewerOverlay.IsManualFaceTaggingActive && !ViewerOverlay.IsStraightening;
         FullscreenZoomOutButton.IsEnabled = fullscreenZoomEnabled;
@@ -713,7 +727,9 @@ public sealed partial class MainWindow : Window
             // Back up the original first (no-op if a backup already exists).
             await App.ViewModel.BackupService.BackupOriginalAsync(entry.FilePath);
 
-            var result = await CropService.CropImageAsync(entry.FilePath, bounds.Value);
+            var assignedTags = await ViewModel.GetPhotoTagsForCropAsync(entry);
+            var result = await CropService.CropImageAsync(
+                entry.FilePath, bounds.Value, assignedTags);
             await ViewModel.RefreshAfterCropAsync(entry.FilePath, result);
         }
         catch (Exception ex)
@@ -730,6 +746,101 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async void OnRibbonExportCropClicked(object? sender, EventArgs e)
+    {
+        if (!ViewerOverlay.IsCropping) return;
+        var bounds = ViewerOverlay.CropOverlay.GetCropBoundsInImagePixels();
+        var entry = ViewModel.ImageViewer.CurrentEntry;
+        if (bounds is null || entry is null || !CropService.IsSupported(entry.FilePath)) return;
+
+        TopRibbon.IsEnabled = false;
+        try
+        {
+            var assignedTags = await ViewModel.GetPhotoTagsForCropAsync(entry);
+            // The new file is independent: explicitly decide whether its tag
+            // assignments should be copied. CANCEL must never open the picker.
+            var tagChoice = PhotoLibrarian.Views.CinematicDialogShowcase.Create(
+                AppRoot.XamlRoot,
+                PhotoLibrarian.Views.CinematicDialogShowcase.Variant.Information,
+                subjectOverride: "COPY ORIGINAL PHOTO TAGS?",
+                detailOverride: assignedTags.Count == 0
+                    ? "The original has no assigned tags. Save the new crop without tags, or cancel."
+                    : $"Copy all {assignedTags.Count:N0} assigned tags to the new crop? " +
+                      "The original photo and its tag assignments will remain unchanged. " +
+                      "Face regions are not copied because the new image has different geometry.",
+                confirmLabel: "KEEP TAGS",
+                preview: false,
+                context: entry.FileName,
+                captionOverride: "CROP EXPORT // TAGS",
+                operationLabel: "PHOTO OPERATION");
+            tagChoice.SecondaryButtonText = "WITHOUT TAGS";
+            tagChoice.CloseButtonText = "CANCEL";
+            tagChoice.IsPrimaryButtonEnabled = assignedTags.Count > 0;
+            if (Microsoft.UI.Xaml.Application.Current.Resources.TryGetValue(
+                    "HiTechSecondaryButtonStyle", out var neutralStyle) &&
+                neutralStyle is Style style)
+                tagChoice.SecondaryButtonStyle = style;
+
+            var decision = await tagChoice.ShowAsync();
+            if (decision == ContentDialogResult.None)
+                return;
+            var copiedTags = decision == ContentDialogResult.Primary
+                ? assignedTags
+                : Array.Empty<string>();
+
+            // The Windows App SDK picker accepts an exact folder. Always start
+            // in the current picture's directory, while allowing other locations.
+            var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)
+            {
+                SuggestedFolder = System.IO.Path.GetDirectoryName(entry.FilePath)
+                    ?? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+                SuggestedFileName = System.IO.Path.GetFileNameWithoutExtension(entry.FilePath) + "_crop",
+                DefaultFileExtension = ".jpg",
+                CommitButtonText = "Save crop"
+            };
+            picker.FileTypeChoices.Add("JPEG image", new System.Collections.Generic.List<string> { ".jpg" });
+            picker.FileTypeChoices.Add("PNG image", new System.Collections.Generic.List<string> { ".png" });
+            picker.FileTypeChoices.Add("TIFF image", new System.Collections.Generic.List<string> { ".tif", ".tiff" });
+            picker.FileTypeChoices.Add("Bitmap image", new System.Collections.Generic.List<string> { ".bmp" });
+
+            var selected = await picker.PickSaveFileAsync();
+            if (selected is null) return;
+
+            var result = await CropService.ExportCropAsync(
+                entry.FilePath, selected.Path, bounds.Value, copiedTags);
+            try
+            {
+                await ViewModel.RegisterExportedCropAsync(selected.Path, copiedTags);
+                ViewModel.StatusText =
+                    $"Saved crop: {selected.Path} ({result.Width}×{result.Height}); " +
+                    $"{copiedTags.Count:N0} tags copied.";
+            }
+            catch (Exception indexException)
+            {
+                ViewModel.StatusText =
+                    $"Crop saved with {copiedTags.Count:N0} tags, but album refresh failed: " +
+                    indexException.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = "Crop export failed: " + ex.Message;
+            var error = PhotoLibrarian.Views.CinematicDialogShowcase.Create(
+                AppRoot.XamlRoot,
+                PhotoLibrarian.Views.CinematicDialogShowcase.Variant.Error,
+                subjectOverride: "CROP EXPORT FAILED",
+                detailOverride: ex.Message,
+                preview: false,
+                captionOverride: "PHOTO OPERATIONS // ERROR",
+                operationLabel: "PHOTO OPERATION");
+            await error.ShowAsync();
+        }
+        finally
+        {
+            TopRibbon.IsEnabled = true;
+        }
+    }
+
     private void UpdateSettingsVisibility()
     {
         SettingsOverlay.Visibility = ViewModel.Settings.IsOpen
@@ -738,6 +849,79 @@ public sealed partial class MainWindow : Window
         if (ViewModel.Settings.IsOpen)
         {
             SettingsPanel.Loaded += (s, e) => ViewModel.Settings.OpenCommand.Execute(null);
+        }
+    }
+
+    private bool _rotationBusy;
+    private async void OnRotateLeft(object sender, RoutedEventArgs e) =>
+        await RotateCurrentPhotoAsync(clockwise: false);
+    private async void OnRotateRight(object sender, RoutedEventArgs e) =>
+        await RotateCurrentPhotoAsync(clockwise: true);
+
+    private async Task RotateCurrentPhotoAsync(bool clockwise)
+    {
+        if (_rotationBusy || ViewerOverlay.IsCropping || ViewerOverlay.IsStraightening)
+            return;
+        var entry = ViewModel.ImageViewer.CurrentEntry;
+        if (entry is null || ViewModel.ImageViewer.IsVideo ||
+            !ImageEditRenderer.IsSupported(entry.FilePath)) return;
+        _rotationBusy = true;
+        SideRotateLeftButton.IsEnabled = SideRotateRightButton.IsEnabled = false;
+        FullscreenRotateLeftButton.IsEnabled = FullscreenRotateRightButton.IsEnabled = false;
+        var resumeFaceDetection = false;
+        string? originalBackupPath = null;
+        var pixelsWereRotated = false;
+        var originalWidth = entry.Width;
+        var originalHeight = entry.Height;
+        try
+        {
+            resumeFaceDetection = await ViewModel.PauseFaceDetectionAsync();
+            ViewModel.StatusText = clockwise ? "Rotating clockwise…" : "Rotating counterclockwise…";
+            await App.ViewModel.BackupService.BackupOriginalAsync(entry.FilePath);
+            originalBackupPath = await App.ViewModel.BackupService.GetBackupPathAsync(entry.FilePath);
+            if (originalBackupPath is null)
+                throw new System.IO.IOException("Cannot verify the backup of the original photo.");
+
+            var dimensions = await ImageEditRenderer.RenderRotatedAsync(entry.FilePath, clockwise);
+            pixelsWereRotated = true;
+            await ViewModel.RefreshAfterRotationAsync(
+                entry.FilePath, dimensions.Width, dimensions.Height, clockwise);
+        }
+        catch (Exception ex)
+        {
+            if (pixelsWereRotated && originalBackupPath is not null)
+            {
+                try
+                {
+                    // The metadata service has already rolled back XMP and face
+                    // coordinates if its write failed. Restore the original pixels
+                    // as well so the photo and its face metadata stay aligned.
+                    await Task.Run(() => System.IO.File.Copy(
+                        originalBackupPath, entry.FilePath, overwrite: true));
+                    await ViewModel.RefreshAfterPixelEditAsync(
+                        entry.FilePath,
+                        (uint)System.Math.Max(1, originalWidth),
+                        (uint)System.Math.Max(1, originalHeight),
+                        "Restored", invalidateFaceScan: false);
+                    ViewModel.StatusText = "Rotation failed; original photo restored: " + ex.Message;
+                }
+                catch (Exception restoreEx)
+                {
+                    ViewModel.StatusText =
+                        "Rotation failed and automatic restore failed: " +
+                        ex.Message + " / " + restoreEx.Message;
+                }
+            }
+            else
+            {
+                ViewModel.StatusText = "Rotation failed: " + ex.Message;
+            }
+        }
+        finally
+        {
+            ViewModel.ResumeFaceDetection(resumeFaceDetection);
+            _rotationBusy = false;
+            UpdateRibbonVisibility();
         }
     }
 

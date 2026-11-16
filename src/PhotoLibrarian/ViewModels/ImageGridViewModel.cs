@@ -35,7 +35,8 @@ public enum SortByOption
     DateTaken,      // Chronological by date taken (newest first by default)
     DateModified,   // By file system modified date
     FileSize,       // By file size (largest first by default)
-    Rating          // By rating (highest first)
+    Rating,         // By rating (highest first)
+    FolderThenFileName // By folder path, then by filename within each folder
 }
 
 /// <summary>
@@ -89,8 +90,6 @@ public partial class ImageGridViewModel : ObservableObject
     private readonly System.Diagnostics.Stopwatch _thumbnailWatch = new();
     private long? _thumbnailStatusJob;
     private readonly object _queueLock = new();
-    private DateTime _lastScrollReorder = DateTime.MinValue;
-    private const int ScrollReorderThrottleMs = 150; // Don't reorder more than every 150ms
     private Task? _backgroundLoadTask;
     
     // Thumbnail cache reads benefit from parallelism, but decoding still
@@ -510,11 +509,11 @@ public partial class ImageGridViewModel : ObservableObject
         foreach (var item in visibleItems)
             _lastVisibleThumbnailPaths.Add(item.Entry.FilePath);
 
-        var now = DateTime.UtcNow;
-        if ((now - _lastScrollReorder).TotalMilliseconds < ScrollReorderThrottleMs)
-            return;
-        _lastScrollReorder = now;
-
+        // Always enqueue the latest visible thumbnails. Dropping events for
+        // 150 ms could discard the first real viewport after an early empty/
+        // intermediate layout. Unless the user resized the window, the gallery
+        // then showed loading rings forever without requesting any thumbnails.
+        // Work is bounded by the virtualized visible items (plus buffer).
         lock (_queueLock)
         {
             // Drop queued off-screen work; in-flight work is allowed to finish.
@@ -1280,11 +1279,16 @@ public partial class ImageGridViewModel : ObservableObject
             .ToList();
     }
     
-    private List<ImageThumbnailViewModel> ApplySortToGroup(List<ImageThumbnailViewModel> items, SortByOption sortBy, bool sortDescending)
+    private static List<ImageThumbnailViewModel> ApplySortToGroup(List<ImageThumbnailViewModel> items, SortByOption sortBy, bool sortDescending)
     {
         var sorted = sortBy switch
         {
             SortByOption.FileName => items.OrderBy(vm => vm.Entry.FileName),
+            SortByOption.FolderThenFileName => items
+                .OrderBy(vm => Path.GetDirectoryName(vm.Entry.FilePath) ?? string.Empty,
+                    StringComparer.OrdinalIgnoreCase)
+                .ThenBy(vm => vm.Entry.FileName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(vm => vm.Entry.FilePath, StringComparer.OrdinalIgnoreCase),
             SortByOption.DateTaken => items.OrderBy(vm => vm.Entry.DateTaken ?? DateTime.MaxValue),
             SortByOption.DateModified => items.OrderBy(vm => vm.Entry.DateModified),
             SortByOption.FileSize => items.OrderBy(vm => vm.Entry.FileSize),

@@ -137,27 +137,52 @@ public sealed class MetadataReaderService
     /// <summary>
     /// Reads tags (dc:subject keywords) from an image file's XMP metadata.
     /// </summary>
-    public List<string> ReadTags(string filePath)
+    /// <summary>
+    /// Reads ONLY XMP keywords embedded in the image itself. Do not fall back
+    /// to a sidecar: destructive metadata maintenance must be able to check
+    /// and clear the two stores independently without mistaking sidecar tags
+    /// for embedded tags.
+    /// </summary>
+    public List<string> ReadEmbeddedTags(string filePath)
     {
         var tags = new List<string>();
         try
         {
             var directories = ImageMetadataReader.ReadMetadata(filePath);
             var xmp = directories.OfType<XmpDirectory>().FirstOrDefault();
-            if (xmp?.XmpMeta is null) return tags;
-
-            const string dcNs = "http://purl.org/dc/elements/1.1/";
-            int count = xmp.XmpMeta.CountArrayItems(dcNs, "dc:subject");
-            for (int i = 1; i <= count; i++)
+            if (xmp?.XmpMeta is not null)
             {
-                var tag = xmp.XmpMeta.GetArrayItem(dcNs, "dc:subject", i)?.Value;
-                if (!string.IsNullOrWhiteSpace(tag))
-                    tags.Add(tag);
+                const string dcNs = "http://purl.org/dc/elements/1.1/";
+                int count = xmp.XmpMeta.CountArrayItems(dcNs, "dc:subject");
+                for (int i = 1; i <= count; i++)
+                {
+                    var tag = xmp.XmpMeta.GetArrayItem(dcNs, "dc:subject", i)?.Value;
+                    if (!string.IsNullOrWhiteSpace(tag))
+                        tags.Add(tag);
+                }
             }
         }
-        catch { /* File may not have XMP */ }
+        catch { /* File may not contain supported embedded XMP. */ }
 
-        return tags;
+        return tags.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Reads the effective keywords from the photo or its XMP fallback for
+    /// normal indexing. Use ReadEmbeddedTags for independent verification of
+    /// the image during metadata clearing.
+    /// </summary>
+    public List<string> ReadTags(string filePath)
+    {
+        var embeddedTags = ReadEmbeddedTags(filePath);
+        var sidecarTags = TagWriterService.ReadTagsFromSidecar(filePath);
+        var sidecarPath = Path.ChangeExtension(filePath, ".xmp");
+        var useSidecar = sidecarTags.Count > 0 &&
+            (embeddedTags.Count == 0 ||
+             (File.Exists(sidecarPath) &&
+              File.GetLastWriteTimeUtc(sidecarPath) >= File.GetLastWriteTimeUtc(filePath)));
+        return useSidecar ? sidecarTags.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                          : embeddedTags;
     }
 
     /// <summary>

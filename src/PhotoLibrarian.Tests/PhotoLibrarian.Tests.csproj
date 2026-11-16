@@ -25,6 +25,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\PhotoLibrarian\Controls\CinematicProgressBar.xaml"
+          Link="TestAssets\CinematicProgressBar.xaml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Controls\CinematicProgressBar.xaml.cs"
+          Link="TestAssets\CinematicProgressBar.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian.Core\Services\CropService.cs"
+          Link="TestAssets\CropService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\PhotoLibrarian\ViewModels\ImageGridViewModel.cs"
           Link="TestAssets\ImageGridViewModel.cs"
           CopyToOutputDirectory="PreserveNewest" />

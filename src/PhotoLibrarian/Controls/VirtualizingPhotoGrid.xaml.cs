@@ -142,6 +142,11 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     private readonly HashSet<ImageThumbnailViewModel> _selectedItems = new();
     private ImageThumbnailViewModel? _anchorItem; // Anchor for shift-range selection
     private ImageThumbnailViewModel? _primaryItem; // Last clicked item (drives metadata panel + viewer)
+    // Viewer return can arrive before ScrollViewer has a valid arranged viewport.
+    // Hold the target until layout/viewport events can honor its scroll request.
+    private ImageThumbnailViewModel? _pendingViewerReturnItem;
+    private int _viewerReturnScrollAttempts;
+    private const int MaxViewerReturnScrollAttempts = 6;
     private static readonly Windows.UI.Color SelectionColor = Windows.UI.Color.FromArgb(255, 83, 215, 232);
     private static readonly Windows.UI.Color HoverColor = Windows.UI.Color.FromArgb(255, 52, 115, 138);
     private static readonly Windows.UI.Color CardBackgroundColor = Windows.UI.Color.FromArgb(255, 12, 19, 27);
@@ -189,6 +194,9 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         this.InitializeComponent();
         this.Loaded += OnLoaded;
         this.SizeChanged += OnSizeChanged;
+        // The ScrollViewer can acquire its real viewport after the containing
+        // UserControl was measured. Recalculate from the actual viewport size.
+        ScrollContainer.SizeChanged += OnScrollContainerSizeChanged;
         this.KeyDown += OnGridKeyDown;
     }
     
@@ -261,6 +269,9 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         }
         
         Debug.WriteLine($"[VIRTUAL] Created pool of {InitialPoolSize} photo elements and 20 header elements");
+        // The album can be populated before this control has its first usable
+        // width. Make a first layout attempt now, without requiring a resize.
+        RecalculateLayout();
     }
     
     /// <summary>
@@ -301,11 +312,21 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         else RecalculateLayout();
     }
     
+    private void OnScrollContainerSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // The first nonzero ScrollViewer width is the earliest reliable moment
+        // to calculate visible thumbnails in a restored (non-maximized) window.
+        if (ItemsSource is not null) RecalculateFlatLayout();
+        else RecalculateLayout();
+        TryScrollToLastViewedPhoto();
+    }
+
     private void OnScrollViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
     {
         // Update viewport on every scroll change (both during and after scrolling)
         if (ItemsSource is not null) UpdateFlatViewport();
         else UpdateViewport();
+        TryScrollToLastViewedPhoto();
     }
 
     private void RecalculateFlatLayout()
@@ -535,6 +556,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
             
             // Update visible elements
             UpdateViewport();
+            TryScrollToLastViewedPhoto();
             
             Debug.WriteLine($"[VIRTUAL] Layout updated: {_columnCount} columns, {_totalContentHeight:F0}px tall, ItemSize={ItemSize}");
         }
@@ -793,14 +815,14 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         });
         grid.Children.Add(image);
         
-        var loader = new ProgressRing
+        var loader = new CinematicProgressBar
         {
-            Width = 24,
-            Height = 24,
+            Width = 94,
+            IsIndeterminate = true,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        loader.SetBinding(ProgressRing.IsActiveProperty, new Microsoft.UI.Xaml.Data.Binding
+        loader.SetBinding(CinematicProgressBar.IsActiveProperty, new Microsoft.UI.Xaml.Data.Binding
         {
             Path = new PropertyPath("IsLoading"),
             Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay
@@ -836,6 +858,20 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         
         overlay.Child = fileName;
         grid.Children.Add(overlay);
+
+        // A continuous cyan edge above the filename makes the selection
+        // readable at gallery scale, including among similar photographs.
+        grid.Children.Add(new Border
+        {
+            Tag = SelectionHudTag,
+            Height = 4,
+            Margin = new Thickness(3, 0, 3, 24),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Background = new SolidColorBrush(SelectionColor),
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false
+        });
 
         // Lightweight HUD accents: a top rail and two short corner bars.
         grid.Children.Add(new Border
@@ -874,44 +910,44 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
             new Border
             {
                 Tag = SelectionBracketTag,
-                Width = 22, Height = 22,
+                Width = 27, Height = 27,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top,
                 BorderBrush = new SolidColorBrush(SelectionColor),
-                BorderThickness = new Thickness(3, 3, 0, 0),
+                BorderThickness = new Thickness(4, 4, 0, 0),
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false
             },
             new Border
             {
                 Tag = SelectionBracketTag,
-                Width = 22, Height = 22,
+                Width = 27, Height = 27,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Top,
                 BorderBrush = new SolidColorBrush(SelectionColor),
-                BorderThickness = new Thickness(0, 3, 3, 0),
+                BorderThickness = new Thickness(0, 4, 4, 0),
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false
             },
             new Border
             {
                 Tag = SelectionBracketTag,
-                Width = 22, Height = 22,
+                Width = 27, Height = 27,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 BorderBrush = new SolidColorBrush(SelectionColor),
-                BorderThickness = new Thickness(3, 0, 0, 3),
+                BorderThickness = new Thickness(4, 0, 0, 4),
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false
             },
             new Border
             {
                 Tag = SelectionBracketTag,
-                Width = 22, Height = 22,
+                Width = 27, Height = 27,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 BorderBrush = new SolidColorBrush(SelectionColor),
-                BorderThickness = new Thickness(0, 0, 3, 3),
+                BorderThickness = new Thickness(0, 0, 4, 4),
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false
             }
@@ -935,7 +971,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         };
         activeHud.Child = new TextBlock
         {
-            Text = "ACTIVE",
+            Text = "SELECTED",
             FontFamily = new FontFamily("Consolas"),
             FontSize = 8,
             CharacterSpacing = 120,
@@ -1313,10 +1349,10 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         if (element is Grid grid)
         {
             grid.BorderBrush = new SolidColorBrush(selected ? SelectionColor : CardBorderColor);
-            grid.BorderThickness = selected ? new Thickness(2) : new Thickness(1);
+            grid.BorderThickness = selected ? new Thickness(3) : new Thickness(1);
             grid.Background = new SolidColorBrush(
                 selected
-                    ? Windows.UI.Color.FromArgb(255, 16, 35, 45)
+                    ? Windows.UI.Color.FromArgb(255, 19, 51, 65)
                     : CardBackgroundColor);
 
             foreach (var bracket in grid.Children
@@ -1383,13 +1419,79 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     }
 
     /// <summary>
-    /// Scroll the selected thumbnail into view after leaving the image viewer.
-    /// Existing keyboard-navigation scroll behavior remains unchanged.
+    /// Center the last-viewed image when returning from the viewer. The viewer
+    /// closes before the gallery's final layout; do not lose the request when
+    /// the first attempt sees a zero-height viewport or stale scroll extent.
+    /// Keyboard navigation continues to use the regular edge-only scrolling.
     /// </summary>
     public void ScrollPrimarySelectionIntoView()
     {
-        if (_primaryItem is not null)
-            ScrollItemIntoView(_primaryItem);
+        _pendingViewerReturnItem = _primaryItem;
+        _viewerReturnScrollAttempts = 0;
+        // A viewer close can trigger selection before the gallery receives
+        // its next layout pass. Keep listening until the requested row is
+        // positioned, instead of relying on a one-shot ChangeView call.
+        ScrollContainer.LayoutUpdated -= OnViewerReturnLayoutUpdated;
+        if (_pendingViewerReturnItem is null) return;
+        ScrollContainer.LayoutUpdated += OnViewerReturnLayoutUpdated;
+        DispatcherQueue.TryEnqueue(
+            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+            TryScrollToLastViewedPhoto);
+    }
+
+    private void OnViewerReturnLayoutUpdated(object? sender, object e) =>
+        TryScrollToLastViewedPhoto();
+
+    private void ClearPendingViewerReturnScroll()
+    {
+        _pendingViewerReturnItem = null;
+        ScrollContainer.LayoutUpdated -= OnViewerReturnLayoutUpdated;
+    }
+
+    private void TryScrollToLastViewedPhoto()
+    {
+        var photo = _pendingViewerReturnItem;
+        if (photo is null) return;
+
+        var viewport = ScrollContainer.ViewportHeight;
+        if (viewport < 1 || ScrollContainer.ActualWidth < 1) return;
+
+        var bounds = GetItemRowBounds(photo);
+        if (bounds is null)
+        {
+            // The last photo is no longer in the filtered/grouped gallery.
+            ClearPendingViewerReturnScroll();
+            return;
+        }
+
+        // The Canvas is virtualized, but the placeholder owns the full scroll
+        // extent. Avoid clamping to zero until the placeholder is measured.
+        // Wait until the actual ScrollViewer extent has caught up with the
+        // virtualized placeholder; the calculated layout height alone is not
+        // enough for ChangeView to accept an offset during first arrangement.
+        var contentHeight = ScrollContainer.ExtentHeight;
+        if (contentHeight < bounds.Value.Top + bounds.Value.Height - 1) return;
+
+        var maxOffset = Math.Max(0, contentHeight - viewport);
+        var targetOffset = Math.Clamp(
+            bounds.Value.Top + bounds.Value.Height / 2 - viewport / 2,
+            0, maxOffset);
+        if (Math.Abs(ScrollContainer.VerticalOffset - targetOffset) < 2)
+        {
+            ClearPendingViewerReturnScroll();
+            return;
+        }
+
+        if (_viewerReturnScrollAttempts++ >= MaxViewerReturnScrollAttempts)
+        {
+            ClearPendingViewerReturnScroll();
+            return;
+        }
+
+        // If ChangeView is ignored during layout, retain the target and retry
+        // on SizeChanged or ViewChanged. A successful request is verified by
+        // the resulting viewport event, not by its return value alone.
+        ScrollContainer.ChangeView(null, targetOffset, null, disableAnimation: true);
     }
 
     private void ScrollItemIntoView(ImageThumbnailViewModel vm)

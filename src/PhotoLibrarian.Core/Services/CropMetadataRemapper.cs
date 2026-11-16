@@ -15,6 +15,16 @@ public static class CropMetadataRemapper
     public const string StArea = "http://ns.adobe.com/xmp/sType/Area#";
     public const string StDim = "http://ns.adobe.com/xmp/sType/Dimensions#";
 
+    /// <summary>Quarter-turn for normalized face boxes; identity and width/height rotate together.</summary>
+    public static NormalizedRegion RotateNormalizedRegion(NormalizedRegion region, bool clockwise)
+    {
+        return clockwise
+            ? new NormalizedRegion(
+                1 - region.Y - region.Height, region.X, region.Height, region.Width)
+            : new NormalizedRegion(
+                region.Y, 1 - region.X - region.Width, region.Height, region.Width);
+    }
+
     public static FaceRegion? RemapFaceRegion(
         FaceRegion face,
         uint sourceWidth,

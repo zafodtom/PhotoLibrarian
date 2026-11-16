@@ -1,7 +1,8 @@
 <UserControl
     x:Class="PhotoLibrarian.Views.SettingsPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:PhotoLibrarian.Controls">
 
     <Grid Background="{StaticResource HiTechAppBackgroundBrush}">
         <Grid.RowDefinitions>
@@ -223,13 +224,8 @@
                                             Content="IMPORT DIGIKAM"
                                             Click="OnImportDigiKam"
                                             Style="{StaticResource HiTechPrimaryButtonStyle}" />
-                                    <ProgressRing x:Name="DigiKamImportProgressRing"
-                                                  Width="20"
-                                                  Height="20"
-                                                  IsActive="False"
-                                                  Visibility="Collapsed" />
                                 </StackPanel>
-                                <ProgressBar x:Name="DigiKamImportProgressBar"
+                                <controls:CinematicProgressBar x:Name="DigiKamImportProgressBar"
                                              Minimum="0"
                                              Maximum="100"
                                              Visibility="Collapsed" />
@@ -274,13 +270,8 @@
                                             Content="IMPORT STASH"
                                             Click="OnImportStash"
                                             Style="{StaticResource HiTechPrimaryButtonStyle}" />
-                                    <ProgressRing x:Name="StashImportProgressRing"
-                                                  Width="20"
-                                                  Height="20"
-                                                  IsActive="False"
-                                                  Visibility="Collapsed" />
                                 </StackPanel>
-                                <ProgressBar x:Name="StashImportProgressBar"
+                                <controls:CinematicProgressBar x:Name="StashImportProgressBar"
                                              Minimum="0"
                                              Maximum="100"
                                              Visibility="Collapsed" />
@@ -347,7 +338,7 @@
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <Button Grid.Column="2"
+                            <Button x:Name="RebuildCacheButton" Grid.Column="2"
                                     AutomationProperties.AutomationId="RebuildCacheButton"
                                     VerticalAlignment="Center"
                                     Content="CLEAR THUMBNAILS"
@@ -375,7 +366,7 @@
                                         IsEnabled="False"
                                         Style="{StaticResource HiTechSecondaryButtonStyle}" />
                             </StackPanel>
-                            <ProgressBar x:Name="ThumbnailGenerationProgressBar"
+                            <controls:CinematicProgressBar x:Name="ThumbnailGenerationProgressBar"
                                          Minimum="0" Maximum="100" Visibility="Collapsed" />
                             <TextBlock x:Name="ThumbnailGenerationStatusText"
                                        Text="Thumbnail generation has not been run."
@@ -460,7 +451,7 @@
                                         Click="OnCancelJpegConversion"
                                         Style="{StaticResource HiTechSecondaryButtonStyle}" />
                             </StackPanel>
-                            <ProgressBar x:Name="JpegConversionProgressBar"
+                            <controls:CinematicProgressBar x:Name="JpegConversionProgressBar"
                                          Minimum="0" Maximum="100" Value="0"
                                          Visibility="Collapsed" />
                             <TextBlock x:Name="JpegConversionStatusText"
@@ -512,7 +503,7 @@
                                         IsEnabled="False"
                                         Style="{StaticResource HiTechSecondaryButtonStyle}" />
                             </StackPanel>
-                            <ProgressBar x:Name="ClearAlbumProgressBar"
+                            <controls:CinematicProgressBar x:Name="ClearAlbumProgressBar"
                                          Minimum="0" Maximum="100"
                                          Visibility="Collapsed" />
                             <TextBlock x:Name="ClearAlbumStatusText"
@@ -628,8 +619,8 @@
                             <TextBlock x:Name="UpdateStatusText" Text="No update check performed."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource HiTechAccentBrush}"/>
-                            <ProgressBar x:Name="UpdateDownloadProgress" Minimum="0" Maximum="100"
-                                         Visibility="Collapsed" Height="5"/>
+                            <controls:CinematicProgressBar x:Name="UpdateDownloadProgress" Minimum="0" Maximum="100"
+                                         Visibility="Collapsed"/>
                             <Button x:Name="CheckUpdatesButton" Content="CHECK FOR UPDATES"
                                     Click="OnCheckForUpdatesClick"
                                     HorizontalAlignment="Left"
@@ -645,66 +636,6 @@
                             IsHitTestVisible="False" />
                 </StackPanel>
             </ScrollViewer>
-        </Grid>
-
-        <!-- Sci-fi archive confirmation surface reuses the application's HiTechTheme. -->
-        <Grid x:Name="UpdateConfirmOverlay"
-              Grid.RowSpan="3"
-              Canvas.ZIndex="30"
-              Background="#ED09121A"
-              Visibility="Collapsed"
-              IsHitTestVisible="True">
-            <Border Width="540"
-                    MaxWidth="540"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Background="#0D1D29"
-                    BorderBrush="{StaticResource HiTechAccentBrush}"
-                    BorderThickness="1"
-                    Padding="26,24">
-                <StackPanel Spacing="14">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="5"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Rectangle Grid.Column="0" Fill="{StaticResource HiTechAccentBrush}"/>
-                        <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="4">
-                            <TextBlock Text="PHOTO // LIBRARIAN"
-                                       Style="{StaticResource HiTechPanelHeadingStyle}"/>
-                            <TextBlock Text="VISUAL ARCHIVE // UPDATE SEQUENCE"
-                                       Style="{StaticResource HiTechTinyLabelStyle}"/>
-                        </StackPanel>
-                    </Grid>
-                    <TextBlock x:Name="UpdateConfirmTitle"
-                               FontSize="18"
-                               FontFamily="Consolas"
-                               Foreground="{StaticResource HiTechTextPrimaryBrush}"
-                               TextWrapping="Wrap"/>
-                    <TextBlock x:Name="UpdateConfirmDescription"
-                               Foreground="{StaticResource HiTechTextSecondaryBrush}"
-                               TextWrapping="Wrap"/>
-                    <Border Background="#102D3B" Padding="12,10">
-                        <TextBlock Text="Official GitHub Release / SHA-256 verified / Windows UAC may be required."
-                                   FontSize="12"
-                                   TextWrapping="Wrap"
-                                   Foreground="{StaticResource HiTechAccentBrush}"/>
-                    </Border>
-                    <StackPanel Orientation="Horizontal"
-                                Spacing="12"
-                                HorizontalAlignment="Right">
-                        <Button Content="CANCEL"
-                                MinWidth="105"
-                                Click="OnUpdateCancelClick"
-                                Style="{StaticResource HiTechSecondaryButtonStyle}"/>
-                        <Button x:Name="UpdateAcceptButton"
-                                Content="CONTINUE"
-                                MinWidth="155"
-                                Click="OnUpdateAcceptClick"
-                                Style="{StaticResource HiTechPrimaryButtonStyle}"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
         </Grid>
 
         <!-- Footer command rail -->

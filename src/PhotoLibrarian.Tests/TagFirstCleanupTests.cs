@@ -46,8 +46,10 @@ public sealed class TagFirstCleanupTests
             "MakeCopyButton", "StraightenButton", "RedEyeButton"
         })
             Assert.DoesNotContain(retired, ribbon);
-        Assert.Contains("IncludeTagsBox", gallery);
-        Assert.Contains("ExcludeTagsBox", gallery);
+        Assert.DoesNotContain("IncludeTagsBox", gallery);
+        Assert.DoesNotContain("ExcludeTagsBox", gallery);
+        Assert.Contains("SearchFileNameBox", gallery);
+        Assert.DoesNotContain("GroupByCombo", gallery);
         Assert.Contains("TagsTree", navigation);
         Assert.Contains("AdjustButton", ribbon);
     }
