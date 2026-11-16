@@ -15,8 +15,9 @@ public sealed class AlbumMaintenancePresentationTests
         Assert.Contains("CinematicDialogShowcase.Create(", settings);
         Assert.Contains("CinematicDialogShowcase.Variant.Warning", settings);
         Assert.Contains("confirmLabel: \"DELETE ALBUM\"", settings);
-        Assert.Contains("confirmLabel: \"CONVERT TO JPEG\"", settings);
-        Assert.Contains("confirmLabel: \"CLEAR ALBUM TAGS + FLAGS\"", settings);
+        Assert.Contains("\"CONVERT ALBUM\"", settings);
+        Assert.Contains("\"CLEAR TAGS AND FLAGS\"", settings);
+        Assert.Contains("CreateAlbumMaintenanceDialog(", settings);
         Assert.Contains("if (await dialog.ShowAsync() != ContentDialogResult.Primary)", settings);
         Assert.Contains("DeleteCurrentAlbumAsync();", settings);
     }
