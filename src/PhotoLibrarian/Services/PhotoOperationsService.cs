@@ -166,7 +166,9 @@ public sealed class PhotoOperationsService
         if (!ImageEditRenderer.IsSupported(entry.FilePath))
             throw new NotSupportedException($"Editing not supported for {Path.GetExtension(entry.FilePath)}");
 
-        await _backupService.BackupOriginalAsync(entry.FilePath);
+        // Single-photo operations do not retain originals. The renderer
+        // stages the encoded output in the same directory and only replaces
+        // the source after encoding has completed successfully.
         var size = await ImageEditRenderer.RenderRotatedAsync(entry.FilePath, clockwise);
 
         entry.Width = (int)size.Width;
