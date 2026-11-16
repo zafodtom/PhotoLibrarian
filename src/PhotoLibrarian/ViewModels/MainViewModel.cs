@@ -1160,17 +1160,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task<IReadOnlyList<string>> GetPhotoTagsForCropAsync(ImageEntry image)
     {
-        var stored = image.Id > 0
-            ? (await _tagRepo.GetTagsAsync(image.Id)).Select(tag => tag.Tag)
-            : Enumerable.Empty<string>();
-        var tags = stored
-            .Where(tag => !string.IsNullOrWhiteSpace(tag))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (tags.Length > 0)
-            return tags;
+        if (image.Id > 0)
+            return (await _tagRepo.GetTagsAsync(image.Id))
+                .Select(tag => tag.Tag)
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 
-        // Allows exporting a photo that is not yet present in the active index.
+        // An indexed image with zero tags must remain untagged even if its
+        // on-disk metadata is stale. Only non-indexed images read file tags.
         return await Task.Run(() => _metadataReader.ReadTags(image.FilePath));
     }
 
