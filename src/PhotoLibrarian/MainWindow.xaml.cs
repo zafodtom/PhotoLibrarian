@@ -817,8 +817,8 @@ public sealed partial class MainWindow : Window
             ViewModel.StatusText = clockwise ? "Rotating clockwise…" : "Rotating counterclockwise…";
             await App.ViewModel.BackupService.BackupOriginalAsync(entry.FilePath);
             var dimensions = await ImageEditRenderer.RenderRotatedAsync(entry.FilePath, clockwise);
-            await ViewModel.RefreshAfterPixelEditAsync(
-                entry.FilePath, dimensions.Width, dimensions.Height, "Rotated");
+            await ViewModel.RefreshAfterRotationAsync(
+                entry.FilePath, dimensions.Width, dimensions.Height, clockwise);
         }
         catch (Exception ex)
         {
