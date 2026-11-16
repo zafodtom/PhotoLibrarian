@@ -1,5 +1,6 @@
 using PhotoLibrarian.Core.Data;
 using PhotoLibrarian.Core.Models;
+using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.Services;
 using Xunit;
 
