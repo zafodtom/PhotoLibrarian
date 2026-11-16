@@ -123,6 +123,9 @@ public sealed partial class SettingsPanel : UserControl
     private void OnNavigateAbout(object sender, RoutedEventArgs e) =>
         NavigateToSettingsSection(AboutSectionHeader);
 
+    private void OnNavigateUiShowcase(object sender, RoutedEventArgs e) =>
+        NavigateToSettingsSection(UiShowcaseSectionHeader);
+
     private void NavigateToSettingsSection(FrameworkElement sectionHeader)
     {
         // StartBringIntoView only scrolls far enough to make an element visible,
@@ -553,89 +556,18 @@ public sealed partial class SettingsPanel : UserControl
     }
 
     /// <summary>
-    /// Album maintenance confirmations use the same dark FUI surfaces, accent
-    /// typography and rectangular controls as the rest of PhotoLibrarian.
-    /// Never show the default white/rounded WinUI ContentDialog for these jobs.
+    /// Shared cinematic confirmation; preserves the original Primary/Cancel
+    /// results. No operation runs unless the caller receives Primary.
     /// </summary>
     private ContentDialog CreateAlbumMaintenanceDialog(
         string heading, string description, string confirmLabel, bool destructive)
     {
-        var color = destructive
-            ? Windows.UI.Color.FromArgb(255, 255, 110, 120)
-            : Windows.UI.Color.FromArgb(255, 83, 215, 232);
-        var accent = new Microsoft.UI.Xaml.Media.SolidColorBrush(color);
-        var primary = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            Windows.UI.Color.FromArgb(255, 230, 247, 250));
-        var surface = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            Windows.UI.Color.FromArgb(255, 12, 19, 27));
-        var outerSurface = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            Windows.UI.Color.FromArgb(255, 7, 11, 16));
-
-        var body = new StackPanel { Spacing = 13, MinWidth = 380, MaxWidth = 525 };
-        body.Children.Add(new TextBlock
-        {
-            Text = destructive ? "ALBUM MAINTENANCE // CAUTION" : "ALBUM MAINTENANCE // CONFIRM",
-            Foreground = accent,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontSize = 11,
-            CharacterSpacing = 140
-        });
-        body.Children.Add(new TextBlock
-        {
-            Text = heading,
-            Foreground = primary,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            FontSize = 17,
-            TextWrapping = TextWrapping.Wrap
-        });
-        body.Children.Add(new Border { Height = 2, Background = accent });
-        body.Children.Add(new TextBlock
-        {
-            Text = description,
-            Foreground = primary,
-            FontSize = 13,
-            TextWrapping = TextWrapping.Wrap
-        });
-        body.Children.Add(new TextBlock
-        {
-            Text = "BACKUP RECOMMENDED  //  REVIEW RESULTS BEFORE DELETING BACKUPS",
-            Foreground = accent,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontSize = 10,
-            TextWrapping = TextWrapping.Wrap
-        });
-
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = null,
-            Content = new Border
-            {
-                Padding = new Thickness(20),
-                Background = surface,
-                BorderBrush = accent,
-                BorderThickness = new Thickness(1),
-                Child = body
-            },
-            PrimaryButtonText = confirmLabel,
-            CloseButtonText = "ABORT",
-            DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
-            Background = outerSurface,
-            BorderBrush = accent,
-            BorderThickness = new Thickness(1)
-        };
-        // Restyle actual dialog buttons (not just its content border).
-        if (Application.Current.Resources.TryGetValue(
-                "HiTechPrimaryButtonStyle", out var primaryStyle) &&
-            primaryStyle is Style buttonStyle)
-            dialog.PrimaryButtonStyle = buttonStyle;
-        if (Application.Current.Resources.TryGetValue(
-                "HiTechIconButtonStyle", out var secondaryStyle) &&
-            secondaryStyle is Style closeStyle)
-            dialog.CloseButtonStyle = closeStyle;
-        return dialog;
+        return CinematicDialogShowcase.Create(
+            XamlRoot, CinematicDialogShowcase.Variant.Warning,
+            subjectOverride: heading,
+            detailOverride: description,
+            confirmLabel: confirmLabel,
+            preview: false);
     }
 
     private async void OnRunJpegConversion(object sender, RoutedEventArgs e)
@@ -982,72 +914,21 @@ public sealed partial class SettingsPanel : UserControl
 
         var root = App.CurrentAlbumPath;
         var xmpCount = AlbumService.FindAlbumXmpSidecars(root).Count;
-        var red = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            Windows.UI.Color.FromArgb(255, 255, 80, 94));
-        var text = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-            Windows.UI.Color.FromArgb(255, 229, 240, 244));
-        var panel = new StackPanel { Spacing = 14, MinWidth = 500 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = "WARNING // ARCHIVE TERMINATION",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontSize = 19, FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-            Foreground = red
-        });
-        panel.Children.Add(new Border
-        {
-            Height = 3, Background = red
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "CRITICAL OPERATION  //  IRREVERSIBLE",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontSize = 13, Foreground = red
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "TARGET: " + root,
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            TextWrapping = TextWrapping.Wrap, Foreground = text
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "PhotoLibrarian catalog, cache and matching album launchers will be deleted. " +
-                   $"All {xmpCount} XMP sidecar file(s) within this album will also be deleted, " +
-                   "including XMP originally created by other software. " +
-                   "Original image/video files and folders remain. Embedded metadata in images " +
-                   "is NOT reverted. Other standalone albums are excluded. The app will close.",
-            TextWrapping = TextWrapping.Wrap, Foreground = text
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = "CONFIRMATION REQUIRED  //  ORIGINAL PHOTOS ARE PRESERVED",
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-            FontSize = 11,
-            Foreground = red
-        });
-        var dialog = new ContentDialog
-        {
-            Title = null,
-            Content = new Border
-            {
-                Padding = new Thickness(22),
-                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Windows.UI.Color.FromArgb(255, 12, 17, 26)),
-                BorderBrush = red,
-                BorderThickness = new Thickness(2),
-                Child = panel
-            },
-            PrimaryButtonText = "DELETE ALBUM",
-            CloseButtonText = "ABORT",
-            DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
-            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Windows.UI.Color.FromArgb(255, 9, 16, 24)),
-            BorderBrush = red,
-            BorderThickness = new Thickness(1),
-            XamlRoot = XamlRoot
-        };
+        // Preserve the complete deletion warning and its explicit Primary/Cancel gate.
+        var dialog = CinematicDialogShowcase.Create(
+            XamlRoot,
+            CinematicDialogShowcase.Variant.Warning,
+            subjectOverride: "DELETE ALBUM AND METADATA?",
+            detailOverride:
+                "PhotoLibrarian catalog, cache and matching album launchers will be deleted. " +
+                $"All {xmpCount} XMP sidecar file(s) within this album will also be deleted, " +
+                "including XMP originally created by other software. " +
+                "Original image/video files and folders remain. Embedded metadata in images " +
+                "is NOT reverted. Other standalone albums are excluded. The app will close. " +
+                "This operation is irreversible. Review your backups before proceeding.",
+            confirmLabel: "DELETE ALBUM",
+            preview: false,
+            context: root);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
@@ -1060,49 +941,13 @@ public sealed partial class SettingsPanel : UserControl
         catch (Exception ex)
         {
             DeleteAlbumButton.IsEnabled = true;
-            var errorPanel = new StackPanel { Spacing = 12, MinWidth = 450 };
-            errorPanel.Children.Add(new TextBlock
-            {
-                Text = "FATAL ERROR // ALBUM TERMINATION FAILED",
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-                FontSize = 17,
-                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
-                Foreground = red
-            });
-            errorPanel.Children.Add(new Border { Height = 3, Background = red });
-            errorPanel.Children.Add(new TextBlock
-            {
-                Text = ex.Message,
-                Foreground = text,
-                TextWrapping = TextWrapping.Wrap
-            });
-            errorPanel.Children.Add(new TextBlock
-            {
-                Text = "ALBUM DATA MAY BE PARTIALLY REMOVED. RESTART BEFORE RETRYING.",
-                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-                Foreground = red,
-                TextWrapping = TextWrapping.Wrap
-            });
-            var error = new ContentDialog
-            {
-                Title = null,
-                Content = new Border
-                {
-                    Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                        Windows.UI.Color.FromArgb(255, 12, 17, 26)),
-                    BorderBrush = red,
-                    BorderThickness = new Thickness(2),
-                    Padding = new Thickness(20),
-                    Child = errorPanel
-                },
-                CloseButtonText = "ACKNOWLEDGE",
-                RequestedTheme = ElementTheme.Dark,
-                Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                    Windows.UI.Color.FromArgb(255, 9, 16, 24)),
-                BorderBrush = red,
-                BorderThickness = new Thickness(1),
-                XamlRoot = XamlRoot
-            };
+            var error = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Fatal,
+                subjectOverride: "ALBUM TERMINATION FAILED",
+                detailOverride: ex.Message +
+                    "\n\nALBUM DATA MAY BE PARTIALLY REMOVED. RESTART BEFORE RETRYING.",
+                preview: false);
             await error.ShowAsync();
         }
     }
@@ -1182,23 +1027,11 @@ public sealed partial class SettingsPanel : UserControl
     {
         if (preview.Maintenance)
         {
-            // Reuse the real album-maintenance appearance, not an approximation.
-            var maintenance = CreateAlbumMaintenanceDialog(
-                preview.Heading, preview.Message, preview.Action + " (PREVIEW)", preview.Warning);
-            maintenance.CloseButtonText = "END PREVIEW";
-            maintenance.Content = new StackPanel
-            {
-                Spacing = 6,
-                Children =
-                {
-                    new TextBlock { Text = $"PREVIEW {index:D2}/{total:D2}  //  SAFE MODE",
-                        FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
-                        Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                            Windows.UI.Color.FromArgb(255, 83, 215, 232)) },
-                    (UIElement)maintenance.Content
-                }
-            };
-            return maintenance;
+            return CinematicDialogShowcase.Create(
+                XamlRoot, CinematicDialogShowcase.Variant.Warning,
+                subjectOverride: preview.Heading,
+                detailOverride: preview.Message,
+                preview: true);
         }
 
         var accent = new Microsoft.UI.Xaml.Media.SolidColorBrush(
@@ -1275,6 +1108,59 @@ public sealed partial class SettingsPanel : UserControl
                 "HiTechIconButtonStyle", out var closeStyle) && closeStyle is Style closeButton)
             dialog.CloseButtonStyle = closeButton;
         return dialog;
+    }
+
+    // Isolated Cinematic UI 2.0 lab. Intentionally never calls production operations.
+    private async void OnShowcaseFatal(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Fatal);
+
+    private async void OnShowcaseWarning(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Warning);
+
+    private async void OnShowcaseComplete(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Complete);
+
+    private async void OnShowcaseError(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Error);
+
+    private async void OnShowcaseInformation(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Information);
+
+    private async void OnShowcaseProgress(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(CinematicDialogShowcase.Variant.Progress);
+
+    private async void OnShowcaseSequence(object sender, RoutedEventArgs e) =>
+        await ShowCinematicSpecimensAsync(
+            CinematicDialogShowcase.Variant.Fatal,
+            CinematicDialogShowcase.Variant.Error,
+            CinematicDialogShowcase.Variant.Warning,
+            CinematicDialogShowcase.Variant.Complete,
+            CinematicDialogShowcase.Variant.Information,
+            CinematicDialogShowcase.Variant.Progress);
+
+    private bool _cinematicShowcaseOpen;
+
+    private async System.Threading.Tasks.Task ShowCinematicSpecimensAsync(
+        params CinematicDialogShowcase.Variant[] variants)
+    {
+        if (_cinematicShowcaseOpen) return;
+        _cinematicShowcaseOpen = true;
+        CinematicShowcaseSequenceButton.IsEnabled = false;
+        try
+        {
+            foreach (var variant in variants)
+            {
+                var dialog = CinematicDialogShowcase.Create(XamlRoot, variant);
+                // Primary only navigates to the next specimen. No actual operation executes.
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                    break;
+            }
+        }
+        finally
+        {
+            CinematicShowcaseSequenceButton.IsEnabled = true;
+            _cinematicShowcaseOpen = false;
+        }
     }
 
     private async void OnClose(

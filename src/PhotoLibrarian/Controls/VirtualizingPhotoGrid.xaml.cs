@@ -39,6 +39,16 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     // Configuration
     private const double ItemSpacing = 4;
     private const double HeaderHeight = 50;
+    private bool _showGroupHeaders = true;
+
+    /// <summary>Do not waste a 50 px row on the ungrouped All Photos label.
+    /// Actual groups retain their visible headers.</summary>
+    public void SetShowGroupHeaders(bool show)
+    {
+        if (_showGroupHeaders == show) return;
+        _showGroupHeaders = show;
+        if (ItemsSource is null) RecalculateLayout();
+    }
     private const double BufferZone = 500; // Extra pixels to render above/below viewport
     private const int InitialPoolSize = 150; // Pre-create this many elements
     
@@ -547,7 +557,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         foreach (var group in _groups)
         {
             // Header
-            totalHeight += HeaderHeight;
+            if (_showGroupHeaders) totalHeight += HeaderHeight;
             
             // Items in rows
             int itemCount = group.Items?.Count ?? 0;
@@ -616,11 +626,11 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         {
             // Check if group header is visible
             double headerY = currentY;
-            if (headerY >= viewportStart && headerY <= viewportEnd)
+            if (_showGroupHeaders && headerY >= viewportStart && headerY <= viewportEnd)
             {
                 visible.Add((group, 0, headerY, true)); // Header
             }
-            currentY += HeaderHeight;
+            if (_showGroupHeaders) currentY += HeaderHeight;
             
             // Check if group is in viewport
             int itemCount = group.Items?.Count ?? 0;
@@ -1355,7 +1365,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         double currentY = 0;
         foreach (var group in _groups)
         {
-            currentY += HeaderHeight;
+            if (_showGroupHeaders) currentY += HeaderHeight;
             int count = group.Items?.Count ?? 0;
             if (group.Items != null)
             {

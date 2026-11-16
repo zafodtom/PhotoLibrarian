@@ -69,12 +69,18 @@ public sealed partial class ImageGridView : UserControl
         PhotoGrid.SetGroups(ViewModel.GroupedImages);
         
         // Cinematic empty/indexing state.
-        ViewModel.Images.CollectionChanged += (_, _) => UpdateEmptyState();
+        ViewModel.Images.CollectionChanged += (_, _) =>
+        {
+            UpdateEmptyState();
+            UpdateVisiblePhotoCount();
+        };
         App.ViewModel.PropertyChanged += OnMainViewModelPropertyChanged;
         UpdateEmptyState();
             
         // Initialize UI controls to match ViewModel defaults
         UpdateGroupByCombo();
+        PhotoGrid.SetShowGroupHeaders(ViewModel.GroupBy != GroupByOption.None);
+        UpdateVisiblePhotoCount();
         UpdateSortByCombo();
         UpdateSortOrderIcon();
         ViewModel.ResultsChanged += OnResultsChanged;
@@ -187,6 +193,7 @@ public sealed partial class ImageGridView : UserControl
 
         DispatcherQueue.TryEnqueue(() =>
         {
+            UpdateVisiblePhotoCount();
             PhotoGrid.RestoreSelection(
                 ViewModel.SelectedImages,
                 ViewModel.SelectedImage);
@@ -398,6 +405,7 @@ public sealed partial class ImageGridView : UserControl
         
         if (Enum.TryParse<GroupByOption>(item.Tag?.ToString(), out var groupBy))
         {
+            PhotoGrid.SetShowGroupHeaders(groupBy != GroupByOption.None);
             ViewModel.GroupBy = groupBy;
         }
     }
@@ -420,6 +428,13 @@ public sealed partial class ImageGridView : UserControl
         UpdateSortOrderIcon();
     }
     
+    private void UpdateVisiblePhotoCount()
+    {
+        if (ViewModel is null) return;
+        var count = ViewModel.Images.Count;
+        VisiblePhotoCountText.Text = $"{count:N0} {(count == 1 ? "PHOTO" : "PHOTOS")}";
+    }
+
     private void UpdateGroupByCombo()
     {
         if (ViewModel is null) return;

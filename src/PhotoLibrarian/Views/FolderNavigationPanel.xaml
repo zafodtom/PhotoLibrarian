@@ -4,57 +4,20 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:PhotoLibrarian.ViewModels">
 
-    <Grid Padding="12"
+    <Grid Padding="5,8,5,8"
           Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header with actions -->
-        <Grid Grid.Row="0" Margin="0,0,0,8">
-            <StackPanel Orientation="Horizontal"
-                        Spacing="8"
-                        VerticalAlignment="Center">
-                <Rectangle Width="3"
-                           Height="18"
-                           Fill="{StaticResource HiTechAccentBrush}" />
-                <TextBlock Text="BROWSE"
-                           Style="{StaticResource HiTechSectionHeaderStyle}"
-                           VerticalAlignment="Center" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
-                <Button x:Name="ManageFoldersButton" ToolTipService.ToolTip="Open another album"
-                        AutomationProperties.Name="Open another album"
-                        Click="OnManageFoldersClick" Padding="6"
-                        Style="{StaticResource HiTechIconButtonStyle}">
-                    <Viewbox Width="14" Height="14"><Path Data="M2,7 L2,20 L22,20 L22,8 L11,8 L8,5 L2,5 Z" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
-                </Button>
-                <Button x:Name="RefreshButton" ToolTipService.ToolTip="Refresh"
-                        Click="OnRefreshClick" Padding="6"
-                        Style="{StaticResource HiTechIconButtonStyle}">
-                    <Viewbox Width="14" Height="14"><Path Data="M20,8 A9,9 0 1 0 21,15 M20,3 L20,9 L14,9" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
-                </Button>
-            </StackPanel>
-        </Grid>
-
-        <!-- Sections: album folders and hierarchical tags -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <!-- Library and tag controls share the navigation panel; no BROWSE header. -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="10">
-                <Grid Height="18">
-                    <TextBlock Text="NAV / INDEX"
-                               Style="{StaticResource HiTechTinyLabelStyle}"
-                               VerticalAlignment="Center" />
-                    <Rectangle Height="1"
-                               Margin="78,0,0,0"
-                               Fill="{StaticResource HiTechAccentMutedBrush}"
-                               VerticalAlignment="Center" />
-                </Grid>
-                
                 <!-- Library Section -->
-                <Border Style="{StaticResource HiTechModuleStyle}">
+                <Border Style="{StaticResource HiTechModuleStyle}" Padding="5,8,5,8">
                     <StackPanel>
-                    <Grid Margin="0,0,0,8">
+                    <Grid Margin="0,0,0,5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -68,12 +31,22 @@
                                    Style="{StaticResource HiTechSectionHeaderStyle}"
                                    Margin="8,0,0,0"
                                    VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="2"
-                                   Text="A01"
-                                   Style="{StaticResource HiTechTinyLabelStyle}"
-                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                            <Button x:Name="ManageFoldersButton" ToolTipService.ToolTip="Open another album"
+                                    AutomationProperties.Name="Open another album"
+                                    Click="OnManageFoldersClick" Padding="6"
+                                    Style="{StaticResource HiTechIconButtonStyle}">
+                                <Viewbox Width="14" Height="14"><Path Data="M2,7 L2,20 L22,20 L22,8 L11,8 L8,5 L2,5 Z" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
+                            </Button>
+                            <Button x:Name="RefreshButton" ToolTipService.ToolTip="Refresh"
+                                    Click="OnRefreshClick" Padding="6"
+                                    Style="{StaticResource HiTechIconButtonStyle}">
+                                <Viewbox Width="14" Height="14"><Path Data="M20,8 A9,9 0 1 0 21,15 M20,3 L20,9 L14,9" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
+                            </Button>
+                        </StackPanel>
                     </Grid>
                     <TreeView x:Name="LibraryTree"
+                              Margin="-9,0,0,0"
                               Style="{StaticResource HiTechTreeViewStyle}"
                               SelectionMode="None"
                               Expanding="OnLibraryExpanding"
@@ -101,9 +74,9 @@
                 </Border>
 
                 <!-- Tags Section -->
-                <Border Style="{StaticResource HiTechModuleStyle}">
+                <Border Style="{StaticResource HiTechModuleStyle}" Padding="5,8,5,8">
                     <StackPanel>
-                    <Grid Margin="0,0,0,8">
+                    <Grid Margin="0,0,0,5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -179,6 +152,7 @@
                                    Style="{StaticResource HiTechTinyLabelStyle}" />
                     </StackPanel>
                     <TreeView x:Name="TagsTree"
+                              Margin="-9,0,0,0"
                               Style="{StaticResource HiTechTreeViewStyle}"
                               SelectionMode="None"
                               CanDragItems="False"
@@ -188,13 +162,14 @@
                               Drop="OnTagsTreeDrop">
                         <TreeView.ItemTemplate>
                             <DataTemplate>
-                                <Grid ColumnSpacing="3" Background="Transparent">
+                                <Grid ColumnSpacing="1" Background="Transparent">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Content.DisplayText}"
+                                               MinWidth="28"
                                                Opacity="{Binding Content.DisplayOpacity}"
                                                VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis" />
@@ -202,16 +177,16 @@
                                             Content="+"
                                             Tag="{Binding Content}"
                                             Click="OnIncludeTagClick"
-                                            Padding="5,1"
-                                            MinWidth="26"
+                                            Padding="2,1"
+                                            MinWidth="22"
                                             ToolTipService.ToolTip="Include this tag; click again to clear"
                                             AutomationProperties.Name="Include tag" />
                                     <Button Grid.Column="2"
                                             Content="−"
                                             Tag="{Binding Content}"
                                             Click="OnExcludeTagClick"
-                                            Padding="5,1"
-                                            MinWidth="26"
+                                            Padding="2,1"
+                                            MinWidth="22"
                                             ToolTipService.ToolTip="Exclude this tag; click again to clear"
                                             AutomationProperties.Name="Exclude tag" />
                                 </Grid>
