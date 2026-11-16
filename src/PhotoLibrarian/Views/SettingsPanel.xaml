@@ -463,7 +463,7 @@
                                 <Button x:Name="CancelJpegConversionButton" Content="CANCEL"
                                         IsEnabled="False"
                                         Click="OnCancelJpegConversion"
-                                        Style="{StaticResource HiTechSectionActionStyle}" />
+                                        Style="{StaticResource HiTechSecondaryButtonStyle}" />
                             </StackPanel>
                             <ProgressBar x:Name="JpegConversionProgressBar"
                                          Minimum="0" Maximum="100" Value="0"
@@ -515,7 +515,7 @@
                                         Content="CANCEL"
                                         Click="OnCancelClearAlbum"
                                         IsEnabled="False"
-                                        Style="{StaticResource HiTechSectionActionStyle}" />
+                                        Style="{StaticResource HiTechSecondaryButtonStyle}" />
                             </StackPanel>
                             <ProgressBar x:Name="ClearAlbumProgressBar"
                                          Minimum="0" Maximum="100"
@@ -778,7 +778,7 @@
                         <Button Content="CANCEL"
                                 MinWidth="105"
                                 Click="OnUpdateCancelClick"
-                                Style="{StaticResource HiTechSectionActionStyle}"/>
+                                Style="{StaticResource HiTechSecondaryButtonStyle}"/>
                         <Button x:Name="UpdateAcceptButton"
                                 Content="CONTINUE"
                                 MinWidth="155"
@@ -820,7 +820,7 @@
                     AutomationProperties.AutomationId="CloseSettingsButton"
                     Content="CLOSE CONFIG"
                     Click="OnClose"
-                    Style="{StaticResource HiTechSectionActionStyle}" />
+                    Style="{StaticResource HiTechSecondaryButtonStyle}" />
         </Grid>
     </Grid>
 </UserControl>
