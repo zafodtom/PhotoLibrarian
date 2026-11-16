@@ -258,14 +258,27 @@ public static class EmbeddedMetadataWriter
             await encoder.FlushAsync();
         }
 
-        // 2) Atomically replace the source file with the in-memory result
-        destBuffer.Seek(0);
-        using (var outStream = await file.OpenAsync(FileAccessMode.ReadWrite))
+        // 2) Commit the finished encoded image via a same-directory temporary
+        // file. Never truncate an original single photo as part of a metadata
+        // write: no permanent backup is made for context-menu tag operations,
+        // so a failed write must leave the existing photo intact.
+        var temporaryPath = filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
         {
-            outStream.Size = 0;
-            await RandomAccessStream.CopyAsync(destBuffer.GetInputStreamAt(0), outStream);
-            await outStream.FlushAsync();
+            destBuffer.Seek(0);
+            await using (var output = new FileStream(
+                temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await destBuffer.AsStreamForRead().CopyToAsync(output);
+                await output.FlushAsync();
+            }
+            File.Move(temporaryPath, filePath, overwrite: true);
         }
-        destBuffer.Dispose();
+        finally
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
+            destBuffer.Dispose();
+        }
     }
 }
