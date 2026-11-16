@@ -90,6 +90,8 @@ public sealed partial class MainWindow : Window
         AppWindow.SetPresenter(
             Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
         _isViewerFullscreen = true;
+        FullscreenSideRail.Visibility = Visibility.Visible;
+        UpdateRibbonVisibility();
     }
 
     public void ExitViewerFullscreen()
@@ -122,6 +124,7 @@ public sealed partial class MainWindow : Window
         MainViewportBorder.BorderThickness = _preFullscreenViewportBorderThickness;
 
         _isViewerFullscreen = false;
+        FullscreenSideRail.Visibility = Visibility.Collapsed;
         UpdateRibbonVisibility();
     }
 
@@ -625,6 +628,23 @@ public sealed partial class MainWindow : Window
         SideDeleteButton.IsEnabled = viewerOpen && !ViewerOverlay.IsManualFaceTaggingActive;
         SideCancelFaceButton.Visibility = viewerOpen && ViewerOverlay.IsManualFaceTaggingActive
             ? Visibility.Visible : Visibility.Collapsed;
+
+        // The fullscreen rail is an overlay; the main workspace remains 100% width.
+        // Both rails invoke the same viewer handlers and respect the same mode guards.
+        var fullscreenViewer = _isViewerFullscreen && ViewModel.ImageViewer.IsOpen;
+        FullscreenSideRail.Visibility = fullscreenViewer
+            ? Visibility.Visible : Visibility.Collapsed;
+        FullscreenCropButton.IsEnabled = fullscreenViewer && !ViewModel.ImageViewer.IsVideo &&
+            !ViewerOverlay.IsManualFaceTaggingActive;
+        var fullscreenZoomEnabled = fullscreenViewer && !ViewModel.ImageViewer.IsVideo &&
+            !ViewerOverlay.IsManualFaceTaggingActive && !ViewerOverlay.IsStraightening;
+        FullscreenZoomOutButton.IsEnabled = fullscreenZoomEnabled;
+        FullscreenZoomFitButton.IsEnabled = fullscreenZoomEnabled;
+        FullscreenZoom100Button.IsEnabled = fullscreenZoomEnabled;
+        FullscreenZoomInButton.IsEnabled = fullscreenZoomEnabled;
+        FullscreenDeleteButton.IsEnabled = fullscreenViewer && !ViewerOverlay.IsManualFaceTaggingActive;
+        FullscreenCancelFaceButton.Visibility = fullscreenViewer && ViewerOverlay.IsManualFaceTaggingActive
+            ? Visibility.Visible : Visibility.Collapsed;
         if (!ViewModel.ImageViewer.IsOpen && ViewerOverlay.IsCropping)
         {
             ViewerOverlay.ExitCropMode();
@@ -723,8 +743,13 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnSideViewerCrop(object sender, RoutedEventArgs e) =>
+    private void OnSideViewerCrop(object sender, RoutedEventArgs e)
+    {
+        // Crop mode uses the aspect / Apply / Cancel ribbon. Exit true fullscreen
+        // before showing it so crop controls are never inaccessible.
+        if (_isViewerFullscreen) ExitViewerFullscreen();
         OnRibbonCropClicked(sender, EventArgs.Empty);
+    }
 
     private void OnSideViewerBack(object sender, RoutedEventArgs e)
     {
