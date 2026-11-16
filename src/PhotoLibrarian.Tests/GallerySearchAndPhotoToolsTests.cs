@@ -118,6 +118,40 @@ public sealed class GallerySearchAndPhotoToolsTests
     }
 
     [Fact]
+    public void CropSaveAsOffersKeepTagsWithoutTagsAndCancel()
+    {
+        var window = Read("MainWindow.xaml.cs");
+        var export = window.Split("private async void OnRibbonExportCropClicked(", 2)[1]
+            .Split("private void UpdateSettingsVisibility(", 2)[0];
+
+        Assert.Contains("GetPhotoTagsForCropAsync(entry)", export);
+        Assert.Contains("subjectOverride: \"COPY ORIGINAL PHOTO TAGS?\"", export);
+        Assert.Contains("confirmLabel: \"KEEP TAGS\"", export);
+        Assert.Contains("SecondaryButtonText = \"WITHOUT TAGS\"", export);
+        Assert.Contains("CloseButtonText = \"CANCEL\"", export);
+        Assert.Contains("if (decision == ContentDialogResult.None)", export);
+        Assert.True(export.IndexOf("tagChoice.ShowAsync()", StringComparison.Ordinal) <
+                    export.IndexOf("picker.PickSaveFileAsync()", StringComparison.Ordinal));
+        Assert.Contains("RegisterExportedCropAsync(selected.Path, copiedTags)", export);
+    }
+
+    [Fact]
+    public void CropApplyPersistsOriginalTagAssignments()
+    {
+        var window = Read("MainWindow.xaml.cs");
+        var method = window.Split("private async void OnRibbonApplyCropClicked(", 2)[1]
+            .Split("private async void OnRibbonExportCropClicked(", 2)[0];
+        Assert.Contains("GetPhotoTagsForCropAsync(entry)", method);
+        Assert.Contains("CropImageAsync(", method);
+        Assert.Contains("bounds.Value, assignedTags", method);
+
+        var model = Read("MainViewModel.cs");
+        Assert.Contains("GetTagsAsync(image.Id)", model);
+        Assert.Contains("ClearImageTagsAsync(entry.Id)", model);
+        Assert.Contains("AddTagAsync(new ImageTag", model);
+    }
+
+    [Fact]
     public void BothViewerRailsOfferTwoQuarterTurns()
     {
         var main = Read("MainWindow.xaml");
