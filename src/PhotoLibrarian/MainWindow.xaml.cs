@@ -252,6 +252,8 @@ public sealed partial class MainWindow : Window
         ViewModel.Settings.PropertyChanged += OnSettingsPropertyChanged;
 
         // Top-ribbon events
+        ViewerOverlay.ManualFaceTaggingStarted += (_, _) => UpdateRibbonVisibility();
+        ViewerOverlay.ManualFaceTaggingExited += (_, _) => UpdateRibbonVisibility();
         TopRibbon.CropClicked += OnRibbonCropClicked;
         TopRibbon.CloseViewerClicked += (_, _) => ViewModel.ImageViewer.CloseCommand.Execute(null);
         TopRibbon.AdjustClicked += OnRibbonAdjustClicked;
@@ -497,15 +499,22 @@ public sealed partial class MainWindow : Window
         if (e.PropertyName == nameof(ImageViewerViewModel.IsOpen))
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (!_isClosing) UpdateRibbonVisibility();
+                if (_isClosing) return;
+                UpdateViewerHeader();
+                UpdateRibbonVisibility();
             });
-        if (e.PropertyName == nameof(ImageViewerViewModel.Title))
+        if (e.PropertyName == nameof(ImageViewerViewModel.Title) ||
+            e.PropertyName == nameof(ImageViewerViewModel.ImageInfo))
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (!_isClosing)
-                {
-                    TopRibbon.SetContextLabel(ViewModel.ImageViewer.Title ?? "");
-                }
+                if (_isClosing) return;
+                TopRibbon.SetContextLabel(ViewModel.ImageViewer.Title ?? "");
+                UpdateViewerHeader();
+            });
+        if (e.PropertyName == nameof(ImageViewerViewModel.IsVideo))
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_isClosing) UpdateRibbonVisibility();
             });
     }
 
@@ -576,7 +585,19 @@ public sealed partial class MainWindow : Window
     {
         ViewerOverlay.Visibility = ViewModel.ImageViewer.IsOpen
             ? Visibility.Visible : Visibility.Collapsed;
+        UpdateViewerHeader();
         UpdateRibbonVisibility();
+    }
+
+    private void UpdateViewerHeader()
+    {
+        var active = ViewModel.ImageViewer.IsOpen;
+        WorkspaceTitleText.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+        WorkspaceSubtitleText.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+        ViewerHeaderAssetName.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        ViewerHeaderImageInfo.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        ViewerHeaderAssetName.Text = active ? (ViewModel.ImageViewer.Title ?? "") : "";
+        ViewerHeaderImageInfo.Text = active ? (ViewModel.ImageViewer.ImageInfo ?? "") : "";
     }
 
     private void UpdateRibbonVisibility()
@@ -593,7 +614,17 @@ public sealed partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Collapsed;
         NavigationRailDecorations.Visibility = viewerOpen
             ? Visibility.Collapsed : Visibility.Visible;
-        SideCropButton.IsEnabled = viewerOpen && !ViewModel.ImageViewer.IsVideo;
+        SideCropButton.IsEnabled = viewerOpen && !ViewModel.ImageViewer.IsVideo &&
+            !ViewerOverlay.IsManualFaceTaggingActive;
+        var zoomEnabled = viewerOpen && !ViewModel.ImageViewer.IsVideo &&
+            !ViewerOverlay.IsManualFaceTaggingActive && !ViewerOverlay.IsStraightening;
+        SideZoomOutButton.IsEnabled = zoomEnabled;
+        SideZoomFitButton.IsEnabled = zoomEnabled;
+        SideZoom100Button.IsEnabled = zoomEnabled;
+        SideZoomInButton.IsEnabled = zoomEnabled;
+        SideDeleteButton.IsEnabled = viewerOpen && !ViewerOverlay.IsManualFaceTaggingActive;
+        SideCancelFaceButton.Visibility = viewerOpen && ViewerOverlay.IsManualFaceTaggingActive
+            ? Visibility.Visible : Visibility.Collapsed;
         if (!ViewModel.ImageViewer.IsOpen && ViewerOverlay.IsCropping)
         {
             ViewerOverlay.ExitCropMode();
@@ -700,6 +731,16 @@ public sealed partial class MainWindow : Window
         if (ViewModel.ImageViewer.IsOpen)
             ViewModel.ImageViewer.CloseCommand.Execute(null);
     }
+
+    private void OnSideZoomOut(object sender, RoutedEventArgs e) => ViewerOverlay.ZoomOutFromSide();
+    private void OnSideZoomFit(object sender, RoutedEventArgs e) => ViewerOverlay.ZoomFitFromSide();
+    private void OnSideZoom100(object sender, RoutedEventArgs e) => ViewerOverlay.ZoomActualSizeFromSide();
+    private void OnSideZoomIn(object sender, RoutedEventArgs e) => ViewerOverlay.ZoomInFromSide();
+    private void OnSideFullscreen(object sender, RoutedEventArgs e) => ViewerOverlay.ToggleFullscreenFromSide();
+    private async void OnSideDelete(object sender, RoutedEventArgs e) =>
+        await ViewerOverlay.DeleteCurrentFromSideAsync();
+    private void OnSideCancelFace(object sender, RoutedEventArgs e) =>
+        ViewerOverlay.ExitManualFaceTagging();
 
     private void OnSettingsClick(object sender, RoutedEventArgs e)
     {
