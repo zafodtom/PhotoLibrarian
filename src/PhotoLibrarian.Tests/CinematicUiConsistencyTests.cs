@@ -64,26 +64,39 @@ public sealed class CinematicUiConsistencyTests
     }
 
     [Fact]
-    public void CinematicWarningsStayCenteredAndAvoidDefaultAccentButtons()
+    public void CinematicWarningsUseNativeCenteredPlacementAndAvoidDefaultAccentButtons()
     {
         var source = Read("CinematicDialogShowcase.cs");
-        Assert.Contains("HorizontalAlignment = HorizontalAlignment.Center", source);
-        Assert.Contains("VerticalAlignment = VerticalAlignment.Center", source);
-        Assert.Contains("DefaultButton = ContentDialogButton.None", source);
-        Assert.Contains("dialog.PrimaryButtonStyle = ActionStyle(", source);
-        Assert.Contains("dialog.CloseButtonStyle = ActionStyle(", source);
+        // Keep fixed dimensions on the INNER CONTENT, not on the dialog:
+        // WinUI's popup presenter otherwise places the dialog at the edge.
+        var dialogSection = source.Split("var dialog = new ContentDialog", 2)[1]
+            .Split("return dialog;", 2)[0];
+        Assert.DoesNotContain("Width = dialogWidth,", dialogSection);
+        Assert.DoesNotContain("MaxWidth = dialogWidth", dialogSection);
+        Assert.DoesNotContain("HorizontalAlignment = HorizontalAlignment.Center,", dialogSection);
+        Assert.DoesNotContain("VerticalAlignment = VerticalAlignment.Center,", dialogSection);
+        Assert.Contains("ContentDialogMaxWidth", dialogSection);
+        Assert.Contains("DefaultButton = ContentDialogButton.None", dialogSection);
+        Assert.Contains("dialog.PrimaryButtonStyle = ActionStyle(", dialogSection);
+        Assert.Contains("dialog.CloseButtonStyle = ActionStyle(", dialogSection);
     }
 
     [Fact]
-    public void OrdinaryDialogsShareCenteredNeutralAndDestructiveButtonStyles()
+    public void OrdinaryDialogsLeavePopupPlacementToWinUi()
     {
         var source = Read("CinematicDialogStyling.cs");
         var theme = Read("HiTechTheme.xaml");
-        Assert.Contains("dialog.HorizontalAlignment = HorizontalAlignment.Center", source);
-        Assert.Contains("dialog.VerticalAlignment = VerticalAlignment.Center", source);
+        Assert.Contains("dialog.ClearValue(FrameworkElement.HorizontalAlignmentProperty)", source);
+        Assert.Contains("dialog.ClearValue(FrameworkElement.VerticalAlignmentProperty)", source);
+        Assert.DoesNotContain("dialog.HorizontalAlignment = HorizontalAlignment.Center", source);
         Assert.Contains("HiTechSectionActionStyle", source);
         Assert.Contains("HiTechDangerButtonStyle", source);
         Assert.Contains("x:Key=\"HiTechDangerButtonStyle\"", theme);
+
+        var folders = XDocument.Parse(Read("ManageFoldersDialog.xaml"));
+        Assert.Null(folders.Root?.Attribute("MinWidth"));
+        Assert.Null(folders.Root?.Attribute("HorizontalAlignment"));
+        Assert.Null(folders.Root?.Attribute("VerticalAlignment"));
     }
 
     [Fact]
