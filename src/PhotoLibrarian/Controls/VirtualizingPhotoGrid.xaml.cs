@@ -859,6 +859,20 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         overlay.Child = fileName;
         grid.Children.Add(overlay);
 
+        // A continuous cyan edge above the filename makes the selection
+        // readable at gallery scale, including among similar photographs.
+        grid.Children.Add(new Border
+        {
+            Tag = SelectionHudTag,
+            Height = 4,
+            Margin = new Thickness(3, 0, 3, 24),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Background = new SolidColorBrush(SelectionColor),
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false
+        });
+
         // Lightweight HUD accents: a top rail and two short corner bars.
         grid.Children.Add(new Border
         {
@@ -896,44 +910,44 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
             new Border
             {
                 Tag = SelectionBracketTag,
-                Width = 22, Height = 22,
+                Width = 27, Height = 27,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top,
                 BorderBrush = new SolidColorBrush(SelectionColor),
-                BorderThickness = new Thickness(3, 3, 0, 0),
+                BorderThickness = new Thickness(4, 4, 0, 0),
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false
             },
             new Border
             {
                 Tag = SelectionBracketTag,
-                Width = 22, Height = 22,
+                Width = 27, Height = 27,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Top,
                 BorderBrush = new SolidColorBrush(SelectionColor),
-                BorderThickness = new Thickness(0, 3, 3, 0),
+                BorderThickness = new Thickness(0, 4, 4, 0),
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false
             },
             new Border
             {
                 Tag = SelectionBracketTag,
-                Width = 22, Height = 22,
+                Width = 27, Height = 27,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 BorderBrush = new SolidColorBrush(SelectionColor),
-                BorderThickness = new Thickness(3, 0, 0, 3),
+                BorderThickness = new Thickness(4, 0, 0, 4),
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false
             },
             new Border
             {
                 Tag = SelectionBracketTag,
-                Width = 22, Height = 22,
+                Width = 27, Height = 27,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 BorderBrush = new SolidColorBrush(SelectionColor),
-                BorderThickness = new Thickness(0, 0, 3, 3),
+                BorderThickness = new Thickness(0, 0, 4, 4),
                 Visibility = Visibility.Collapsed,
                 IsHitTestVisible = false
             }
@@ -957,7 +971,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         };
         activeHud.Child = new TextBlock
         {
-            Text = "ACTIVE",
+            Text = "SELECTED",
             FontFamily = new FontFamily("Consolas"),
             FontSize = 8,
             CharacterSpacing = 120,
@@ -1335,10 +1349,10 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         if (element is Grid grid)
         {
             grid.BorderBrush = new SolidColorBrush(selected ? SelectionColor : CardBorderColor);
-            grid.BorderThickness = selected ? new Thickness(2) : new Thickness(1);
+            grid.BorderThickness = selected ? new Thickness(3) : new Thickness(1);
             grid.Background = new SolidColorBrush(
                 selected
-                    ? Windows.UI.Color.FromArgb(255, 16, 35, 45)
+                    ? Windows.UI.Color.FromArgb(255, 19, 51, 65)
                     : CardBackgroundColor);
 
             foreach (var bracket in grid.Children
