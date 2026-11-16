@@ -480,12 +480,12 @@ public sealed partial class PeopleReviewView : UserControl
             var recentLabel = new TextBlock
             {
                 Text = "Recent",
-                Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"]
+                Style = (Style)Application.Current.Resources["HiTechSystemCaptionStyle"]
             };
             var recentRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             foreach (var recentPerson in recentPeople)
             {
-                var recentButton = new Button { Content = recentPerson.Name, Tag = recentPerson };
+                var recentButton = new Button\n                {\n                    Content = recentPerson.Name,\n                    Tag = recentPerson,\n                    Style = (Style)Application.Current.Resources["HiTechSectionActionStyle"]\n                };
                 AutomationProperties.SetAutomationId(
                     recentButton,
                     $"RecentPerson{recentPerson.Id}");
