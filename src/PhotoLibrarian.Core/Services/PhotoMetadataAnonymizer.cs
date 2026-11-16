@@ -133,6 +133,13 @@ public static class PhotoMetadataAnonymizer
             if (length < 2 || length > input.Length - position)
                 throw new InvalidDataException("Invalid JPEG segment length.");
             var end = position + length;
+            // Multi-picture format (MPO) stores frame offsets and additional
+            // images outside the first JPEG stream. Stripping APP2 or the
+            // trailer would destroy those images, so leave it untouched.
+            if (marker == 0xe2 && length >= 6 &&
+                input.Slice(position + 2, 4).SequenceEqual("MPF\0"u8))
+                throw new NotSupportedException(
+                    "JPEG contains MPF multiple-image metadata. It was not changed.");
             var isPrivate = marker is >= 0xe0 and <= 0xef or 0xfe;
             // Standard Adobe APP14 is exactly 12 payload bytes. Refuse
             // longer lookalikes that may carry private vendor extensions.
@@ -149,6 +156,14 @@ public static class PhotoMetadataAnonymizer
         }
         if (!sawEoi || !sawScan)
             throw new InvalidDataException("JPEG SOS/EOI marker missing.");
+        // Unknown non-padding content after EOI may be another picture or
+        // proprietary payload. Never silently truncate such files.
+        for (var tail = position; tail < input.Length; tail++)
+        {
+            if (input[tail] is not (0x00 or 0xff))
+                throw new NotSupportedException(
+                    "JPEG has nonstandard appended data. Its original contents were preserved.");
+        }
         return output.ToArray();
     }
 
