@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:PhotoLibrarian.ViewModels">
 
-    <Grid Padding="12"
+    <Grid Padding="5,8,5,8"
           Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -12,12 +12,12 @@
         </Grid.RowDefinitions>
 
         <!-- Library and tag controls share the navigation panel; no BROWSE header. -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="10">
                 <!-- Library Section -->
-                <Border Style="{StaticResource HiTechModuleStyle}">
+                <Border Style="{StaticResource HiTechModuleStyle}" Padding="5,8,5,8">
                     <StackPanel>
-                    <Grid Margin="0,0,0,8">
+                    <Grid Margin="0,0,0,5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -46,6 +46,7 @@
                         </StackPanel>
                     </Grid>
                     <TreeView x:Name="LibraryTree"
+                              Margin="-9,0,0,0"
                               Style="{StaticResource HiTechTreeViewStyle}"
                               SelectionMode="None"
                               Expanding="OnLibraryExpanding"
@@ -73,9 +74,9 @@
                 </Border>
 
                 <!-- Tags Section -->
-                <Border Style="{StaticResource HiTechModuleStyle}">
+                <Border Style="{StaticResource HiTechModuleStyle}" Padding="5,8,5,8">
                     <StackPanel>
-                    <Grid Margin="0,0,0,8">
+                    <Grid Margin="0,0,0,5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -151,6 +152,7 @@
                                    Style="{StaticResource HiTechTinyLabelStyle}" />
                     </StackPanel>
                     <TreeView x:Name="TagsTree"
+                              Margin="-9,0,0,0"
                               Style="{StaticResource HiTechTreeViewStyle}"
                               SelectionMode="None"
                               CanDragItems="False"
@@ -160,13 +162,14 @@
                               Drop="OnTagsTreeDrop">
                         <TreeView.ItemTemplate>
                             <DataTemplate>
-                                <Grid ColumnSpacing="3" Background="Transparent">
+                                <Grid ColumnSpacing="1" Background="Transparent">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Content.DisplayText}"
+                                               MinWidth="28"
                                                Opacity="{Binding Content.DisplayOpacity}"
                                                VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis" />
@@ -174,16 +177,16 @@
                                             Content="+"
                                             Tag="{Binding Content}"
                                             Click="OnIncludeTagClick"
-                                            Padding="5,1"
-                                            MinWidth="26"
+                                            Padding="2,1"
+                                            MinWidth="22"
                                             ToolTipService.ToolTip="Include this tag; click again to clear"
                                             AutomationProperties.Name="Include tag" />
                                     <Button Grid.Column="2"
                                             Content="−"
                                             Tag="{Binding Content}"
                                             Click="OnExcludeTagClick"
-                                            Padding="5,1"
-                                            MinWidth="26"
+                                            Padding="2,1"
+                                            MinWidth="22"
                                             ToolTipService.ToolTip="Exclude this tag; click again to clear"
                                             AutomationProperties.Name="Exclude tag" />
                                 </Grid>
