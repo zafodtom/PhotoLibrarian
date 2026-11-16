@@ -28,16 +28,50 @@ public sealed class PhotoMetadataAnonymizerTests
     }
 
     [Fact]
-    public void MultiImageOrAppendedPayloadJpegsAreSkippedWithoutDataLoss()
+    public void KodakStyleJpegTrailerAndExifAreRemovedWithoutRecompressingPixels()
+    {
+        // Camera-specific opaque bytes after EOI aren't part of JPEG image
+        // data. Remove them together with the EXIF APP1 segment.
+        var scan = new byte[] { 0xff, 0xda, 0, 2, 1, 2, 0xff, 0x00, 3 };
+        var ordinary = new byte[]
+        {
+            0xff, 0xd8,
+            0xff, 0xe1, 0, 8, (byte)'E', (byte)'x', (byte)'i', (byte)'f', 0, 0
+        }.Concat(scan).Concat(new byte[] { 0xff, 0xd9 }).ToArray();
+        var withTrailer = ordinary.Concat("KODAK CAMERA 100_2706"u8.ToArray())
+            .Concat(new byte[] { 0xff, 0x00, 0x47 }).ToArray();
+
+        var actual = PhotoMetadataAnonymizer.StripJpeg(withTrailer);
+        var expected = new byte[] { 0xff, 0xd8 }
+            .Concat(scan).Concat(new byte[] { 0xff, 0xd9 }).ToArray();
+        Assert.Equal(expected, actual);
+        Assert.DoesNotContain("KODAK", Encoding.ASCII.GetString(actual));
+        Assert.DoesNotContain("Exif", Encoding.ASCII.GetString(actual));
+    }
+
+    [Fact]
+    public void EmbeddedExtraJpegOrMpfIsSkippedWithoutLosingImageData()
     {
         var ordinary = new byte[]
         {
             0xff, 0xd8, 0xff, 0xda, 0, 2,
             1, 2, 3, 0xff, 0xd9
         };
-        var withTrailer = ordinary.Concat("second-image"u8.ToArray()).ToArray();
+        var second = new byte[]
+        {
+            0xff, 0xd8, 0xff, 0xda, 0, 2,
+            9, 8, 7, 0xff, 0xd9
+        };
+        var withExtraJpeg = ordinary.Concat("vendor record"u8.ToArray())
+            .Concat(second).ToArray();
         Assert.Throws<NotSupportedException>(() =>
-            PhotoMetadataAnonymizer.StripJpeg(withTrailer));
+            PhotoMetadataAnonymizer.StripJpeg(withExtraJpeg));
+
+        var withPng = ordinary.Concat(new byte[] { 1, 2 })
+            .Concat(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })
+            .Concat(new byte[] { 1, 2 }).ToArray();
+        Assert.Throws<NotSupportedException>(() =>
+            PhotoMetadataAnonymizer.StripJpeg(withPng));
 
         var mpf = new byte[]
         {

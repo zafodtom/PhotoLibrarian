@@ -80,7 +80,11 @@ internal static class CinematicDialogShowcase
         var header = new Grid();
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var headerText = Label(captionOverride ?? caption, 11, accent, true);
+        var informationalWarning = warning && !preview &&
+            string.IsNullOrWhiteSpace(confirmLabel);
+        var headerText = Label(captionOverride ??
+            (informationalWarning ? "SYSTEM WARNING // OPERATION RESULT" : caption),
+            11, accent, true);
         header.Children.Add(headerText);
         var safe = Label(preview ? "PREVIEW ONLY" : (operationLabel ?? "ALBUM OPERATION"),
             10, Brush(153, 169, 177), false);
@@ -212,7 +216,14 @@ internal static class CinematicDialogShowcase
 
         var footer = new StackPanel { Spacing = 7 };
         footer.Children.Add(new Rectangle { Height = 3, Fill = accent, Opacity = 0.85 });
-        footer.Children.Add(Label(preview ? "SHOWCASE ONLY  //  NO FILES OR DATA ARE MODIFIED" : "REVIEW THE OPERATION BEFORE CONFIRMING", 10,
+        var footerMessage = preview
+            ? "SHOWCASE ONLY  //  NO FILES OR DATA ARE MODIFIED"
+            : !string.IsNullOrWhiteSpace(confirmLabel)
+                ? "REVIEW THE OPERATION BEFORE CONFIRMING"
+                : warning || error || fatal
+                    ? "OPERATION RESULT  //  REVIEW THE DETAILS ABOVE"
+                    : "OPERATION FINISHED  //  REVIEW THE RESULT";
+        footer.Children.Add(Label(footerMessage, 10,
             Brush(162, 178, 185), false));
         stack.Children.Add(footer);
 

@@ -966,8 +966,10 @@ public sealed partial class SettingsPanel : UserControl
                 (result.Skipped > 0 || result.Failed > 0
                     ? " PARTIAL ANONYMIZATION — do not assume the entire album is private. "
                     : " All supported photos completed. ") +
-                (retain ? $"Backups: {result.BackupDirectory}" :
-                    $"Report: {result.BackupDirectory}") +
+                (result.Cleaned == 0 && result.Failed == 0
+                    ? "No files changed; no backups were needed."
+                    : retain ? $"Backups/recovery: {result.BackupDirectory}"
+                    : $"Report/recovery: {result.BackupDirectory}") +
                 (result.Errors.Count > 0
                     ? "\nFirst issues: " + string.Join("; ", result.Errors.Take(3))
                     : "");
