@@ -61,6 +61,15 @@
     <None Include="..\PhotoLibrarian\Services\PhotoOperationsService.cs"
           Link="TestAssets\PhotoOperationsService.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian.Core\Services\ImageEditService.cs"
+          Link="TestAssets\ImageEditService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian.Core\Services\EmbeddedMetadataWriter.cs"
+          Link="TestAssets\EmbeddedMetadataWriter.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\ViewModels\ImageEditorViewModel.cs"
+          Link="TestAssets\ImageEditorViewModel.cs"
+          CopyToOutputDirectory="PreserveNewest" />
 
     <None Include="..\PhotoLibrarian\MainWindow.xaml"
           Link="TestAssets\MainWindow.xaml"
