@@ -145,6 +145,18 @@ public sealed partial class ImageViewerOverlay : UserControl
         });
     }
 
+    public bool IsManualFaceTaggingActive => _isManualFaceTagging;
+    public event EventHandler? ManualFaceTaggingStarted;
+
+    // Delegate the new side-rail controls to the existing viewer actions.
+    // The zoom indicator is intentionally NOT moved: only the 100% command is.
+    public void ZoomOutFromSide() => OnZoomOut(this, new RoutedEventArgs());
+    public void ZoomFitFromSide() => OnZoomFit(this, new RoutedEventArgs());
+    public void ZoomActualSizeFromSide() => OnZoomActualSize(this, new RoutedEventArgs());
+    public void ZoomInFromSide() => OnZoomIn(this, new RoutedEventArgs());
+    public void ToggleFullscreenFromSide() => OnToggleFullscreen(this, new RoutedEventArgs());
+    public async Task DeleteCurrentFromSideAsync() => await DeleteCurrentAsync();
+
     public void EnterManualFaceTagging()
     {
         if (ViewModel?.CurrentEntry?.MediaType != MediaType.Image) return;
@@ -163,6 +175,8 @@ public sealed partial class ImageViewerOverlay : UserControl
         _isManualFaceTagging = true;
         ManualFaceOverlay.Visibility = Visibility.Visible;
         ManualFaceTagHelpText.Visibility = Visibility.Visible;
+        ManualFaceFloatingHint.Visibility = Visibility.Visible;
+        ManualFaceTaggingStarted?.Invoke(this, EventArgs.Empty);
         CancelManualFaceTaggingButton.Visibility = Visibility.Visible;
         PreviousButton.Visibility = Visibility.Collapsed;
         NextButton.Visibility = Visibility.Collapsed;
@@ -184,6 +198,7 @@ public sealed partial class ImageViewerOverlay : UserControl
         ManualFaceOverlay.Visibility = Visibility.Collapsed;
         ManualFaceRectangle.Visibility = Visibility.Collapsed;
         ManualFaceTagHelpText.Visibility = Visibility.Collapsed;
+        ManualFaceFloatingHint.Visibility = Visibility.Collapsed;
         CancelManualFaceTaggingButton.Visibility = Visibility.Collapsed;
         PreviousButton.Visibility = Visibility.Visible;
         NextButton.Visibility = Visibility.Visible;
