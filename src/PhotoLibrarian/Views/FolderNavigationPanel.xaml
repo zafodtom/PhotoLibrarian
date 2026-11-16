@@ -11,46 +11,9 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Header with actions -->
-        <Grid Grid.Row="0" Margin="0,0,0,8">
-            <StackPanel Orientation="Horizontal"
-                        Spacing="8"
-                        VerticalAlignment="Center">
-                <Rectangle Width="3"
-                           Height="18"
-                           Fill="{StaticResource HiTechAccentBrush}" />
-                <TextBlock Text="BROWSE"
-                           Style="{StaticResource HiTechSectionHeaderStyle}"
-                           VerticalAlignment="Center" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4">
-                <Button x:Name="ManageFoldersButton" ToolTipService.ToolTip="Open another album"
-                        AutomationProperties.Name="Open another album"
-                        Click="OnManageFoldersClick" Padding="6"
-                        Style="{StaticResource HiTechIconButtonStyle}">
-                    <Viewbox Width="14" Height="14"><Path Data="M2,7 L2,20 L22,20 L22,8 L11,8 L8,5 L2,5 Z" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
-                </Button>
-                <Button x:Name="RefreshButton" ToolTipService.ToolTip="Refresh"
-                        Click="OnRefreshClick" Padding="6"
-                        Style="{StaticResource HiTechIconButtonStyle}">
-                    <Viewbox Width="14" Height="14"><Path Data="M20,8 A9,9 0 1 0 21,15 M20,3 L20,9 L14,9" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
-                </Button>
-            </StackPanel>
-        </Grid>
-
-        <!-- Sections: album folders and hierarchical tags -->
+        <!-- Library and tag controls share the navigation panel; no BROWSE header. -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="10">
-                <Grid Height="18">
-                    <TextBlock Text="NAV / INDEX"
-                               Style="{StaticResource HiTechTinyLabelStyle}"
-                               VerticalAlignment="Center" />
-                    <Rectangle Height="1"
-                               Margin="78,0,0,0"
-                               Fill="{StaticResource HiTechAccentMutedBrush}"
-                               VerticalAlignment="Center" />
-                </Grid>
-                
                 <!-- Library Section -->
                 <Border Style="{StaticResource HiTechModuleStyle}">
                     <StackPanel>
@@ -68,10 +31,19 @@
                                    Style="{StaticResource HiTechSectionHeaderStyle}"
                                    Margin="8,0,0,0"
                                    VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="2"
-                                   Text="A01"
-                                   Style="{StaticResource HiTechTinyLabelStyle}"
-                                   VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                            <Button x:Name="ManageFoldersButton" ToolTipService.ToolTip="Open another album"
+                                    AutomationProperties.Name="Open another album"
+                                    Click="OnManageFoldersClick" Padding="6"
+                                    Style="{StaticResource HiTechIconButtonStyle}">
+                                <Viewbox Width="14" Height="14"><Path Data="M2,7 L2,20 L22,20 L22,8 L11,8 L8,5 L2,5 Z" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
+                            </Button>
+                            <Button x:Name="RefreshButton" ToolTipService.ToolTip="Refresh"
+                                    Click="OnRefreshClick" Padding="6"
+                                    Style="{StaticResource HiTechIconButtonStyle}">
+                                <Viewbox Width="14" Height="14"><Path Data="M20,8 A9,9 0 1 0 21,15 M20,3 L20,9 L14,9" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent"/></Viewbox>
+                            </Button>
+                        </StackPanel>
                     </Grid>
                     <TreeView x:Name="LibraryTree"
                               Style="{StaticResource HiTechTreeViewStyle}"
