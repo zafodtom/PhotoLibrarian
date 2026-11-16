@@ -1,4 +1,7 @@
+using System.Reflection;
 using System.Xml.Linq;
+using PhotoLibrarian.Core.Models;
+using PhotoLibrarian.ViewModels;
 using Xunit;
 
 namespace PhotoLibrarian.Tests;
@@ -22,6 +25,54 @@ public sealed class GallerySearchAndPhotoToolsTests
         Assert.DoesNotContain("GridFilterButton", all);
         Assert.DoesNotContain("FilterIncludeTags", all);
         Assert.DoesNotContain("FilterExcludeTags", all);
+    }
+
+    [Fact]
+    public void GalleryFolderThenFileNameSortGroupsPathsAndSortsNamesWithinEachFolder()
+    {
+        var markup = XDocument.Parse(Read("ImageGridView.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var options = markup.Descendants().Where(element =>
+            element.Name.LocalName == "ComboBoxItem").ToList();
+        Assert.Contains(options, option =>
+            (string?)option.Attribute("Tag") == "FolderThenFileName" &&
+            (string?)option.Attribute("Content") == "Folder → File Name");
+
+        var viewSource = Read("ImageGridView.xaml.cs");
+        Assert.Contains("SortByOption.FolderThenFileName => 4", viewSource);
+
+        var root = Path.Combine(Path.GetTempPath(), "PhotoLibrarian-FolderSort");
+        ImageThumbnailViewModel Photo(string folder, string name) =>
+            new(new ImageEntry
+            {
+                FilePath = Path.Combine(root, folder, name),
+                FileName = name
+            });
+
+        var mixed = new List<ImageThumbnailViewModel>
+        {
+            Photo("B", "z.jpg"),
+            Photo("A", "b.jpg"),
+            Photo("B", "a.jpg"),
+            Photo("A", "a.jpg"),
+            Photo(Path.Combine("A", "Sub"), "ignored.jpg")
+        };
+
+        var sortMethod = typeof(ImageGridViewModel).GetMethod(
+            "ApplySortToGroup", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(sortMethod);
+
+        List<ImageThumbnailViewModel> Sort(bool descending) =>
+            Assert.IsType<List<ImageThumbnailViewModel>>(sortMethod!.Invoke(
+                null, new object[] { mixed, SortByOption.FolderThenFileName, descending }));
+
+        var asc = Sort(descending: false);
+        Assert.Equal(
+            new[] { "A/a.jpg", "A/b.jpg", "A/Sub/ignored.jpg", "B/a.jpg", "B/z.jpg" },
+            asc.Select(item => Path.GetRelativePath(root, item.Entry.FilePath)
+                .Replace('\\', '/')));
+        Assert.Equal(asc.Select(item => item.Entry.FilePath).Reverse(),
+            Sort(descending: true).Select(item => item.Entry.FilePath));
     }
 
     [Fact]
