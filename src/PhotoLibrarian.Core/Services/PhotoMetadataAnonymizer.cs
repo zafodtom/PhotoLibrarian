@@ -227,7 +227,7 @@ public static class PhotoMetadataAnonymizer
         // SOI followed by a syntactically valid first marker and segment.
         // A stray FF D8 in vendor metadata is NOT enough to prove a second
         // image. Require both a plausible header and its closing EOI.
-        if (data.Length < 10 || data[0] != 0xff || data[1] != 0xd8 ||
+        if (data.Length < 9 || data[0] != 0xff || data[1] != 0xd8 ||
             data[2] != 0xff || data[3] is 0x00 or 0xff or 0xd8 or 0xd9)
             return false;
         var length = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(4, 2));
