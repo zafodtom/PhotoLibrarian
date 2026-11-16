@@ -184,7 +184,10 @@ public sealed partial class ImageGridView : UserControl
     {
         // The viewer may close while displaying an image far from the initial
         // thumbnail. Repaint its selection and make it visible in the grid.
-        DispatcherQueue.TryEnqueue(() =>
+        // Close the viewer first and let the gallery receive its final layout
+        // before asking the virtual ScrollViewer to locate the selected photo.
+        DispatcherQueue.TryEnqueue(
+            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
             if (ViewModel is null) return;
             PhotoGrid.RestoreSelection(ViewModel.SelectedImages, ViewModel.SelectedImage);
