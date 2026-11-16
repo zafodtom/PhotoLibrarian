@@ -17,8 +17,7 @@ public sealed class PhotoMetadataAnonymizerTests
             0xff, 0xe1, 0, 8, (byte)'E', (byte)'x', (byte)'i', (byte)'f', 0, 0,
             0xff, 0xed, 0, 6, (byte)'I', (byte)'P', (byte)'T', (byte)'C',
             0xff, 0xfe, 0, 5, (byte)'a', (byte)'b', (byte)'c',
-            0xff, 0xda, 0, 2, 0x0a, 0x0b, 0xff, 0x00, 0x04, 0xff, 0xd9,
-            (byte)'s', (byte)'e', (byte)'c', (byte)'r', (byte)'e', (byte)'t'
+            0xff, 0xda, 0, 2, 0x0a, 0x0b, 0xff, 0x00, 0x04, 0xff, 0xd9
         };
         var result = PhotoMetadataAnonymizer.StripJpeg(input);
         Assert.Equal(new byte[]
@@ -26,6 +25,28 @@ public sealed class PhotoMetadataAnonymizerTests
             0xff, 0xd8, 0xff, 0xda, 0, 2,
             0x0a, 0x0b, 0xff, 0x00, 0x04, 0xff, 0xd9
         }, result);
+    }
+
+    [Fact]
+    public void MultiImageOrAppendedPayloadJpegsAreSkippedWithoutDataLoss()
+    {
+        var ordinary = new byte[]
+        {
+            0xff, 0xd8, 0xff, 0xda, 0, 2,
+            1, 2, 3, 0xff, 0xd9
+        };
+        var withTrailer = ordinary.Concat("second-image"u8.ToArray()).ToArray();
+        Assert.Throws<NotSupportedException>(() =>
+            PhotoMetadataAnonymizer.StripJpeg(withTrailer));
+
+        var mpf = new byte[]
+        {
+            0xff, 0xd8,
+            0xff, 0xe2, 0, 6, (byte)'M', (byte)'P', (byte)'F', 0,
+            0xff, 0xda, 0, 2, 1, 2, 0xff, 0xd9
+        };
+        Assert.Throws<NotSupportedException>(() =>
+            PhotoMetadataAnonymizer.StripJpeg(mpf));
     }
 
     [Fact]
