@@ -62,6 +62,44 @@ public static class CropService
         return new CropResult(crop.Width, crop.Height, sourceWidth, sourceHeight, crop);
     }
 
+    /// <summary>
+    /// Writes a crop as a separate image. Never changes the source, its XMP
+    /// sidecars, or the album catalog. The destination format follows its extension.
+    /// </summary>
+    public static async Task<(uint Width, uint Height)> ExportCropAsync(
+        string filePath, string destinationPath, BitmapBounds bounds)
+    {
+        if (!IsSupported(filePath) || !IsSupported(destinationPath))
+            throw new NotSupportedException("Crop export supports JPG, PNG, TIFF and BMP.");
+        var source = Path.GetFullPath(filePath);
+        var destination = Path.GetFullPath(destinationPath);
+        if (string.Equals(source, destination, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Choose another filename to preserve the source.");
+        if (bounds.Width == 0 || bounds.Height == 0)
+            throw new ArgumentException("Crop bounds must be non-empty.", nameof(bounds));
+
+        var decoded = await WindowsImagingCodec.DecodeAsync(source);
+        var crop = ClampBounds(bounds, decoded.Width, decoded.Height);
+        if (crop.Width == 0 || crop.Height == 0)
+            throw new ArgumentOutOfRangeException(nameof(bounds), "Crop is outside the image.");
+
+        var pixels = WindowsImagingCodec.Crop(decoded.Pixels, decoded.Width, decoded.Height, crop);
+        var data = await WindowsImagingCodec.EncodeAsync(destination, pixels, crop.Width, crop.Height);
+        // Write to a sibling temporary file and replace the selected target only
+        // after the encoder completed successfully.
+        var temp = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await File.WriteAllBytesAsync(temp, data);
+            File.Move(temp, destination, true);
+        }
+        finally
+        {
+            DeleteIfPresent(temp);
+        }
+        return (crop.Width, crop.Height);
+    }
+
     private static RemappedSidecar? PrepareRemappedSidecar(
         string imagePath, uint sourceWidth, uint sourceHeight, CropRectangle crop)
     {
