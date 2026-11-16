@@ -78,16 +78,15 @@ public sealed partial class ImageGridView : UserControl
         UpdateEmptyState();
             
         // Initialize UI controls to match ViewModel defaults
-        UpdateGroupByCombo();
-        PhotoGrid.SetShowGroupHeaders(ViewModel.GroupBy != GroupByOption.None);
+        ViewModel.GroupBy = GroupByOption.None;
+        PhotoGrid.SetShowGroupHeaders(false);
+        SearchFileNameBox.Text = ViewModel.Refinement.FileNameQuery;
         UpdateVisiblePhotoCount();
         UpdateSortByCombo();
         UpdateSortOrderIcon();
         ViewModel.ResultsChanged += OnResultsChanged;
         ViewModel.ViewerReturnSelectionRequested += OnViewerReturnSelectionRequested;
-        InitializeRefinementControls(ViewModel.Refinement);
         await RefreshPeopleAsync();
-        UpdateActiveFilterChips();
     }
 
     private async void OnFlatPhotoDragStarting(
@@ -200,178 +199,38 @@ public sealed partial class ImageGridView : UserControl
         });
     }
 
-    private async void OnApplyFilters(object sender, RoutedEventArgs e)
+    private async void OnSearchClick(object sender, RoutedEventArgs e) =>
+        await ApplyFilenameSearchAsync();
+
+    private async void OnSearchClear(object sender, RoutedEventArgs e)
     {
-        await ApplyRefinementFromControlsAsync(hideFlyout: true);
+        SearchFileNameBox.Text = string.Empty;
+        await ApplyFilenameSearchAsync();
     }
 
-    private async void OnClearAllFilters(object sender, RoutedEventArgs e)
+    private async void OnSearchKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        ResetRefinementControls();
-        await ApplyRefinementFromControlsAsync(hideFlyout: false);
+        if (e.Key != Windows.System.VirtualKey.Enter) return;
+        e.Handled = true;
+        await ApplyFilenameSearchAsync();
     }
 
-    private async System.Threading.Tasks.Task ApplyRefinementFromControlsAsync(bool hideFlyout)
+    private async System.Threading.Tasks.Task ApplyFilenameSearchAsync()
     {
         if (ViewModel is null) return;
-
         try
         {
-            var refinement = BuildRefinementFromControls();
-            await ViewModel.ApplyRefinementAsync(refinement);
-            UpdateActiveFilterChips();
-            if (hideFlyout)
-                FilterFlyout.Hide();
+            await ViewModel.ApplyRefinementAsync(new ImageRefinementFilter
+            {
+                FileNameQuery = SearchFileNameBox.Text.Trim()
+            });
         }
         catch (Exception ex)
         {
-            App.ViewModel.StatusText = $"Could not apply filters: {ex.Message}";
+            App.ViewModel.StatusText = $"Search failed: {ex.Message}";
         }
     }
 
-    private ImageRefinementFilter BuildRefinementFromControls()
-    {
-        _ = Enum.TryParse<MediaKindFilter>(
-            GetSelectedTag(MediaKindCombo), out var mediaKind);
-        return new ImageRefinementFilter
-        {
-            IncludedTags = ParseTokens(IncludeTagsBox.Text),
-            ExcludedTags = ParseTokens(ExcludeTagsBox.Text),
-            MediaKind = mediaKind,
-            Extensions = ParseTokens(ExtensionsBox.Text)
-                .Select(ImageRefinementFilter.NormalizeExtension)
-                .Where(extension => extension.Length > 1)
-                .ToList()
-        };
-    }
-
-    private void InitializeRefinementControls(ImageRefinementFilter refinement)
-    {
-        IncludeTagsBox.Text = string.Join(", ", refinement.IncludedTags);
-        ExcludeTagsBox.Text = string.Join(", ", refinement.ExcludedTags);
-        SelectByTag(MediaKindCombo, refinement.MediaKind.ToString());
-        ExtensionsBox.Text = string.Join(", ",
-            refinement.Extensions.Select(extension => extension.TrimStart('.')));
-    }
-
-    private void ResetRefinementControls()
-    {
-        IncludeTagsBox.Text = string.Empty;
-        ExcludeTagsBox.Text = string.Empty;
-        MediaKindCombo.SelectedIndex = 0;
-        ExtensionsBox.Text = string.Empty;
-    }
-
-    private void UpdateActiveFilterChips()
-    {
-        if (ViewModel is null) return;
-
-        var refinement = ViewModel.Refinement;
-        ActiveFiltersPanel.Children.Clear();
-
-        foreach (var tag in refinement.IncludedTags)
-            AddFilterChip($"include:{tag}", $"Tag: {tag}");
-        foreach (var tag in refinement.ExcludedTags)
-            AddFilterChip($"exclude:{tag}", $"Not tag: {tag}");
-
-        if (refinement.MediaKind != MediaKindFilter.Any)
-            AddFilterChip("media", refinement.MediaKind.ToString());
-
-        foreach (var extension in refinement.Extensions)
-            AddFilterChip($"extension:{extension}", extension.ToUpperInvariant());
-
-        if (ActiveFiltersPanel.Children.Count > 0)
-        {
-            var clearAll = new Button
-            {
-                Content = "Clear all",
-                Padding = new Thickness(8, 4, 8, 4)
-            };
-            AutomationProperties.SetAutomationId(clearAll, "ActiveFiltersClearAll");
-            clearAll.Click += OnClearAllFilters;
-            ActiveFiltersPanel.Children.Add(clearAll);
-        }
-
-        ActiveFiltersScroller.Visibility =
-            ActiveFiltersPanel.Children.Count > 0
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-    }
-
-    private void AddFilterChip(string key, string label)
-    {
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4
-        };
-        content.Children.Add(new TextBlock
-        {
-            Text = label,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        content.Children.Add(new FontIcon
-        {
-            Glyph = "\uE711",
-            FontSize = 12
-        });
-
-        var button = new Button
-        {
-            Content = content,
-            Tag = key,
-            Padding = new Thickness(8, 4, 8, 4)
-        };
-        AutomationProperties.SetAutomationId(button, $"ActiveFilter_{key}");
-        AutomationProperties.SetName(button, $"Remove filter: {label}");
-        button.Click += OnRemoveFilterChip;
-        ActiveFiltersPanel.Children.Add(button);
-    }
-
-    private async void OnRemoveFilterChip(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string key }) return;
-
-        if (key == "media")
-            MediaKindCombo.SelectedIndex = 0;
-        else if (key.StartsWith("include:", StringComparison.Ordinal))
-            IncludeTagsBox.Text = RemoveToken(IncludeTagsBox.Text, key["include:".Length..]);
-        else if (key.StartsWith("exclude:", StringComparison.Ordinal))
-            ExcludeTagsBox.Text = RemoveToken(ExcludeTagsBox.Text, key["exclude:".Length..]);
-        else if (key.StartsWith("extension:", StringComparison.Ordinal))
-            ExtensionsBox.Text = RemoveToken(
-                ExtensionsBox.Text,
-                key["extension:".Length..].TrimStart('.'));
-
-        await ApplyRefinementFromControlsAsync(hideFlyout: false);
-    }
-
-    private static List<string> ParseTokens(string text) =>
-        text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-    private static string RemoveToken(string text, string token) =>
-        string.Join(
-            ", ",
-            ParseTokens(text).Where(value =>
-                !string.Equals(value, token, StringComparison.OrdinalIgnoreCase)));
-
-    private static string GetSelectedTag(ComboBox comboBox) =>
-        (comboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? string.Empty;
-
-    private static void SelectByTag(ComboBox comboBox, string tag)
-    {
-        comboBox.SelectedItem = comboBox.Items
-            .OfType<ComboBoxItem>()
-            .FirstOrDefault(item =>
-                string.Equals(
-                    item.Tag?.ToString(),
-                    tag,
-                    StringComparison.OrdinalIgnoreCase));
-        comboBox.SelectedIndex = Math.Max(comboBox.SelectedIndex, 0);
-    }
-    
     private void OnVisibleItemsChanged(object? sender, List<ImageThumbnailViewModel> visibleItems)
     {
         // Request thumbnails for visible items
@@ -399,17 +258,6 @@ public sealed partial class ImageGridView : UserControl
     }
 
     // Group By / Sort handlers
-    private void OnGroupByChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!_isInitialized || ViewModel is null || GroupByCombo.SelectedItem is not ComboBoxItem item) return;
-        
-        if (Enum.TryParse<GroupByOption>(item.Tag?.ToString(), out var groupBy))
-        {
-            PhotoGrid.SetShowGroupHeaders(groupBy != GroupByOption.None);
-            ViewModel.GroupBy = groupBy;
-        }
-    }
-    
     private void OnSortByChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_isInitialized || ViewModel is null || SortByCombo.SelectedItem is not ComboBoxItem item) return;
@@ -435,24 +283,6 @@ public sealed partial class ImageGridView : UserControl
         VisiblePhotoCountText.Text = $"{count:N0} {(count == 1 ? "PHOTO" : "PHOTOS")}";
     }
 
-    private void UpdateGroupByCombo()
-    {
-        if (ViewModel is null) return;
-        
-        var index = ViewModel.GroupBy switch
-        {
-            GroupByOption.None => 0,
-            GroupByOption.FileType => 1,
-            GroupByOption.MediaType => 2,
-            GroupByOption.FileSize => 3,
-            GroupByOption.ImageSize => 4,
-            GroupByOption.Camera => 5,
-            _ => 0
-        };
-        
-        GroupByCombo.SelectedIndex = index;
-    }
-    
     private void UpdateSortByCombo()
     {
         if (ViewModel is null) return;
