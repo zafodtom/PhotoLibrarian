@@ -302,6 +302,7 @@ public sealed partial class ImageGridView : UserControl
             SortByOption.DateTaken => 1,
             SortByOption.DateModified => 2,
             SortByOption.FileSize => 3,
+            SortByOption.FolderThenFileName => 4,
             _ => 0
         };
         
