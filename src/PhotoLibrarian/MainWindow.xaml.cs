@@ -618,6 +618,13 @@ public sealed partial class MainWindow : Window
             ? Visibility.Collapsed : Visibility.Visible;
         SideCropButton.IsEnabled = viewerOpen && !ViewModel.ImageViewer.IsVideo &&
             !ViewerOverlay.IsManualFaceTaggingActive;
+        var canRotate = viewerOpen && !ViewModel.ImageViewer.IsVideo &&
+            !ViewerOverlay.IsCropping && !ViewerOverlay.IsStraightening &&
+            !ViewerOverlay.IsManualFaceTaggingActive &&
+            ViewModel.ImageViewer.CurrentEntry is { } rotatingEntry &&
+            ImageEditRenderer.IsSupported(rotatingEntry.FilePath);
+        SideRotateLeftButton.IsEnabled = canRotate;
+        SideRotateRightButton.IsEnabled = canRotate;
         var zoomEnabled = viewerOpen && !ViewModel.ImageViewer.IsVideo &&
             !ViewerOverlay.IsManualFaceTaggingActive && !ViewerOverlay.IsStraightening;
         SideZoomOutButton.IsEnabled = zoomEnabled;
@@ -635,6 +642,12 @@ public sealed partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Collapsed;
         FullscreenCropButton.IsEnabled = fullscreenViewer && !ViewModel.ImageViewer.IsVideo &&
             !ViewerOverlay.IsManualFaceTaggingActive;
+        var canRotateFullscreen = fullscreenViewer && !ViewModel.ImageViewer.IsVideo &&
+            !ViewerOverlay.IsStraightening && !ViewerOverlay.IsManualFaceTaggingActive &&
+            ViewModel.ImageViewer.CurrentEntry is { } fullscreenEntry &&
+            ImageEditRenderer.IsSupported(fullscreenEntry.FilePath);
+        FullscreenRotateLeftButton.IsEnabled = canRotateFullscreen;
+        FullscreenRotateRightButton.IsEnabled = canRotateFullscreen;
         var fullscreenZoomEnabled = fullscreenViewer && !ViewModel.ImageViewer.IsVideo &&
             !ViewerOverlay.IsManualFaceTaggingActive && !ViewerOverlay.IsStraightening;
         FullscreenZoomOutButton.IsEnabled = fullscreenZoomEnabled;
@@ -778,6 +791,44 @@ public sealed partial class MainWindow : Window
         if (ViewModel.Settings.IsOpen)
         {
             SettingsPanel.Loaded += (s, e) => ViewModel.Settings.OpenCommand.Execute(null);
+        }
+    }
+
+    private bool _rotationBusy;
+    private async void OnRotateLeft(object sender, RoutedEventArgs e) =>
+        await RotateCurrentPhotoAsync(clockwise: false);
+    private async void OnRotateRight(object sender, RoutedEventArgs e) =>
+        await RotateCurrentPhotoAsync(clockwise: true);
+
+    private async Task RotateCurrentPhotoAsync(bool clockwise)
+    {
+        if (_rotationBusy || ViewerOverlay.IsCropping || ViewerOverlay.IsStraightening)
+            return;
+        var entry = ViewModel.ImageViewer.CurrentEntry;
+        if (entry is null || ViewModel.ImageViewer.IsVideo ||
+            !ImageEditRenderer.IsSupported(entry.FilePath)) return;
+        _rotationBusy = true;
+        SideRotateLeftButton.IsEnabled = SideRotateRightButton.IsEnabled = false;
+        FullscreenRotateLeftButton.IsEnabled = FullscreenRotateRightButton.IsEnabled = false;
+        var resumeFaceDetection = false;
+        try
+        {
+            resumeFaceDetection = await ViewModel.PauseFaceDetectionAsync();
+            ViewModel.StatusText = clockwise ? "Rotating clockwise…" : "Rotating counterclockwise…";
+            await App.ViewModel.BackupService.BackupOriginalAsync(entry.FilePath);
+            var dimensions = await ImageEditRenderer.RenderRotatedAsync(entry.FilePath, clockwise);
+            await ViewModel.RefreshAfterPixelEditAsync(
+                entry.FilePath, dimensions.Width, dimensions.Height, "Rotated");
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = "Rotation failed: " + ex.Message;
+        }
+        finally
+        {
+            ViewModel.ResumeFaceDetection(resumeFaceDetection);
+            _rotationBusy = false;
+            UpdateRibbonVisibility();
         }
     }
 
