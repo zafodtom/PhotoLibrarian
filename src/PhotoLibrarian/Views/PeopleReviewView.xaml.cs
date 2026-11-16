@@ -699,18 +699,15 @@ public sealed partial class PeopleReviewView : UserControl
         var person = ViewModel.SelectedPerson;
         if (person is null) return;
 
-        var dialog = new ContentDialog
-        {
-            Title = $"Delete {person.Name}?",
-            Content =
+        var dialog = CinematicDialogShowcase.Create(
+            XamlRoot,
+            CinematicDialogShowcase.Variant.Warning,
+            subjectOverride: $"DELETE PERSON: {person.Name}?",
+            detailOverride:
                 $"The person will be deleted and {person.Faces.Count} assigned faces " +
-                "will return to face matching.",
-            PrimaryButtonText = "Delete person",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
-        };
-        CinematicDialogStyling.Apply(dialog, destructive: true);
+                "will return to face matching. Review the selected identity before proceeding.",
+            confirmLabel: "DELETE PERSON",
+            preview: false);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
         await RunActionAsync(() => ViewModel.DeletePersonAsync(person));
     }
