@@ -122,6 +122,16 @@
         <Setter Property="Padding" Value="14,9" />
     </Style>
 
+    <!-- Destructive confirmation: warning actions are clearly distinct from
+         neutral cancellation and ordinary primary actions. -->
+    <Style x:Key="HiTechDangerButtonStyle" TargetType="Button"
+           BasedOn="{StaticResource HiTechPrimaryButtonStyle}">
+        <Setter Property="Background" Value="#351418" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HiTechDangerBrush}" />
+        <Setter Property="CornerRadius" Value="0" />
+    </Style>
+
     <Style x:Key="HiTechTreeViewStyle" TargetType="TreeView">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
