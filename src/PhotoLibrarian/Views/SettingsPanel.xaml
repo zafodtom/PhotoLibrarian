@@ -620,7 +620,7 @@
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource HiTechAccentBrush}"/>
                             <controls:CinematicProgressBar x:Name="UpdateDownloadProgress" Minimum="0" Maximum="100"
-                                         Visibility="Collapsed" Height="5"/>
+                                         Visibility="Collapsed"/>
                             <Button x:Name="CheckUpdatesButton" Content="CHECK FOR UPDATES"
                                     Click="OnCheckForUpdatesClick"
                                     HorizontalAlignment="Left"
