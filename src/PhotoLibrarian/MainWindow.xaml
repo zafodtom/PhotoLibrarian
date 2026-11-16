@@ -243,12 +243,24 @@
                     <Button x:Name="SideRotateLeftButton" Width="40" Height="36" Padding="3"
                             Click="OnRotateLeft" ToolTipService.ToolTip="Rotate 90° left and save"
                             AutomationProperties.Name="Rotate left and save" Style="{StaticResource HiTechRailButtonStyle}">
-                        <FontIcon Glyph="&#xE7AD;" FontSize="16" />
+                        <Viewbox Width="20" Height="20" Stretch="Uniform">
+                            <Path Width="24" Height="24" Data="M 3,2 L 3,8 L 9,8 M 3.5,13 A 9,9 0 1 0 6,5.5 L 3,8"
+                                  Stroke="{Binding Foreground, ElementName=SideRotateLeftButton}"
+                                  StrokeThickness="2" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Fill="Transparent" />
+                        </Viewbox>
                     </Button>
                     <Button x:Name="SideRotateRightButton" Width="40" Height="36" Padding="3"
                             Click="OnRotateRight" ToolTipService.ToolTip="Rotate 90° right and save"
                             AutomationProperties.Name="Rotate right and save" Style="{StaticResource HiTechRailButtonStyle}">
-                        <FontIcon Glyph="&#xE7AE;" FontSize="16" />
+                        <Viewbox Width="20" Height="20" Stretch="Uniform">
+                            <Path Width="24" Height="24" Data="M 21,2 L 21,8 L 15,8 M 20.5,13 A 9,9 0 1 1 18,5.5 L 21,8"
+                                  Stroke="{Binding Foreground, ElementName=SideRotateRightButton}"
+                                  StrokeThickness="2" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Fill="Transparent" />
+                        </Viewbox>
                     </Button>
                     <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
                     <Button x:Name="SideZoomOutButton" Width="40" Height="36" Padding="3"
@@ -437,12 +449,24 @@
                 <Button x:Name="FullscreenRotateLeftButton" Width="40" Height="36" Padding="3"
                         Click="OnRotateLeft" ToolTipService.ToolTip="Rotate 90° left and save"
                         AutomationProperties.Name="Rotate left and save" Style="{StaticResource HiTechRailButtonStyle}">
-                    <FontIcon Glyph="&#xE7AD;" FontSize="16" />
+                    <Viewbox Width="20" Height="20" Stretch="Uniform">
+                            <Path Width="24" Height="24" Data="M 3,2 L 3,8 L 9,8 M 3.5,13 A 9,9 0 1 0 6,5.5 L 3,8"
+                                  Stroke="{Binding Foreground, ElementName=FullscreenRotateLeftButton}"
+                                  StrokeThickness="2" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Fill="Transparent" />
+                        </Viewbox>
                 </Button>
                 <Button x:Name="FullscreenRotateRightButton" Width="40" Height="36" Padding="3"
                         Click="OnRotateRight" ToolTipService.ToolTip="Rotate 90° right and save"
                         AutomationProperties.Name="Rotate right and save" Style="{StaticResource HiTechRailButtonStyle}">
-                    <FontIcon Glyph="&#xE7AE;" FontSize="16" />
+                    <Viewbox Width="20" Height="20" Stretch="Uniform">
+                            <Path Width="24" Height="24" Data="M 21,2 L 21,8 L 15,8 M 20.5,13 A 9,9 0 1 1 18,5.5 L 21,8"
+                                  Stroke="{Binding Foreground, ElementName=FullscreenRotateRightButton}"
+                                  StrokeThickness="2" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Fill="Transparent" />
+                        </Viewbox>
                 </Button>
                 <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
                 <Button x:Name="FullscreenZoomOutButton" Width="40" Height="38" Padding="3"
