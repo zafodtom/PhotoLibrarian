@@ -25,6 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\PhotoLibrarian.Core\Services\CropService.cs"
+          Link="TestAssets\CropService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\PhotoLibrarian\ViewModels\ImageGridViewModel.cs"
           Link="TestAssets\ImageGridViewModel.cs"
           CopyToOutputDirectory="PreserveNewest" />
