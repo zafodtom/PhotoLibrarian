@@ -32,6 +32,7 @@ public enum GroupByOption
 public enum SortByOption
 {
     FileName,       // Alphabetical by file name
+    FolderThenFileName, // By folder path, then alphabetically by file name within each folder
     DateTaken,      // Chronological by date taken (newest first by default)
     DateModified,   // By file system modified date
     FileSize,       // By file size (largest first by default)
@@ -1278,11 +1279,16 @@ public partial class ImageGridViewModel : ObservableObject
             .ToList();
     }
     
-    private List<ImageThumbnailViewModel> ApplySortToGroup(List<ImageThumbnailViewModel> items, SortByOption sortBy, bool sortDescending)
+    private static List<ImageThumbnailViewModel> ApplySortToGroup(List<ImageThumbnailViewModel> items, SortByOption sortBy, bool sortDescending)
     {
         var sorted = sortBy switch
         {
             SortByOption.FileName => items.OrderBy(vm => vm.Entry.FileName),
+            SortByOption.FolderThenFileName => items
+                .OrderBy(vm => Path.GetDirectoryName(vm.Entry.FilePath) ?? string.Empty,
+                    StringComparer.OrdinalIgnoreCase)
+                .ThenBy(vm => vm.Entry.FileName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(vm => vm.Entry.FilePath, StringComparer.OrdinalIgnoreCase),
             SortByOption.DateTaken => items.OrderBy(vm => vm.Entry.DateTaken ?? DateTime.MaxValue),
             SortByOption.DateModified => items.OrderBy(vm => vm.Entry.DateModified),
             SortByOption.FileSize => items.OrderBy(vm => vm.Entry.FileSize),
