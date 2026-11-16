@@ -1552,8 +1552,14 @@ public partial class MainViewModel : ObservableObject
             var result = await PhotoPrivacyCleanupService.RunAsync(
                 root, photos,
                 (photo, size, modified, width, height) =>
-                    _imageRepo.ClearPhotoPrivacyAsync(
-                        photo.Id, size, modified, width, height),
+                {
+                    if (!string.Equals(root, App.CurrentAlbumPath,
+                            StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException(
+                            "The active album changed during privacy cleanup. Restore original photo.");
+                    return _imageRepo.ClearPhotoPrivacyAsync(
+                        photo.Id, size, modified, width, height);
+                },
                 progress, cancellationToken, keepBackups);
             if (allAlbum && result.Failed == 0 && result.Skipped == 0 &&
                 !result.Cancelled)
