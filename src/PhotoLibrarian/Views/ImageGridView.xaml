@@ -24,7 +24,7 @@
         <!-- Toolbar -->
         <Grid Grid.Row="0"
               Padding="10,6"
-              Background="{StaticResource HiTechPanelBackgroundBrush}">
+              Background="{StaticResource HiTechPanelBackgroundAltBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -92,7 +92,7 @@
                             Spacing="6">
                     <TextBlock x:Name="VisiblePhotoCountText"
                                Text="0 PHOTOS"
-                               Style="{StaticResource HiTechTinyLabelStyle}"
+                               Style="{StaticResource HiTechSystemCaptionStyle}"
                                Foreground="{StaticResource HiTechAccentBrush}" />
                     <Rectangle Width="32"
                                Height="1"
@@ -100,7 +100,7 @@
                                VerticalAlignment="Center" />
                     <TextBlock Text="LIVE"
                                Foreground="{StaticResource HiTechAccentBrush}"
-                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                               Style="{StaticResource HiTechSystemCaptionStyle}" />
                 </StackPanel>
             </StackPanel>
 
@@ -242,7 +242,7 @@
                         Opacity="0.45">
                 <TextBlock Text="IDX"
                            HorizontalAlignment="Right"
-                           Style="{StaticResource HiTechTinyLabelStyle}" />
+                           Style="{StaticResource HiTechSystemCaptionStyle}" />
                 <Rectangle Width="38" Height="1"
                            Fill="{StaticResource HiTechAccentMutedBrush}" />
             </StackPanel>
@@ -281,7 +281,7 @@
                                    VerticalAlignment="Center" />
                         <TextBlock Grid.Column="2"
                                    Text="IDX // 00"
-                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                                   Style="{StaticResource HiTechSystemCaptionStyle}" />
                     </Grid>
 
                     <Grid Grid.Row="1"
@@ -349,10 +349,10 @@
                     <Grid Grid.Row="2">
                         <TextBlock x:Name="EmptyStateCode"
                                    Text="STATE / STANDBY"
-                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                                   Style="{StaticResource HiTechSystemCaptionStyle}" />
                         <TextBlock Text="LOCAL ARCHIVE"
                                    HorizontalAlignment="Right"
-                                   Style="{StaticResource HiTechTinyLabelStyle}" />
+                                   Style="{StaticResource HiTechSystemCaptionStyle}" />
                     </Grid>
                 </Grid>
             </Border>
