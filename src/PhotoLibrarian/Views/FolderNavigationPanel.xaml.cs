@@ -674,7 +674,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             Content = "CLOSE CONSOLE",
             Width = 152,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Style = iconButtonStyle
+            Style = (Style)Application.Current.Resources["HiTechSecondaryButtonStyle"]
         };
         closeConsole.Click += (_, _) => dialog.Hide();
         var footerRail = new Border
@@ -1060,7 +1060,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             });
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             var proceed = new Button { Content = "CONFIRM REMOVE", Style = (Style)Application.Current.Resources["HiTechDangerButtonStyle"] };
-            var abort = new Button { Content = "ABORT", Style = iconButtonStyle };
+            var abort = new Button { Content = "ABORT", Style = (Style)Application.Current.Resources["HiTechSecondaryButtonStyle"] };
             actions.Children.Add(proceed);
             actions.Children.Add(abort);
             warningBody.Children.Add(actions);
