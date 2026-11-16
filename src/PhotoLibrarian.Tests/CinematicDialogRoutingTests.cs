@@ -56,6 +56,42 @@ public sealed class CinematicDialogRoutingTests
     }
 
     [Fact]
+    public void ThumbnailCacheClearRequiresCinematicWarningBeforeExecution()
+    {
+        var source = Source("SettingsPanel.xaml.cs");
+        var section = source.Split("private async void OnRebuildCache(", 2)[1]
+            .Split("private async void OnDeleteAlbum(", 2)[0];
+
+        Assert.Contains("CinematicDialogShowcase.Variant.Warning", section);
+        Assert.Contains("subjectOverride: \"CLEAR THUMBNAIL CACHE?\"", section);
+        Assert.Contains("confirmLabel: \"CLEAR THUMBNAILS\"", section);
+        Assert.Contains("await dialog.ShowAsync() != ContentDialogResult.Primary", section);
+        Assert.True(
+            section.IndexOf("await dialog.ShowAsync()", StringComparison.Ordinal) <
+            section.IndexOf("RebuildCacheCommand.ExecuteAsync(null)", StringComparison.Ordinal));
+        Assert.Contains("Original photographs, assigned tags and the album catalog", section);
+    }
+
+    [Fact]
+    public void UpdateUsesExistingCinematicModalInsteadOfLegacyOverlay()
+    {
+        var source = Source("SettingsPanel.xaml.cs");
+        var xaml = Source("SettingsPanel.xaml");
+
+        Assert.Contains("private async Task<bool> ConfirmUpdateAsync(", source);
+        Assert.Contains("CinematicDialogShowcase.Create(", source);
+        Assert.Contains("return await dialog.ShowAsync() == ContentDialogResult.Primary", source);
+        Assert.Contains("CinematicDialogShowcase.Variant.Information", source);
+        Assert.Contains("CinematicDialogShowcase.Variant.Warning", source);
+        Assert.Contains("DOWNLOAD UPDATE", source);
+        Assert.Contains("INSTALL & RESTART", source);
+        Assert.Contains("_activeUpdateDialog?.Hide()", source);
+        Assert.DoesNotContain("UpdateConfirmOverlay", xaml);
+        Assert.DoesNotContain("ResolveUpdateDecision", source);
+        Assert.DoesNotContain("TaskCompletionSource<bool>", source);
+    }
+
+    [Fact]
     public void InformationalAlertsHaveAcknowledgementNotCancel()
     {
         var factory = Source("CinematicDialogShowcase.cs");
