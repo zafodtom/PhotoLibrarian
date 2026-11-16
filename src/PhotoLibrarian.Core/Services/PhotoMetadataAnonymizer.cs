@@ -134,7 +134,9 @@ public static class PhotoMetadataAnonymizer
                 throw new InvalidDataException("Invalid JPEG segment length.");
             var end = position + length;
             var isPrivate = marker is >= 0xe0 and <= 0xef or 0xfe;
-            var keepAdobeTransform = marker == 0xee && length >= 7 &&
+            // Standard Adobe APP14 is exactly 12 payload bytes. Refuse
+            // longer lookalikes that may carry private vendor extensions.
+            var keepAdobeTransform = marker == 0xee && length == 14 &&
                 input.Slice(position + 2, 5).SequenceEqual("Adobe"u8);
             if (!isPrivate || keepAdobeTransform)
                 output.Write(input.Slice(startMarker, end - startMarker));
