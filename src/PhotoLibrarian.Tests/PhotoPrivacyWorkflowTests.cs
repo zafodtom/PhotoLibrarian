@@ -2,6 +2,9 @@ using PhotoLibrarian.Core.Data;
 using PhotoLibrarian.Core.Models;
 using PhotoLibrarian.Core.Services;
 using PhotoLibrarian.Services;
+using System.Runtime.InteropServices.WindowsRuntime;
+using Windows.Graphics.Imaging;
+using Windows.Storage.Streams;
 using Xunit;
 
 namespace PhotoLibrarian.Tests;
@@ -50,7 +53,27 @@ public sealed class PhotoPrivacyWorkflowTests
         Assert.Contains("footerOverride ??", factory);
     }
 
-    private const string TinyJpegFixture = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAACAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDi6KKK+ZP3E//Z";
+    private static async Task<byte[]> CreateTestJpegAsync()
+    {
+        // Generate a valid 2×2 JPEG via the same Windows imaging stack used
+        // in the privacy service. Avoid hand-maintained base64 binary fixtures,
+        // which can silently be corrupted by one copied character.
+        using var stream = new InMemoryRandomAccessStream();
+        var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, stream);
+        encoder.SetPixelData(
+            BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied,
+            2, 2, 96, 96,
+            new byte[]
+            {
+                0, 0, 255, 255, 0, 0, 255, 255,
+                0, 0, 255, 255, 0, 0, 255, 255
+            });
+        await encoder.FlushAsync();
+        stream.Seek(0);
+        using var output = new MemoryStream();
+        await stream.AsStreamForRead().CopyToAsync(output);
+        return output.ToArray();
+    }
 
     [Fact]
     public async Task ContextMenuAnonymizationLeavesNoRetainedBackupOrSidecar()
@@ -60,7 +83,7 @@ public sealed class PhotoPrivacyWorkflowTests
         Directory.CreateDirectory(Path.Combine(root, ".album"));
         var file = Path.Combine(root, "photo.jpg");
         var xmp = Path.Combine(root, "photo.xmp");
-        var originalJpeg = Convert.FromBase64String(TinyJpegFixture);
+        var originalJpeg = await CreateTestJpegAsync();
         await File.WriteAllBytesAsync(file,
             originalJpeg.Concat("Private owner name and GPS"u8.ToArray()).ToArray());
         await File.WriteAllTextAsync(xmp, "Personal keyword and GPS");
@@ -103,7 +126,7 @@ public sealed class PhotoPrivacyWorkflowTests
         Directory.CreateDirectory(Path.Combine(root, ".album"));
         var file = Path.Combine(root, "photo.jpg");
         var xmp = Path.Combine(root, "photo.xmp");
-        var original = Convert.FromBase64String(TinyJpegFixture)
+        var original = await CreateTestJpegAsync()
             .Concat("Private owner name and GPS"u8.ToArray()).ToArray();
         await File.WriteAllBytesAsync(file, original);
         await File.WriteAllTextAsync(xmp, "Original XMP tags");
