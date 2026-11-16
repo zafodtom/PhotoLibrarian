@@ -126,7 +126,7 @@ public sealed class PhotoPrivacyWorkflowTests
         Directory.CreateDirectory(Path.Combine(root, ".album"));
         var file = Path.Combine(root, "photo.jpg");
         var xmp = Path.Combine(root, "photo.xmp");
-        var original = await CreateTestJpegAsync()
+        var original = (await CreateTestJpegAsync())
             .Concat("Private owner name and GPS"u8.ToArray()).ToArray();
         await File.WriteAllBytesAsync(file, original);
         await File.WriteAllTextAsync(xmp, "Original XMP tags");
