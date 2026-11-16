@@ -240,6 +240,17 @@
                         <FontIcon Glyph="&#xE7A8;" FontSize="20" />
                     </Button>
                     <Rectangle Width="24" Height="1" Margin="0,2" Fill="{StaticResource HiTechAccentMutedBrush}" />
+                    <Button x:Name="SideRotateLeftButton" Width="40" Height="36" Padding="3"
+                            Click="OnRotateLeft" ToolTipService.ToolTip="Rotate 90° left and save"
+                            AutomationProperties.Name="Rotate left and save" Style="{StaticResource HiTechRailButtonStyle}">
+                        <FontIcon Glyph="&#xE7AD;" FontSize="16" />
+                    </Button>
+                    <Button x:Name="SideRotateRightButton" Width="40" Height="36" Padding="3"
+                            Click="OnRotateRight" ToolTipService.ToolTip="Rotate 90° right and save"
+                            AutomationProperties.Name="Rotate right and save" Style="{StaticResource HiTechRailButtonStyle}">
+                        <FontIcon Glyph="&#xE7AE;" FontSize="16" />
+                    </Button>
+                    <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
                     <Button x:Name="SideZoomOutButton" Width="40" Height="36" Padding="3"
                             Click="OnSideZoomOut" ToolTipService.ToolTip="Zoom out"
                             AutomationProperties.Name="Zoom out"
@@ -421,6 +432,17 @@
                         AutomationProperties.Name="Crop photo"
                         Style="{StaticResource HiTechRailButtonStyle}">
                     <FontIcon Glyph="&#xE7A8;" FontSize="16" />
+                </Button>
+                <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
+                <Button x:Name="FullscreenRotateLeftButton" Width="40" Height="36" Padding="3"
+                        Click="OnRotateLeft" ToolTipService.ToolTip="Rotate 90° left and save"
+                        AutomationProperties.Name="Rotate left and save" Style="{StaticResource HiTechRailButtonStyle}">
+                    <FontIcon Glyph="&#xE7AD;" FontSize="16" />
+                </Button>
+                <Button x:Name="FullscreenRotateRightButton" Width="40" Height="36" Padding="3"
+                        Click="OnRotateRight" ToolTipService.ToolTip="Rotate 90° right and save"
+                        AutomationProperties.Name="Rotate right and save" Style="{StaticResource HiTechRailButtonStyle}">
+                    <FontIcon Glyph="&#xE7AE;" FontSize="16" />
                 </Button>
                 <Rectangle Width="24" Height="1" Fill="{StaticResource HiTechAccentMutedBrush}" />
                 <Button x:Name="FullscreenZoomOutButton" Width="40" Height="38" Padding="3"
