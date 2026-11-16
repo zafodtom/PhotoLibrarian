@@ -634,7 +634,10 @@ public sealed partial class ImageGridView : UserControl
                     selected.Select(vm => vm.Entry).ToArray(), keepBackups: true);
                 var description =
                     $"Cleaned: {result.Cleaned:N0}. Skipped: {result.Skipped:N0}. " +
-                    $"Failed: {result.Failed:N0}. Backups: {result.BackupDirectory}. " +
+                    $"Failed: {result.Failed:N0}. " +
+                    (result.Cleaned > 0
+                        ? $"Backups: {result.BackupDirectory}. "
+                        : "No photographs were anonymized. ") +
                     (result.Errors.Count > 0
                         ? "First issues: " + string.Join("; ", result.Errors.Take(3))
                         : "File metadata and album photo assignments were cleared.");
@@ -647,7 +650,10 @@ public sealed partial class ImageGridView : UserControl
                         ? "PRIVACY CLEANUP PARTIAL"
                         : "PHOTO METADATA REMOVED",
                     detailOverride: description,
-                    preview: false);
+                    preview: false,
+                    captionOverride: "PRIVACY REPORT // PHOTO",
+                    operationLabel: "RESULTS",
+                    footerOverride: "OPERATION FINISHED // REVIEW CLEANED AND SKIPPED FILES");
                 await report.ShowAsync();
             }
             catch (Exception ex)
