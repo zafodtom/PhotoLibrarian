@@ -40,13 +40,14 @@
                                 HorizontalAlignment="Right"
                                 Spacing="8">
                         <Button Content="Cancel"
-                                Click="OnCancelManualFaceTagClick" />
+                                Click="OnCancelManualFaceTagClick"
+                                 Style="{StaticResource HiTechSectionActionStyle}" />
                         <Button x:Name="SaveManualFaceTagButton"
                                 AutomationProperties.AutomationId="SaveManualFaceTag"
                                 AutomationProperties.Name="Save people tag"
                                 Content="Save"
                                 Click="OnSaveManualFaceTagClick"
-                                Style="{StaticResource AccentButtonStyle}" />
+                                Style="{StaticResource HiTechPrimaryButtonStyle}" />
                     </StackPanel>
                 </StackPanel>
             </Flyout>
