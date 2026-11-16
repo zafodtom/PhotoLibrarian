@@ -21,6 +21,9 @@ public sealed class PhotoPrivacyWorkflowTests
         Assert.Contains("ANONYMIZE SELECTED PHOTOS?", grid);
         Assert.Contains("await warning.ShowAsync() != ContentDialogResult.Primary", grid);
         Assert.Contains("App.ViewModel.AnonymizePhotoMetadataAsync(", grid);
+        Assert.Contains("selected.Select(vm => vm.Entry).ToArray(), keepBackups: false", grid);
+        Assert.Contains("No permanent backups retained.", grid);
+        Assert.Contains("keepBackups: retain", settingsCode);
         Assert.Contains("AnonymizeAlbumButton", settings);
         Assert.Contains("KeepPrivacyBackupsCheckBox", settings);
         Assert.Contains("AnonymizeAlbumProgressBar", settings);
