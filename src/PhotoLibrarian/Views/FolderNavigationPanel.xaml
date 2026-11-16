@@ -177,6 +177,7 @@
                                             Click="OnIncludeTagClick"
                                             Padding="2,1"
                                             MinWidth="22"
+                                            Style="{StaticResource HiTechFilterIncludeStyle}"
                                             ToolTipService.ToolTip="Include this tag; click again to clear"
                                             AutomationProperties.Name="Include tag" />
                                     <Button Grid.Column="2"
@@ -185,6 +186,7 @@
                                             Click="OnExcludeTagClick"
                                             Padding="2,1"
                                             MinWidth="22"
+                                            Style="{StaticResource HiTechFilterExcludeStyle}"
                                             ToolTipService.ToolTip="Exclude this tag; click again to clear"
                                             AutomationProperties.Name="Exclude tag" />
                                 </Grid>
