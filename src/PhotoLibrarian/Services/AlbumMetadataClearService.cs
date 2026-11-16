@@ -301,7 +301,7 @@ public static class AlbumMetadataClearService
                 // WIC file locks, leaving all later album tags untouched.
                 stage = "reading embedded metadata";
                 bool canWriteEmbedded = EmbeddedMetadataWriter.IsSupported(source);
-                var embeddedTags = metadataReader.ReadTags(source);
+                var embeddedTags = metadataReader.ReadEmbeddedTags(source);
                 if (canWriteEmbedded)
                 {
                     var systemTags = await WithAccessRetryAsync(
@@ -387,7 +387,7 @@ public static class AlbumMetadataClearService
                             await EmbeddedMetadataWriter.WriteAsync(source, flagged: false);
                         }
                         stage = "verifying embedded metadata";
-                        var remaining = metadataReader.ReadTags(source);
+                        var remaining = metadataReader.ReadEmbeddedTags(source);
                         var remainingWic = await WithAccessRetryAsync(
                         () => EmbeddedMetadataWriter.ReadKeywordsAsync(source, throwOnError: true),
                         cancellationToken);
