@@ -178,15 +178,48 @@ public static class PhotoMetadataAnonymizer
         }
         if (!sawEoi || !sawScan)
             throw new InvalidDataException("JPEG SOS/EOI marker missing.");
-        // Unknown non-padding content after EOI may be another picture or
-        // proprietary payload. Never silently truncate such files.
-        for (var tail = position; tail < input.Length; tail++)
-        {
-            if (input[tail] is not (0x00 or 0xff))
-                throw new NotSupportedException(
-                    "JPEG has nonstandard appended data. Its original contents were preserved.");
-        }
+        // The JPEG codestream ends at EOI. Older cameras (including some
+        // Kodak models) may put proprietary EXIF-like records AFTER EOI.
+        // Those are outside the JPEG image and are exactly the kind of
+        // private trailer we must REMOVE during anonymization, not treat as
+        // an error. Keep the original entropy-coded image unchanged.
+        //
+        // A second embedded image/container, however, may be intentional
+        // multi-image content. Never silently delete that: leave such files
+        // untouched until they can be handled explicitly.
+        var trailer = input[position..];
+        if (ContainsAdditionalImage(trailer))
+            throw new NotSupportedException(
+                "JPEG has a second embedded image after its end marker. " +
+                "The original file was preserved.");
         return output.ToArray();
+    }
+
+    /// <summary>
+    /// Conservatively recognize media containers in a JPEG's trailing data.
+    /// Arbitrary vendor records, text and padding are metadata, not part of
+    /// the JPEG codestream, and are removed. A recognizable extra image
+    /// signals a potentially multi-picture file and blocks the operation.
+    /// </summary>
+    private static bool ContainsAdditionalImage(ReadOnlySpan<byte> trailer)
+    {
+        for (var i = 0; i + 2 <= trailer.Length; i++)
+        {
+            if (trailer[i] == 0xff && trailer[i + 1] == 0xd8)
+                return true; // Another JPEG SOI.
+            if (i + 8 <= trailer.Length &&
+                trailer.Slice(i, 8).SequenceEqual(PngSignature))
+                return true;
+            if (i + 12 <= trailer.Length &&
+                trailer.Slice(i, 4).SequenceEqual("RIFF"u8) &&
+                trailer.Slice(i + 8, 4).SequenceEqual("WEBP"u8))
+                return true;
+            if (i + 6 <= trailer.Length &&
+                (trailer.Slice(i, 6).SequenceEqual("GIF87a"u8) ||
+                 trailer.Slice(i, 6).SequenceEqual("GIF89a"u8)))
+                return true;
+        }
+        return false;
     }
 
     private static bool HasApngAnimation(ReadOnlySpan<byte> input)
