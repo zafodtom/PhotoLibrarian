@@ -212,7 +212,12 @@ internal static class CinematicDialogShowcase
             Brush(162, 178, 185), false));
         stack.Children.Add(footer);
 
-        var outer = new Grid { Width = panelWidth, MaxWidth = 760 };
+        var outer = new Grid
+        {
+            Width = panelWidth,
+            MaxWidth = 760,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(15) });
         outer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var rail = new StackPanel { Background = dim, Spacing = 8, Padding = new Thickness(3, 12, 3, 12) };
@@ -240,11 +245,18 @@ internal static class CinematicDialogShowcase
                 Content = outer,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                MaxHeight = Math.Max(300, root.Size.Height - 160)
+                MaxHeight = Math.Max(260, root.Size.Height - 160),
+                HorizontalAlignment = HorizontalAlignment.Center
             },
             PrimaryButtonText = preview ? "NEXT PREVIEW" : confirmLabel,
             CloseButtonText = preview ? "CLOSE SHOWCASE" : "CANCEL",
-            DefaultButton = ContentDialogButton.Close,
+            // Avoid WinUI's blue accent-default button overriding our severity styles.
+            // ESC and the explicit CANCEL button still dismiss safely; no destructive
+            // action is selected automatically by Enter.
+            DefaultButton = ContentDialogButton.None,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Background = Brush(7, 10, 14),
             BorderBrush = accent,
             BorderThickness = new Thickness(1),
@@ -257,7 +269,8 @@ internal static class CinematicDialogShowcase
         // Preview controls belong to the same severity palette as the panel.
         // Avoid the default blue WinUI accent, without changing app-wide styles.
         dialog.PrimaryButtonStyle = ActionStyle(accent, dim, solid: !preview);
-        dialog.CloseButtonStyle = ActionStyle(accent, dim, solid: preview);
+        // Cancel/dismiss is neutral rather than a second bright colored action.
+        dialog.CloseButtonStyle = ActionStyle(Brush(91, 120, 136), Brush(17, 34, 48), solid: false);
         return dialog;
     }
 
