@@ -639,6 +639,18 @@ public sealed partial class SettingsPanel : UserControl
                 (result.Errors.Count > 0
                     ? "\nErrors: " + string.Join("; ", result.Errors.Take(3))
                     : "");
+
+            var report = CinematicDialogShowcase.Create(
+                XamlRoot,
+                result.Failed > 0
+                    ? CinematicDialogShowcase.Variant.Error
+                    : CinematicDialogShowcase.Variant.Complete,
+                subjectOverride: result.Failed > 0
+                    ? "JPEG CONVERSION PARTIALLY FAILED"
+                    : "JPEG CONVERSION COMPLETE",
+                detailOverride: JpegConversionStatusText.Text,
+                preview: false);
+            await report.ShowAsync();
         }
         catch (OperationCanceledException)
         {
@@ -651,6 +663,13 @@ public sealed partial class SettingsPanel : UserControl
         catch (Exception ex)
         {
             JpegConversionStatusText.Text = $"Conversion failed: {ex.Message}";
+            var error = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Error,
+                subjectOverride: "JPEG CONVERSION FAILED",
+                detailOverride: ex.Message,
+                preview: false);
+            await error.ShowAsync();
         }
         finally
         {
@@ -797,6 +816,18 @@ public sealed partial class SettingsPanel : UserControl
                 (result.Errors.Count > 0
                     ? "\nFirst errors: " + string.Join("; ", result.Errors.Take(3))
                     : "");
+
+            var report = CinematicDialogShowcase.Create(
+                XamlRoot,
+                result.Failed > 0
+                    ? CinematicDialogShowcase.Variant.Error
+                    : CinematicDialogShowcase.Variant.Complete,
+                subjectOverride: result.Failed > 0
+                    ? "ALBUM RESET PARTIALLY FAILED"
+                    : "ALBUM RESET COMPLETE",
+                detailOverride: ClearAlbumStatusText.Text,
+                preview: false);
+            await report.ShowAsync();
         }
         catch (OperationCanceledException)
         {
@@ -809,6 +840,13 @@ public sealed partial class SettingsPanel : UserControl
         catch (Exception ex)
         {
             ClearAlbumStatusText.Text = "Album reset failed: " + ex.Message;
+            var error = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Error,
+                subjectOverride: "ALBUM RESET FAILED",
+                detailOverride: ex.Message,
+                preview: false);
+            await error.ShowAsync();
         }
         finally
         {
