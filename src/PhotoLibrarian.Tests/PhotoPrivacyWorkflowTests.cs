@@ -31,6 +31,22 @@ public sealed class PhotoPrivacyWorkflowTests
     }
 
     [Fact]
+    public void PrivacyCompletionDialogsAreStatusReportsNotNewConfirmations()
+    {
+        var grid = ReadAsset("ImageGridView.xaml.cs");
+        var settings = ReadAsset("SettingsPanel.xaml.cs");
+        var factory = ReadAsset("CinematicDialogShowcase.cs");
+
+        Assert.Contains("captionOverride: \"PRIVACY REPORT // PHOTO\"", grid);
+        Assert.Contains("captionOverride: \"PRIVACY REPORT // ALBUM\"", settings);
+        Assert.Contains("footerOverride: \"OPERATION FINISHED // REVIEW CLEANED AND SKIPPED FILES\"", grid);
+        Assert.Contains("footerOverride: \"OPERATION FINISHED // REVIEW CLEANED AND SKIPPED FILES\"", settings);
+        Assert.Contains("No photographs were anonymized.", grid);
+        Assert.Contains("No photos were anonymized.", settings);
+        Assert.Contains("footerOverride ??", factory);
+    }
+
+    [Fact]
     public async Task UnsupportedRawFilesAndTheirXmpRemainUntouched()
     {
         var album = Path.Combine(Path.GetTempPath(),
