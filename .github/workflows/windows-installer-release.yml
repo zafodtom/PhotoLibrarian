@@ -106,6 +106,15 @@ jobs:
           if ($releaseTags -contains $tag) {
             throw "Stable release $tag already exists. Bump the project version; published assets are immutable."
           }
+      - name: Validate development release prerequisites
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_development && github.ref != 'refs/heads/master' }}
+        shell: pwsh
+        run: |
+          $notes = "docs/releases/$env:VERSION-dev.md"
+          if (-not (Test-Path $notes)) { throw "Development release notes missing: $notes" }
+          if (-not $env:DEV_RELEASE_TAG.StartsWith("v$env:VERSION-dev.")) {
+            throw "Invalid development tag: $env:DEV_RELEASE_TAG"
+          }
       - name: Compile application and tests
         shell: pwsh
         run: |
