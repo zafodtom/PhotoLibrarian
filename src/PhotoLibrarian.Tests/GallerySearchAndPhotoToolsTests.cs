@@ -59,6 +59,65 @@ public sealed class GallerySearchAndPhotoToolsTests
     }
 
     [Fact]
+    public void CropSaveAsStartsInTheOpenedPhotosDirectory()
+    {
+        var window = Read("MainWindow.xaml.cs");
+        Assert.Contains("new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)", window);
+        Assert.Contains("SuggestedFolder = System.IO.Path.GetDirectoryName(entry.FilePath)", window);
+        Assert.Contains("SuggestedFileName = System.IO.Path.GetFileNameWithoutExtension(entry.FilePath) + \"_crop\"", window);
+        Assert.DoesNotContain("new Windows.Storage.Pickers.FileSavePicker", window);
+    }
+
+    [Fact]
+    public void GalleryToolbarKeepsConsistentHeightAndControlStyles()
+    {
+        var document = XDocument.Parse(Read("ImageGridView.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement ByName(string name) => Assert.Single(document.Descendants()
+            .Where(element => (string?)element.Attribute(xaml + "Name") == name));
+        var sort = ByName("SortByCombo");
+        Assert.Contains("HiTechComboStyle", (string?)sort.Attribute("Style") ?? "");
+        foreach (var name in new[] { "SortByCombo", "SortOrderBtn", "SearchFileNameBox" })
+            Assert.Equal("34", (string?)ByName(name).Attribute("Height"));
+        foreach (var name in new[] { "GallerySearchApply", "GallerySearchClear" })
+        {
+            var button = Assert.Single(document.Descendants()
+                .Where(element => (string?)element.Attribute("AutomationProperties.AutomationId") == name));
+            Assert.Equal("34", (string?)button.Attribute("Height"));
+            Assert.Contains("HiTechRailButtonStyle", (string?)button.Attribute("Style") ?? "");
+        }
+        foreach (var clickHandler in new[] { "OnDecreaseSize", "OnIncreaseSize" })
+        {
+            var button = Assert.Single(document.Descendants()
+                .Where(element => (string?)element.Attribute("Click") == clickHandler));
+            Assert.Equal("34", (string?)button.Attribute("Height"));
+        }
+    }
+
+    [Fact]
+    public void RotationIconsAreDirectionalAndDoNotUseUnrelatedFontGlyphs()
+    {
+        var document = XDocument.Parse(Read("MainWindow.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        string RotationGeometry(string buttonName)
+        {
+            var button = Assert.Single(document.Descendants()
+                .Where(element => (string?)element.Attribute(xaml + "Name") == buttonName));
+            var path = Assert.Single(button.Descendants()
+                .Where(element => element.Name.LocalName == "Path"));
+            return (string?)path.Attribute("Data") ?? "";
+        }
+
+        var left = RotationGeometry("SideRotateLeftButton");
+        var right = RotationGeometry("SideRotateRightButton");
+        Assert.NotEqual(left, right);
+        Assert.Equal(left, RotationGeometry("FullscreenRotateLeftButton"));
+        Assert.Equal(right, RotationGeometry("FullscreenRotateRightButton"));
+        Assert.Contains("A 9,9", left);
+        Assert.Contains("A 9,9", right);
+    }
+
+    [Fact]
     public void BothViewerRailsOfferTwoQuarterTurns()
     {
         var main = Read("MainWindow.xaml");
