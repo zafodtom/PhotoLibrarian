@@ -668,6 +668,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             BorderThickness = new Thickness(1)
         };
 
+        CinematicDialogStyling.Apply(dialog);
         var closeConsole = new Button
         {
             Content = "CLOSE CONSOLE",
@@ -881,6 +882,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             };
 
             dialog.Hide();
+            CinematicDialogStyling.Apply(createDialog);
             var createTagResult = await createDialog.ShowAsync();
             _ = dialog.ShowAsync();
             if (createTagResult != ContentDialogResult.Primary)
@@ -989,6 +991,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             };
 
             dialog.Hide();
+            CinematicDialogStyling.Apply(editDialog);
             var editResult = await editDialog.ShowAsync();
             _ = dialog.ShowAsync();
             if (editResult != ContentDialogResult.Primary)
@@ -1421,6 +1424,7 @@ public sealed partial class FolderNavigationPanel : UserControl
             XamlRoot = XamlRoot
         };
 
+        CinematicDialogStyling.Apply(dialog);
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
 
@@ -1459,6 +1463,7 @@ public sealed partial class FolderNavigationPanel : UserControl
                 CloseButtonText = "OK",
                 XamlRoot = this.XamlRoot
             };
+            CinematicDialogStyling.Apply(dialog);
             await dialog.ShowAsync();
         }
     }
