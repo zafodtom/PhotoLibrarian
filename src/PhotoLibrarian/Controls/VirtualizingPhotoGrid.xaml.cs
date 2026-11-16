@@ -142,6 +142,11 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     private readonly HashSet<ImageThumbnailViewModel> _selectedItems = new();
     private ImageThumbnailViewModel? _anchorItem; // Anchor for shift-range selection
     private ImageThumbnailViewModel? _primaryItem; // Last clicked item (drives metadata panel + viewer)
+    // Viewer return can arrive before ScrollViewer has a valid arranged viewport.
+    // Hold the target until layout/viewport events can honor its scroll request.
+    private ImageThumbnailViewModel? _pendingViewerReturnItem;
+    private int _viewerReturnScrollAttempts;
+    private const int MaxViewerReturnScrollAttempts = 6;
     private static readonly Windows.UI.Color SelectionColor = Windows.UI.Color.FromArgb(255, 83, 215, 232);
     private static readonly Windows.UI.Color HoverColor = Windows.UI.Color.FromArgb(255, 52, 115, 138);
     private static readonly Windows.UI.Color CardBackgroundColor = Windows.UI.Color.FromArgb(255, 12, 19, 27);
@@ -313,6 +318,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         // to calculate visible thumbnails in a restored (non-maximized) window.
         if (ItemsSource is not null) RecalculateFlatLayout();
         else RecalculateLayout();
+        TryScrollToLastViewedPhoto();
     }
 
     private void OnScrollViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
@@ -320,6 +326,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         // Update viewport on every scroll change (both during and after scrolling)
         if (ItemsSource is not null) UpdateFlatViewport();
         else UpdateViewport();
+        TryScrollToLastViewedPhoto();
     }
 
     private void RecalculateFlatLayout()
@@ -549,6 +556,7 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
             
             // Update visible elements
             UpdateViewport();
+            TryScrollToLastViewedPhoto();
             
             Debug.WriteLine($"[VIRTUAL] Layout updated: {_columnCount} columns, {_totalContentHeight:F0}px tall, ItemSize={ItemSize}");
         }
@@ -1397,13 +1405,63 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
     }
 
     /// <summary>
-    /// Scroll the selected thumbnail into view after leaving the image viewer.
-    /// Existing keyboard-navigation scroll behavior remains unchanged.
+    /// Center the last-viewed image when returning from the viewer. The viewer
+    /// closes before the gallery's final layout; do not lose the request when
+    /// the first attempt sees a zero-height viewport or stale scroll extent.
+    /// Keyboard navigation continues to use the regular edge-only scrolling.
     /// </summary>
     public void ScrollPrimarySelectionIntoView()
     {
-        if (_primaryItem is not null)
-            ScrollItemIntoView(_primaryItem);
+        _pendingViewerReturnItem = _primaryItem;
+        _viewerReturnScrollAttempts = 0;
+        TryScrollToLastViewedPhoto();
+        // Run again after the viewer overlay has collapsed and layout settles.
+        DispatcherQueue.TryEnqueue(
+            Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+            TryScrollToLastViewedPhoto);
+    }
+
+    private void TryScrollToLastViewedPhoto()
+    {
+        var photo = _pendingViewerReturnItem;
+        if (photo is null) return;
+
+        var viewport = ScrollContainer.ViewportHeight;
+        if (viewport < 1 || ScrollContainer.ActualWidth < 1) return;
+
+        var bounds = GetItemRowBounds(photo);
+        if (bounds is null)
+        {
+            // The last photo is no longer in the filtered/grouped gallery.
+            _pendingViewerReturnItem = null;
+            return;
+        }
+
+        // The Canvas is virtualized, but the placeholder owns the full scroll
+        // extent. Avoid clamping to zero until the placeholder is measured.
+        var contentHeight = Math.Max(_totalContentHeight, ScrollContainer.ExtentHeight);
+        if (contentHeight < bounds.Value.Top + bounds.Value.Height - 1) return;
+
+        var maxOffset = Math.Max(0, contentHeight - viewport);
+        var targetOffset = Math.Clamp(
+            bounds.Value.Top + bounds.Value.Height / 2 - viewport / 2,
+            0, maxOffset);
+        if (Math.Abs(ScrollContainer.VerticalOffset - targetOffset) < 2)
+        {
+            _pendingViewerReturnItem = null;
+            return;
+        }
+
+        if (_viewerReturnScrollAttempts++ >= MaxViewerReturnScrollAttempts)
+        {
+            _pendingViewerReturnItem = null;
+            return;
+        }
+
+        // If ChangeView is ignored during layout, retain the target and retry
+        // on SizeChanged or ViewChanged. A successful request is verified by
+        // the resulting viewport event, not by its return value alone.
+        ScrollContainer.ChangeView(null, targetOffset, null, disableAnimation: true);
     }
 
     private void ScrollItemIntoView(ImageThumbnailViewModel vm)
