@@ -129,6 +129,39 @@ public sealed class CinematicUiConsistencyTests
     }
 
     [Fact]
+    public void AllProgressIndicatorsReuseTheBootScreenStrip()
+    {
+        var shared = Read("CinematicProgressBar.xaml");
+        var logic = Read("CinematicProgressBar.xaml.cs");
+        Assert.Contains("Height=\"12\"", shared);
+        Assert.Contains("BorderBrush=\"#2C5061\"", shared);
+        Assert.Contains("Background=\"#0B151F\"", shared);
+        Assert.Contains("Height=\"8\"", shared);
+        Assert.Contains("Margin=\"2\"", shared);
+        Assert.Contains("Foreground=\"#65D5E5\"", shared);
+        Assert.Contains("nameof(IsIndeterminate)", logic);
+        Assert.Contains("nameof(IsActive)", logic);
+        Assert.Contains("InnerProgress.IsIndeterminate = IsIndeterminate;", logic);
+
+        foreach (var name in new[]
+        {
+            "BootWindow.xaml", "MainWindow.xaml", "SettingsPanel.xaml",
+            "ImageGridView.xaml", "PeopleReviewView.xaml"
+        })
+        {
+            var screen = Read(name);
+            Assert.Contains("CinematicProgressBar", screen);
+            Assert.DoesNotContain("<ProgressRing", screen);
+            Assert.DoesNotContain("<ProgressBar ", screen);
+        }
+
+        var tiles = Read("VirtualizingPhotoGrid.xaml.cs");
+        Assert.Contains("new CinematicProgressBar", tiles);
+        Assert.Contains("CinematicProgressBar.IsActiveProperty", tiles);
+        Assert.DoesNotContain("new ProgressRing", tiles);
+    }
+
+    [Fact]
     public void ViewerControlsKeepActualSizeSeparateFromActualZoomReadout()
     {
         var window = Read("MainWindow.xaml");
