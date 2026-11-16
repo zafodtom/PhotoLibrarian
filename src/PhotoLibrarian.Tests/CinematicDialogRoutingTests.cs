@@ -115,7 +115,8 @@ public sealed class CinematicDialogRoutingTests
     {
         var factory = Source("CinematicDialogShowcase.cs");
         Assert.Contains("string? captionOverride = null, string? operationLabel = null", factory);
-        Assert.Contains("captionOverride ?? caption", factory);
+        Assert.Contains("captionOverride ??", factory);
+        Assert.Contains("informationalWarning ? \"SYSTEM WARNING // OPERATION RESULT\" : caption", factory);
         Assert.Contains(@"operationLabel ?? ""ALBUM OPERATION""", factory);
     }
 
