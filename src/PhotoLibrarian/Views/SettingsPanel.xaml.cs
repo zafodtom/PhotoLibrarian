@@ -53,6 +53,9 @@ public sealed partial class SettingsPanel : UserControl
             ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _activeUpdateDialog?.Hide();
         _thumbnailGenerationCancellation?.Cancel();
+        // Do not leave a destructive privacy job running invisibly after
+        // Settings is removed from the visual tree.
+        _privacyCleanupCancellation?.Cancel();
     }
 
     private void OnViewModelPropertyChanged(
