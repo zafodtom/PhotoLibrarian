@@ -3,8 +3,8 @@ using Xunit;
 namespace PhotoLibrarian.Tests;
 
 /// <summary>
-/// Keeps the non-destructive dialog style preview independent of the
-/// retired gallery/tag-picker scroll workarounds.
+/// Guards against reintroducing temporary dialog-preview tools in Settings,
+/// without interfering with the production cinematic dialog factory.
 /// </summary>
 public sealed class DialogStylePreviewTests
 {
@@ -12,31 +12,36 @@ public sealed class DialogStylePreviewTests
         Path.Combine(AppContext.BaseDirectory, "TestAssets", name));
 
     [Fact]
-    public void SettingsExposeVisualOnlyDialogPreview()
+    public void SettingsHaveNoDialogPreviewOrUiShowcase()
     {
         var xaml = Read("SettingsPanel.xaml");
         var source = Read("SettingsPanel.xaml.cs");
 
-        Assert.Contains("PreviewAllDialogsButton", xaml);
-        Assert.Contains("OnPreviewAllDialogsClick", xaml);
-        Assert.Contains("private static readonly DialogPreview[] DialogPreviews", source);
-        Assert.Contains("CreateStylePreviewDialog", source);
-        Assert.Contains("if (await dialog.ShowAsync() != ContentDialogResult.Primary)", source);
+        foreach (var obsolete in new[]
+        {
+            "PreviewAllDialogsButton", "OnPreviewAllDialogsClick",
+            "UiShowcaseSectionHeader", "OnNavigateUiShowcase",
+            "CinematicShowcaseSequenceButton", "OnShowcaseFatal",
+            "OnShowcaseWarning", "OnShowcaseSequence",
+            "DialogPreviews", "CreateStylePreviewDialog",
+            "ShowCinematicSpecimensAsync"
+        })
+        {
+            Assert.DoesNotContain(obsolete, xaml);
+            Assert.DoesNotContain(obsolete, source);
+        }
     }
 
     [Fact]
-    public void PreviewHandlersNeverInvokeProductionOperations()
+    public void ProductionCinematicWarningsRemainAvailableAfterRemovingPreviews()
     {
-        var source = Read("SettingsPanel.xaml.cs");
-        var start = source.IndexOf("private async void OnPreviewAllDialogsClick(", StringComparison.Ordinal);
-        var end = source.IndexOf("private async void OnClose(", StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start);
-        var preview = source[start..end];
+        var settings = Read("SettingsPanel.xaml.cs");
+        var dialogFactory = Read("CinematicDialogShowcase.cs");
 
-        Assert.DoesNotContain("DeleteCurrentAlbumAsync(", preview);
-        Assert.DoesNotContain("ConvertAlbumAsync(", preview);
-        Assert.DoesNotContain("ClearAlbumMetadataAsync(", preview);
-        Assert.DoesNotContain("ExecuteAsync(", preview);
-        Assert.DoesNotContain("Process.Start(", preview);
+        Assert.Contains("CinematicDialogShowcase.Create(", settings);
+        Assert.Contains("CinematicDialogShowcase.Variant.Warning", settings);
+        Assert.Contains("confirmLabel: \"DELETE ALBUM\"", settings);
+        Assert.Contains("if (await dialog.ShowAsync() != ContentDialogResult.Primary)", settings);
+        Assert.Contains("internal static ContentDialog Create(", dialogFactory);
     }
 }
