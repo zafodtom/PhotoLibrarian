@@ -1466,7 +1466,10 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
 
         // The Canvas is virtualized, but the placeholder owns the full scroll
         // extent. Avoid clamping to zero until the placeholder is measured.
-        var contentHeight = Math.Max(_totalContentHeight, ScrollContainer.ExtentHeight);
+        // Wait until the actual ScrollViewer extent has caught up with the
+        // virtualized placeholder; the calculated layout height alone is not
+        // enough for ChangeView to accept an offset during first arrangement.
+        var contentHeight = ScrollContainer.ExtentHeight;
         if (contentHeight < bounds.Value.Top + bounds.Value.Height - 1) return;
 
         var maxOffset = Math.Max(0, contentHeight - viewport);
