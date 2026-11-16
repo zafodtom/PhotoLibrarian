@@ -337,6 +337,75 @@ public sealed class ImageRepository
         return missing.Count;
     }
 
+    /// <summary>
+    /// Removes all cached personal annotations for one photo transactionally,
+    /// including tags, face regions/embeddings, flags, dates, camera/GPS/rating
+    /// and any sidecar bookkeeping. Call ONLY after the on-disk image and XMP
+    /// have been sanitized; if this transaction fails the caller restores files.
+    /// </summary>
+    public async Task ClearPhotoPrivacyAsync(
+        long imageId, long fileSize, DateTime lastWriteUtc, int width, int height)
+    {
+        if (imageId <= 0) return;
+        using var conn = _db.CreateConnection();
+        using var transaction = conn.BeginTransaction();
+        using (var faces = conn.CreateCommand())
+        {
+            faces.Transaction = transaction;
+            faces.CommandText = "DELETE FROM face_regions WHERE image_id = $id";
+            faces.Parameters.AddWithValue("$id", imageId);
+            await faces.ExecuteNonQueryAsync();
+        }
+        using (var tags = conn.CreateCommand())
+        {
+            tags.Transaction = transaction;
+            tags.CommandText = "DELETE FROM tags WHERE image_id = $id";
+            tags.Parameters.AddWithValue("$id", imageId);
+            await tags.ExecuteNonQueryAsync();
+        }
+        using (var image = conn.CreateCommand())
+        {
+            image.Transaction = transaction;
+            image.CommandText = """
+                UPDATE images SET
+                    file_hash = NULL,
+                    file_size = $size,
+                    width = $width,
+                    height = $height,
+                    date_taken = NULL,
+                    date_modified = $modified,
+                    camera_make = NULL,
+                    camera_model = NULL,
+                    lens_model = NULL,
+                    focal_length = NULL,
+                    aperture = NULL,
+                    exposure_time = NULL,
+                    iso = NULL,
+                    gps_latitude = NULL,
+                    gps_longitude = NULL,
+                    rating = NULL,
+                    orientation = 1,
+                    is_flagged = 0,
+                    face_scan_version = NULL,
+                    auto_tag_scan_version = NULL,
+                    face_metadata_imported = 1,
+                    face_sidecar_path = NULL,
+                    face_sidecar_size = NULL,
+                    face_sidecar_modified = NULL,
+                    face_metadata_export_required = 0
+                WHERE id = $id
+                """;
+            image.Parameters.AddWithValue("$id", imageId);
+            image.Parameters.AddWithValue("$size", fileSize);
+            image.Parameters.AddWithValue("$width", width);
+            image.Parameters.AddWithValue("$height", height);
+            image.Parameters.AddWithValue("$modified", lastWriteUtc.ToString("O"));
+            if (await image.ExecuteNonQueryAsync() != 1)
+                throw new InvalidOperationException("The selected photo is missing from the album database.");
+        }
+        transaction.Commit();
+    }
+
     public async Task UpdateRatingAsync(long imageId, int? rating)
     {
         using var conn = _db.CreateConnection();
