@@ -890,7 +890,7 @@ public sealed partial class SettingsPanel : UserControl
             AnonymizeAlbumStatusText.Text = "Scanning photos for privacy cleanup…";
             using var scanner = new FolderScannerService();
             await foreach (var file in scanner.ScanFolderAsync(root, includeSubfolders: true))
-                if (!FolderScannerService.IsVideoFile(file)) count++;
+                count++; // Unsupported video/RAW is still shown as skipped in results.
         }
         catch (Exception ex)
         {
