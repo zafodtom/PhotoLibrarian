@@ -189,6 +189,9 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         this.InitializeComponent();
         this.Loaded += OnLoaded;
         this.SizeChanged += OnSizeChanged;
+        // The ScrollViewer can acquire its real viewport after the containing
+        // UserControl was measured. Recalculate from the actual viewport size.
+        ScrollContainer.SizeChanged += OnScrollContainerSizeChanged;
         this.KeyDown += OnGridKeyDown;
     }
     
@@ -261,6 +264,9 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         }
         
         Debug.WriteLine($"[VIRTUAL] Created pool of {InitialPoolSize} photo elements and 20 header elements");
+        // The album can be populated before this control has its first usable
+        // width. Make a first layout attempt now, without requiring a resize.
+        RecalculateLayout();
     }
     
     /// <summary>
@@ -301,6 +307,14 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         else RecalculateLayout();
     }
     
+    private void OnScrollContainerSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // The first nonzero ScrollViewer width is the earliest reliable moment
+        // to calculate visible thumbnails in a restored (non-maximized) window.
+        if (ItemsSource is not null) RecalculateFlatLayout();
+        else RecalculateLayout();
+    }
+
     private void OnScrollViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
     {
         // Update viewport on every scroll change (both during and after scrolling)
