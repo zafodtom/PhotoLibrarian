@@ -22,6 +22,22 @@ public sealed class CinematicDialogRoutingTests
     }
 
     [Fact]
+    public void PrivacyCleanupResultIsNotMistakenForAConfirmation()
+    {
+        var dialog = Source("CinematicDialogShowcase.cs");
+        var grid = Source("ImageGridView.xaml.cs");
+        var settings = Source("SettingsPanel.xaml.cs");
+
+        Assert.Contains("informationalWarning", dialog);
+        Assert.Contains("SYSTEM WARNING // OPERATION RESULT", dialog);
+        Assert.Contains("OPERATION RESULT  //  REVIEW THE DETAILS ABOVE", dialog);
+        Assert.Contains("REVIEW THE OPERATION BEFORE CONFIRMING", dialog);
+        Assert.Contains("string.IsNullOrWhiteSpace(confirmLabel)", dialog);
+        Assert.Contains("No photos were changed; no backups were needed", grid);
+        Assert.Contains("No files changed; no backups were needed", settings);
+    }
+
+    [Fact]
     public void DatabaseMaintenanceHasWarningCompletionAndError()
     {
         var source = Source("ManageFoldersDialog.xaml.cs");
