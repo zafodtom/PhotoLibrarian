@@ -261,6 +261,7 @@ public sealed partial class MainWindow : Window
         TopRibbon.CloseViewerClicked += (_, _) => ViewModel.ImageViewer.CloseCommand.Execute(null);
         TopRibbon.AdjustClicked += OnRibbonAdjustClicked;
         TopRibbon.ApplyCropClicked += OnRibbonApplyCropClicked;
+        TopRibbon.ExportCropClicked += OnRibbonExportCropClicked;
         TopRibbon.CancelCropClicked += OnRibbonCancelCropClicked;
         TopRibbon.CropAspectChanged += OnRibbonCropAspectChanged;
         ViewerOverlay.CropApplyRequested += OnRibbonApplyCropClicked;
@@ -727,6 +728,45 @@ public sealed partial class MainWindow : Window
             TopRibbon.ExitCropMode();
             TopRibbon.IsEnabled = true;
             UpdateRibbonVisibility();
+        }
+    }
+
+    private async void OnRibbonExportCropClicked(object? sender, EventArgs e)
+    {
+        if (!ViewerOverlay.IsCropping) return;
+        var bounds = ViewerOverlay.CropOverlay.GetCropBoundsInImagePixels();
+        var entry = ViewModel.ImageViewer.CurrentEntry;
+        if (bounds is null || entry is null || !CropService.IsSupported(entry.FilePath)) return;
+
+        var picker = new Windows.Storage.Pickers.FileSavePicker
+        {
+            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary,
+            SuggestedFileName = System.IO.Path.GetFileNameWithoutExtension(entry.FilePath) + "_crop"
+        };
+        picker.FileTypeChoices.Add("JPEG image", new System.Collections.Generic.List<string> { ".jpg" });
+        picker.FileTypeChoices.Add("PNG image", new System.Collections.Generic.List<string> { ".png" });
+        picker.FileTypeChoices.Add("TIFF image", new System.Collections.Generic.List<string> { ".tif" });
+        picker.FileTypeChoices.Add("Bitmap image", new System.Collections.Generic.List<string> { ".bmp" });
+        WinRT.Interop.InitializeWithWindow.Initialize(
+            picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+
+        var selected = await picker.PickSaveFileAsync();
+        if (selected is null) return;
+
+        TopRibbon.IsEnabled = false;
+        try
+        {
+            var result = await CropService.ExportCropAsync(
+                entry.FilePath, selected.Path, bounds.Value);
+            ViewModel.StatusText = $"Saved crop: {selected.Path} ({result.Width}×{result.Height})";
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusText = "Crop export failed: " + ex.Message;
+        }
+        finally
+        {
+            TopRibbon.IsEnabled = true;
         }
     }
 
