@@ -100,6 +100,10 @@
     <None Include="..\PhotoLibrarian\Views\FolderNavigationPanel.xaml.cs"
           Link="TestAssets\FolderNavigationPanel.xaml.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\PhotoLibrarian\Views\MetadataPanel.xaml.cs"
+          Link="TestAssets\MetadataPanel.xaml.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+
     <None Include="..\PhotoLibrarian\Views\CinematicDialogShowcase.cs"
           Link="TestAssets\CinematicDialogShowcase.cs"
           CopyToOutputDirectory="PreserveNewest" />
