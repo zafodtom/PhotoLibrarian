@@ -12,7 +12,7 @@
 
         <!-- Settings global header -->
         <Grid Grid.Row="0"
-              Background="#0A121A">
+              Background="{StaticResource HiTechPanelBackgroundBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="290" />
                 <ColumnDefinition Width="*" />
@@ -46,7 +46,7 @@
                         Spacing="2">
                 <TextBlock Text="CONFIGURATION CONSOLE"
                            HorizontalAlignment="Center"
-                           Style="{StaticResource HiTechSectionHeaderStyle}"
+                           Style="{StaticResource HiTechPanelHeadingStyle}"
                            FontSize="13" />
                 <TextBlock Text="IMPORT / CACHE / SYSTEM"
                            HorizontalAlignment="Center"
@@ -89,7 +89,7 @@
 
             <!-- Left system map -->
             <Border Grid.Column="0"
-                    Background="#091018"
+                    Background="{StaticResource HiTechPanelBackgroundBrush}"
                     BorderBrush="{StaticResource HiTechBorderBrush}"
                     BorderThickness="0,0,1,0">
                 <Grid Margin="14">
@@ -173,7 +173,7 @@
                         <StackPanel Grid.Column="1"
                                     Margin="10,0,0,0">
                             <TextBlock Text="LIBRARY IMPORT"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="READ-ONLY EXTERNAL METADATA INGEST"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
                         </StackPanel>
@@ -206,7 +206,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
                                         <TextBlock Text="DIGIKAM"
-                                                   Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                                   Style="{StaticResource HiTechPanelHeadingStyle}" />
                                         <TextBlock Text="SOURCE / digikam4.db"
                                                    Style="{StaticResource HiTechTinyLabelStyle}" />
                                     </StackPanel>
@@ -257,7 +257,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
                                         <TextBlock Text="STASH"
-                                                   Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                                   Style="{StaticResource HiTechPanelHeadingStyle}" />
                                         <TextBlock Text="SOURCE / SQLITE OR BACKUP ZIP"
                                                    Style="{StaticResource HiTechTinyLabelStyle}" />
                                     </StackPanel>
@@ -312,7 +312,7 @@
                         <StackPanel Grid.Column="1"
                                     Margin="10,0,0,0">
                             <TextBlock Text="CACHE CONTROL"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="PORTABLE THUMBNAIL CACHE (MAX 1 GB)"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
                         </StackPanel>
@@ -365,7 +365,7 @@
                     <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
                         <StackPanel Spacing="10">
                             <TextBlock Text="THUMBNAIL // COMPLETE ALBUM"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="Scan the active album and generate missing 256px cache thumbnails. Existing valid cache entries are not regenerated. Internal .album files and nested albums are excluded."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource HiTechTextSecondaryBrush}" />
@@ -393,7 +393,7 @@
                     <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
                         <StackPanel Spacing="10">
                             <TextBlock Text="TAGS // RECENT HISTORY"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="Number of recently assigned tags shown below Add tag. Set 0 to hide the shortcuts. The history is kept separately for each album."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource HiTechTextSecondaryBrush}" />
@@ -430,7 +430,7 @@
                                    VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Margin="10,0,0,0">
                             <TextBlock Text="ALBUM // JPEG CONVERSION"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="LOCAL FILE CONVERSION + XMP EMBEDDING"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
                         </StackPanel>
@@ -486,7 +486,7 @@
                                    VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Margin="10,0,0,0">
                             <TextBlock Text="ALBUM // RESET TAGS"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="CLEAR TAGS, FLAGS AND TAG CATALOG"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
                         </StackPanel>
@@ -531,7 +531,7 @@
                     <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
                         <StackPanel Spacing="9">
                             <TextBlock Text="ALBUM // DELETE"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}"
+                                       Style="{StaticResource HiTechPanelHeadingStyle}"
                                        Foreground="#FF7180" />
                             <TextBlock Text="Remove the album catalog and associated XMP sidecars. Original photo and video files are preserved. Requires explicit confirmation."
                                        TextWrapping="Wrap"
@@ -564,7 +564,7 @@
                         <StackPanel Grid.Column="1"
                                     Margin="10,0,0,0">
                             <TextBlock Text="RUNTIME IDENTITY"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="APPLICATION / LOCAL-FIRST"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
                         </StackPanel>
@@ -617,7 +617,7 @@
                     <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
                         <StackPanel Spacing="10">
                             <TextBlock Text="SYSTEM // UPDATE CONTROL"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}"/>
+                                       Style="{StaticResource HiTechPanelHeadingStyle}"/>
                             <TextBlock Text="Updates are checked manually. Stable releases come from master; development prereleases are optional."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource HiTechTextSecondaryBrush}"/>
@@ -647,7 +647,7 @@
                     <Border Style="{StaticResource HiTechModuleStyle}" Padding="16" Margin="0,10,0,0">
                         <StackPanel Spacing="10">
                             <TextBlock Text="DIAGNOSTICS // DIALOG PREVIEW"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="Inspect application dialog styles in sequence. Preview buttons never execute their original operations."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource HiTechTextSecondaryBrush}" />
@@ -671,7 +671,7 @@
                                    VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Margin="10,0,0,0">
                             <TextBlock Text="SYSTEM // UI SHOWCASE"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="CINEMATIC UI 2.0 / DESIGN LAB"
                                        Style="{StaticResource HiTechTinyLabelStyle}" />
                         </StackPanel>
@@ -753,7 +753,7 @@
                         <Rectangle Grid.Column="0" Fill="{StaticResource HiTechAccentBrush}"/>
                         <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="4">
                             <TextBlock Text="PHOTO // LIBRARIAN"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}"/>
+                                       Style="{StaticResource HiTechPanelHeadingStyle}"/>
                             <TextBlock Text="VISUAL ARCHIVE // UPDATE SEQUENCE"
                                        Style="{StaticResource HiTechTinyLabelStyle}"/>
                         </StackPanel>
@@ -791,7 +791,7 @@
 
         <!-- Footer command rail -->
         <Grid Grid.Row="2"
-              Background="#091018"
+              Background="{StaticResource HiTechPanelBackgroundBrush}"
               BorderBrush="{StaticResource HiTechBorderBrush}"
               BorderThickness="0,1,0,0"
               Padding="16,8">
