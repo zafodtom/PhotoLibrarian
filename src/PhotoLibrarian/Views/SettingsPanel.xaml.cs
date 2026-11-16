@@ -317,9 +317,6 @@ public sealed partial class SettingsPanel : UserControl
     private void SetDigiKamBusy(bool busy)
     {
         ImportDigiKamButton.IsEnabled = !busy;
-        DigiKamImportProgressRing.IsActive = busy;
-        DigiKamImportProgressRing.Visibility =
-            busy ? Visibility.Visible : Visibility.Collapsed;
         DigiKamImportProgressBar.Visibility =
             busy ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -327,9 +324,6 @@ public sealed partial class SettingsPanel : UserControl
     private void SetStashBusy(bool busy)
     {
         ImportStashButton.IsEnabled = !busy;
-        StashImportProgressRing.IsActive = busy;
-        StashImportProgressRing.Visibility =
-            busy ? Visibility.Visible : Visibility.Collapsed;
         StashImportProgressBar.Visibility =
             busy ? Visibility.Visible : Visibility.Collapsed;
     }
