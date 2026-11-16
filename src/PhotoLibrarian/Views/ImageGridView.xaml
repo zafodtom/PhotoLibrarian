@@ -90,8 +90,10 @@
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Center"
                             Spacing="6">
-                    <TextBlock Text="LIBRARY FEED"
-                               Style="{StaticResource HiTechTinyLabelStyle}" />
+                    <TextBlock x:Name="VisiblePhotoCountText"
+                               Text="0 PHOTOS"
+                               Style="{StaticResource HiTechTinyLabelStyle}"
+                               Foreground="{StaticResource HiTechAccentBrush}" />
                     <Rectangle Width="32"
                                Height="1"
                                Fill="{StaticResource HiTechAccentMutedBrush}"
