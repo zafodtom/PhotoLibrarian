@@ -77,7 +77,8 @@ public sealed class PhotoPrivacyWorkflowTests
                     return Task.CompletedTask;
                 },
                 keepBackups: false);
-            Assert.True(committed);
+            Assert.True(committed, "Privacy pipeline never reached catalog update: " +
+                string.Join("; ", result.Errors));
             Assert.Equal(1, result.Cleaned);
             Assert.Equal(0, result.Failed);
             Assert.False(File.Exists(xmp));
