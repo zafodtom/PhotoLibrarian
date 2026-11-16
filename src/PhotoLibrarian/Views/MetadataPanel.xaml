@@ -52,7 +52,7 @@
 
                 <!-- ═══ Row 0: Editable sections ═══ -->
                 <Border Grid.Row="0"
-                        Background="#66070D13"
+                        Background="{StaticResource HiTechPanelBackgroundBrush}"
                         Margin="0,0,0,8"
                         IsHitTestVisible="False" />
                 <StackPanel Grid.Row="0" Spacing="0">
@@ -70,13 +70,13 @@
                                     Margin="10,0,0,0"
                                     VerticalAlignment="Center">
                             <TextBlock Text="ASSET METADATA"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}" />
+                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
                             <TextBlock Text="EDIT / INDEX / INSPECT"
-                                       Style="{StaticResource HiTechTinyLabelStyle}" />
+                                       Style="{StaticResource HiTechSystemCaptionStyle}" />
                         </StackPanel>
                         <TextBlock Grid.Column="2"
                                    Text="M03"
-                                   Style="{StaticResource HiTechTinyLabelStyle}"
+                                   Style="{StaticResource HiTechSystemCaptionStyle}"
                                    VerticalAlignment="Center" />
                     </Grid>
                     <Border Height="1"
@@ -411,7 +411,7 @@
                                        VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1"
                                        Text="FILE / EXIF"
-                                       Style="{StaticResource HiTechSectionHeaderStyle}"
+                                       Style="{StaticResource HiTechPanelHeadingStyle}"
                                        Margin="8,0,0,0"
                                        VerticalAlignment="Center" />
                             <TextBlock Grid.Column="2"
