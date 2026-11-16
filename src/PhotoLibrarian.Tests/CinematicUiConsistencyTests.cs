@@ -64,6 +64,29 @@ public sealed class CinematicUiConsistencyTests
     }
 
     [Fact]
+    public void CinematicWarningsStayCenteredAndAvoidDefaultAccentButtons()
+    {
+        var source = Read("CinematicDialogShowcase.cs");
+        Assert.Contains("HorizontalAlignment = HorizontalAlignment.Center", source);
+        Assert.Contains("VerticalAlignment = VerticalAlignment.Center", source);
+        Assert.Contains("DefaultButton = ContentDialogButton.None", source);
+        Assert.Contains("dialog.PrimaryButtonStyle = ActionStyle(", source);
+        Assert.Contains("dialog.CloseButtonStyle = ActionStyle(", source);
+    }
+
+    [Fact]
+    public void OrdinaryDialogsShareCenteredNeutralAndDestructiveButtonStyles()
+    {
+        var source = Read("CinematicDialogStyling.cs");
+        var theme = Read("HiTechTheme.xaml");
+        Assert.Contains("dialog.HorizontalAlignment = HorizontalAlignment.Center", source);
+        Assert.Contains("dialog.VerticalAlignment = VerticalAlignment.Center", source);
+        Assert.Contains("HiTechSectionActionStyle", source);
+        Assert.Contains("HiTechDangerButtonStyle", source);
+        Assert.Contains("x:Key=\"HiTechDangerButtonStyle\"", theme);
+    }
+
+    [Fact]
     public void ViewerControlsKeepActualSizeSeparateFromActualZoomReadout()
     {
         var window = Read("MainWindow.xaml");
