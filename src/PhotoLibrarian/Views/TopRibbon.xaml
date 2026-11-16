@@ -8,9 +8,9 @@
         <Style x:Key="RibbonCommandStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource HiTechPanelBackgroundAltBrush}" />
             <Setter Property="Foreground" Value="{StaticResource HiTechTextPrimaryBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource HiTechBorderBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource HiTechAccentMutedBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="1" />
+            <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Padding" Value="12,4" />
             <Setter Property="MinWidth" Value="64" />
             <Setter Property="MinHeight" Value="56" />
@@ -39,7 +39,7 @@
 
     <Border BorderBrush="{StaticResource HiTechAccentMutedBrush}"
             BorderThickness="0,0,0,1"
-            Background="{StaticResource HiTechPanelBackgroundBrush}">
+            Background="{StaticResource HiTechPanelBackgroundAltBrush}">
         <Grid Padding="10,6" MinHeight="72" ColumnSpacing="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
