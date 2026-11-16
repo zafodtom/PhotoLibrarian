@@ -122,7 +122,7 @@
                         <Ellipse Width="7" Height="7"
                                  Fill="{StaticResource HiTechAccentBrush}"
                                  VerticalAlignment="Center" />
-                        <TextBlock Text="ARCHIVE READY"
+                        <TextBlock Text="LOCAL WORKSPACE"
                                    FontFamily="Consolas"
                                    FontSize="11"
                                    Foreground="{StaticResource HiTechTextPrimaryBrush}" />
@@ -549,12 +549,12 @@
             </Grid>
         </Border>
 
-        <!-- Bottom system rail -->
+        <!-- Bottom system rail: functional status and version remain unchanged. -->
         <Grid x:Name="StatusBar"
               Grid.Row="3"
               Padding="12,3"
               Background="{StaticResource HiTechPanelBackgroundBrush}"
-              BorderBrush="{StaticResource HiTechBorderBrush}"
+              BorderBrush="{StaticResource HiTechAccentMutedBrush}"
               BorderThickness="0,1,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -566,7 +566,7 @@
             <StackPanel Orientation="Horizontal"
                         Spacing="10"
                         VerticalAlignment="Center">
-                <TextBlock Text="SYS"
+                <TextBlock Text="SYS //"
                            Foreground="{StaticResource HiTechAccentBrush}"
                            Style="{StaticResource HiTechCaptionStyle}" />
                 <Rectangle Width="26" Height="1"
@@ -605,7 +605,7 @@
                     AutomationProperties.Name="Settings"
                     Click="OnSettingsClick"
                     ToolTipService.ToolTip="Settings"
-                    Style="{StaticResource HiTechIconButtonStyle}">
+                    Style="{StaticResource HiTechRailButtonStyle}">
                 <Viewbox Width="19" Height="19"><Grid Width="24" Height="24"><Path Data="M12,2 L12,5 M12,19 L12,22 M2,12 L5,12 M19,12 L22,12 M4.9,4.9 L7,7 M17,17 L19.1,19.1 M19.1,4.9 L17,7 M7,17 L4.9,19.1" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/><Ellipse Width="13" Height="13" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2.6"/><Ellipse Width="4" Height="4" Stroke="{StaticResource HiTechAccentBrush}" StrokeThickness="2"/></Grid></Viewbox>
             </Button>
         </Grid>
