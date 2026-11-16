@@ -1154,6 +1154,63 @@ public partial class MainViewModel : ObservableObject
     /// Called after the image file at <paramref name="filePath"/> has been cropped on disk.
     /// Updates DB dimensions, refreshes the grid thumbnail and the open viewer.
     /// </summary>
+    /// <summary>
+    /// Capture the actual assigned leaf/path tags before pixel edits. The album DB
+    /// is authoritative (metadata writes may have fallen back to a sidecar).
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetPhotoTagsForCropAsync(ImageEntry image)
+    {
+        var stored = image.Id > 0
+            ? (await _tagRepo.GetTagsAsync(image.Id)).Select(tag => tag.Tag)
+            : Enumerable.Empty<string>();
+        var tags = stored
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (tags.Length > 0)
+            return tags;
+
+        // Allows exporting a photo that is not yet present in the active index.
+        return await Task.Run(() => _metadataReader.ReadTags(image.FilePath));
+    }
+
+    /// <summary>
+    /// Register a newly exported crop only if it belongs to the current album.
+    /// Reconcile the exact requested tag set even if the path was already indexed
+    /// (such as overwriting an existing file). External exports remain independent.
+    /// </summary>
+    public async Task RegisterExportedCropAsync(
+        string exportedPath, IReadOnlyCollection<string> copiedTags)
+    {
+        var root = App.CurrentAlbumPath;
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(root) ||
+            FolderScannerService.ContainsAlbumMetadataComponent(exportedPath))
+            return;
+
+        var relative = Path.GetRelativePath(root, exportedPath);
+        if (Path.IsPathRooted(relative) || relative == ".." ||
+            relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+            relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal))
+            return;
+
+        await _indexingService.IndexFileAsync(exportedPath);
+        var entry = await _imageRepo.GetByPathAsync(exportedPath)
+            ?? throw new IOException("The saved crop could not be registered in the active album.");
+        await _tagRepo.ClearImageTagsAsync(entry.Id);
+        foreach (var tag in copiedTags.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            await _tagRepo.AddTagAsync(new ImageTag
+            {
+                ImageId = entry.Id,
+                Tag = tag,
+                Source = TagSource.Metadata,
+                Confidence = 1.0f
+            });
+        }
+
+        await RefreshAfterIndexAsync();
+    }
+
     public async Task RefreshAfterCropAsync(string filePath, CropResult result)
     {
         var entry = await _imageRepo.GetByPathAsync(filePath);
