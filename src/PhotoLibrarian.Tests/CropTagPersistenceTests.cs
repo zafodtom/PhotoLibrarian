@@ -28,7 +28,11 @@ public sealed class CropTagPersistenceTests
             File.WriteAllText(Path.ChangeExtension(filePath, ".xmp"),
                 XmpMetaFactory.SerializeToString(xmp, new SerializeOptions()));
 
-            var imported = new MetadataReaderService().ReadTags(filePath);
+            var reader = new MetadataReaderService();
+            // The same RAW/BMP sidecar must be visible to album indexing,
+            // but must NOT be mistaken for embedded photo metadata by reset.
+            Assert.Empty(reader.ReadEmbeddedTags(filePath));
+            var imported = reader.ReadTags(filePath);
             Assert.Contains("Styl/svatební", imported);
             Assert.Contains("Oblečení/šaty", imported);
             Assert.Equal(2, imported.Count);
