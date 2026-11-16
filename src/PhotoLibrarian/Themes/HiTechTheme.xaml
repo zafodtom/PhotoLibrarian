@@ -3,18 +3,18 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- PhotoLibrarian Hi-Tech / FUI theme -->
-    <SolidColorBrush x:Key="HiTechAppBackgroundBrush" Color="#070B10" />
-    <SolidColorBrush x:Key="HiTechPanelBackgroundBrush" Color="#0C131B" />
-    <SolidColorBrush x:Key="HiTechPanelBackgroundAltBrush" Color="#101A24" />
-    <SolidColorBrush x:Key="HiTechPanelHoverBrush" Color="#142433" />
-    <SolidColorBrush x:Key="HiTechBorderBrush" Color="#244252" />
-    <SolidColorBrush x:Key="HiTechBorderStrongBrush" Color="#34738A" />
-    <SolidColorBrush x:Key="HiTechAccentBrush" Color="#53D7E8" />
-    <SolidColorBrush x:Key="HiTechAccentMutedBrush" Color="#1D6B78" />
-    <SolidColorBrush x:Key="HiTechAccentFillBrush" Color="#17313A" />
-    <SolidColorBrush x:Key="HiTechTextPrimaryBrush" Color="#E6F7FA" />
-    <SolidColorBrush x:Key="HiTechTextSecondaryBrush" Color="#8CA9B3" />
-    <SolidColorBrush x:Key="HiTechDangerBrush" Color="#FF6E78" />
+    <SolidColorBrush x:Key="HiTechAppBackgroundBrush" Color="#070C12" />
+    <SolidColorBrush x:Key="HiTechPanelBackgroundBrush" Color="#0B151F" />
+    <SolidColorBrush x:Key="HiTechPanelBackgroundAltBrush" Color="#112230" />
+    <SolidColorBrush x:Key="HiTechPanelHoverBrush" Color="#193447" />
+    <SolidColorBrush x:Key="HiTechBorderBrush" Color="#2C5061" />
+    <SolidColorBrush x:Key="HiTechBorderStrongBrush" Color="#42859A" />
+    <SolidColorBrush x:Key="HiTechAccentBrush" Color="#65D5E5" />
+    <SolidColorBrush x:Key="HiTechAccentMutedBrush" Color="#397887" />
+    <SolidColorBrush x:Key="HiTechAccentFillBrush" Color="#153842" />
+    <SolidColorBrush x:Key="HiTechTextPrimaryBrush" Color="#E8F5F7" />
+    <SolidColorBrush x:Key="HiTechTextSecondaryBrush" Color="#9AB7C2" />
+    <SolidColorBrush x:Key="HiTechDangerBrush" Color="#FF737B" />
 
     <CornerRadius x:Key="HiTechPanelCornerRadius">2</CornerRadius>
     <CornerRadius x:Key="HiTechControlCornerRadius">2</CornerRadius>
@@ -129,6 +129,21 @@
         <Setter Property="FontFamily" Value="Consolas" />
         <Setter Property="FontSize" Value="9" />
         <Setter Property="CharacterSpacing" Value="160" />
+    </Style>
+
+    <!-- Visual phase: section labels carry one consistent industrial accent.
+         These styles are presentation only; no control templates or handlers. -->
+    <Style x:Key="HiTechPanelHeadingStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource HiTechSectionHeaderStyle}">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="CharacterSpacing" Value="130" />
+        <Setter Property="Foreground" Value="{StaticResource HiTechAccentBrush}" />
+    </Style>
+
+    <Style x:Key="HiTechSystemCaptionStyle" TargetType="TextBlock"
+           BasedOn="{StaticResource HiTechTinyLabelStyle}">
+        <Setter Property="Foreground" Value="{StaticResource HiTechTextSecondaryBrush}" />
+        <Setter Property="CharacterSpacing" Value="110" />
     </Style>
 
 </ResourceDictionary>
