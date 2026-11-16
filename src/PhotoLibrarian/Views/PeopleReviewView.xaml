@@ -14,10 +14,10 @@
                     <RowDefinition Height="144" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                <Border Background="{StaticResource HiTechPanelBackgroundBrush}"
+                        BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                         BorderThickness="1"
-                        CornerRadius="{ThemeResource ControlCornerRadius}">
+                        CornerRadius="1">
                     <Grid>
                         <Image Source="{x:Bind Thumbnail, Mode=OneWay}"
                                x:Phase="1"
@@ -31,11 +31,11 @@
                             Margin="4"
                             Spacing="0">
                     <TextBlock Text="{x:Bind FileName, Mode=OneWay}"
-                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Style="{StaticResource HiTechCaptionStyle}"
                                TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{x:Bind SimilarityText, Mode=OneWay}"
-                               Style="{StaticResource CaptionTextBlockStyle}"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                               Style="{StaticResource HiTechCaptionStyle}"
+                               Foreground="{StaticResource HiTechTextSecondaryBrush}" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
@@ -50,7 +50,8 @@
                              Invoked="OnUndoTagInvoked" />
     </UserControl.KeyboardAccelerators>
 
-    <Grid Padding="24" RowSpacing="16">
+    <Grid Padding="24" RowSpacing="16"
+          Background="{StaticResource HiTechAppBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -66,11 +67,12 @@
             </Grid.ColumnDefinitions>
             <StackPanel VerticalAlignment="Center"
                         Spacing="4">
-                <TextBlock Text="People"
-                           Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock Text="PEOPLE // REVIEW"
+                           Style="{StaticResource HiTechTitleStyle}"
+                           FontSize="20" />
                 <TextBlock Text="Review suggestions, manage named people, and restore excluded faces."
                            TextWrapping="Wrap"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                           Foreground="{StaticResource HiTechTextSecondaryBrush}" />
             </StackPanel>
 
             <Grid Grid.Column="1"
@@ -80,8 +82,8 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock Text="Drag selected faces onto a person to tag"
-                           Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                           Style="{StaticResource HiTechCaptionStyle}"
+                           Foreground="{StaticResource HiTechTextSecondaryBrush}" />
                 <GridView x:Name="PersonDropTargetStrip"
                           AutomationProperties.AutomationId="PersonDropTargetStrip"
                           AutomationProperties.Name="Frequent people tag targets"
@@ -121,7 +123,7 @@
                                                Text="{x:Bind DisplayLabel, Mode=OneWay}"
                                                TextAlignment="Center"
                                                TextTrimming="CharacterEllipsis"
-                                               Style="{StaticResource CaptionTextBlockStyle}" />
+                                               Style="{StaticResource HiTechCaptionStyle}" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -134,7 +136,8 @@
                     Grid.Column="2"
                     VerticalAlignment="Top"
                     Command="{x:Bind ViewModel.CloseCommand}"
-                    ToolTipService.ToolTip="Close">
+                    ToolTipService.ToolTip="Close"
+                    Style="{StaticResource HiTechRailButtonStyle}">
                 <FontIcon Glyph="&#xE711;" />
             </Button>
         </Grid>
@@ -179,10 +182,10 @@
                         <DataTemplate x:DataType="vm:FaceSuggestionGroupViewModel">
                             <StackPanel Padding="8" Spacing="4">
                                 <TextBlock Text="{x:Bind Header, Mode=OneWay}"
-                                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                           Style="{StaticResource HiTechPanelHeadingStyle}" />
                                 <TextBlock Text="{x:Bind Summary, Mode=OneWay}"
-                                           Style="{StaticResource CaptionTextBlockStyle}"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                           Style="{StaticResource HiTechCaptionStyle}"
+                                           Foreground="{StaticResource HiTechTextSecondaryBrush}" />
                             </StackPanel>
                         </DataTemplate>
                     </ListView.ItemTemplate>
@@ -230,10 +233,10 @@
                         <DataTemplate x:DataType="vm:PersonManagementItemViewModel">
                             <StackPanel Padding="8" Spacing="4">
                                 <TextBlock Text="{x:Bind Name, Mode=OneWay}"
-                                           Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                           Style="{StaticResource HiTechPanelHeadingStyle}" />
                                 <TextBlock Text="{x:Bind Summary, Mode=OneWay}"
-                                           Style="{StaticResource CaptionTextBlockStyle}"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                           Style="{StaticResource HiTechCaptionStyle}"
+                                           Foreground="{StaticResource HiTechTextSecondaryBrush}" />
                             </StackPanel>
                         </DataTemplate>
                     </ListView.ItemTemplate>
@@ -291,18 +294,18 @@
 
             <Border Grid.Column="2"
                     Padding="12"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Background="{StaticResource HiTechPanelBackgroundBrush}"
+                    BorderBrush="{StaticResource HiTechBorderStrongBrush}"
                     BorderThickness="1"
-                    CornerRadius="{ThemeResource OverlayCornerRadius}">
+                    CornerRadius="1">
                 <Grid RowSpacing="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Photo context"
-                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="PHOTO // CONTEXT"
+                               Style="{StaticResource HiTechPanelHeadingStyle}" />
                     <Grid Grid.Row="1">
                         <Image x:Name="ContextPreviewImage"
                                Stretch="Uniform" />
@@ -315,11 +318,11 @@
                                    Text="Select or point to a face to preview its photo."
                                    TextAlignment="Center"
                                    TextWrapping="Wrap"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                   Foreground="{StaticResource HiTechTextSecondaryBrush}" />
                     </Grid>
                     <TextBlock x:Name="ContextPreviewName"
                                Grid.Row="2"
-                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Style="{StaticResource HiTechCaptionStyle}"
                                TextTrimming="CharacterEllipsis" />
                 </Grid>
             </Border>
@@ -344,8 +347,8 @@
                                VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock Text="C confirm  ·  R not this person  ·  D don't show again  ·  T tag as  ·  Ctrl+A select all  ·  Ctrl+Z undo tag"
-                           Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                           Style="{StaticResource HiTechCaptionStyle}"
+                           Foreground="{StaticResource HiTechTextSecondaryBrush}" />
             </StackPanel>
             <CommandBar Grid.Column="1"
                         Background="Transparent"
