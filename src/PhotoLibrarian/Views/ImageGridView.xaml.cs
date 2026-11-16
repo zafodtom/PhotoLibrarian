@@ -598,6 +598,71 @@ public sealed partial class ImageGridView : UserControl
         };
         menu.Items.Add(clearTags);
 
+        // Full file privacy cleanup is distinct from keyword-only removal.
+        // The shared service also handles multiple selected photographs.
+        var anonymize = new MenuFlyoutItem
+        {
+            Text = isMulti
+                ? $"Anonymize metadata ({selected.Count} photos)…"
+                : "Anonymize photo metadata…"
+        };
+        anonymize.Click += async (_, _) =>
+        {
+            var warning = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Warning,
+                subjectOverride: "ANONYMIZE SELECTED PHOTOS?",
+                detailOverride:
+                    $"Remove EXIF, IPTC, XMP, GPS, dates, camera details, tags, ratings and " +
+                    $"face annotations from {selected.Count:N0} selected photo(s)? " +
+                    "JPEG, PNG and WebP are processed without recompressing image pixels; " +
+                    "TIFF/BMP and orientation-bearing files are re-encoded. " +
+                    "Unsupported media are skipped and reported. " +
+                    "Originals and XMP are backed up under .album/privacy-backups. " +
+                    "Those backups still contain identifying information. " +
+                    "File names, visible people in photos, OS thumbnails and earlier backups " +
+                    "are NOT anonymized.",
+                confirmLabel: "ANONYMIZE METADATA",
+                preview: false,
+                captionOverride: "PRIVACY // DESTRUCTIVE OPERATION",
+                operationLabel: "PHOTO METADATA");
+            if (await warning.ShowAsync() != ContentDialogResult.Primary)
+                return;
+            try
+            {
+                var result = await App.ViewModel.AnonymizePhotoMetadataAsync(
+                    selected.Select(vm => vm.Entry).ToArray(), keepBackups: true);
+                var description =
+                    $"Cleaned: {result.Cleaned:N0}. Skipped: {result.Skipped:N0}. " +
+                    $"Failed: {result.Failed:N0}. Backups: {result.BackupDirectory}. " +
+                    (result.Errors.Count > 0
+                        ? "First issues: " + string.Join("; ", result.Errors.Take(3))
+                        : "File metadata and album photo assignments were cleared.");
+                var report = CinematicDialogShowcase.Create(
+                    XamlRoot,
+                    result.Failed > 0 || result.Skipped > 0
+                        ? CinematicDialogShowcase.Variant.Warning
+                        : CinematicDialogShowcase.Variant.Complete,
+                    subjectOverride: result.Failed > 0 || result.Skipped > 0
+                        ? "PRIVACY CLEANUP PARTIAL"
+                        : "PHOTO METADATA REMOVED",
+                    detailOverride: description,
+                    preview: false);
+                await report.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                var error = CinematicDialogShowcase.Create(
+                    XamlRoot,
+                    CinematicDialogShowcase.Variant.Error,
+                    subjectOverride: "PRIVACY CLEANUP FAILED",
+                    detailOverride: ex.Message,
+                    preview: false);
+                await error.ShowAsync();
+            }
+        };
+        menu.Items.Add(anonymize);
+
         // Rename — single only
         var rename = new MenuFlyoutItem { Text = "Rename…" };
         rename.Click += async (_, _) => await ShowRenameDialogAsync(primary.Entry);

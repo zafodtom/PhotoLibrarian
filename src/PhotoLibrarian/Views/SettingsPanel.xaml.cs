@@ -53,6 +53,9 @@ public sealed partial class SettingsPanel : UserControl
             ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _activeUpdateDialog?.Hide();
         _thumbnailGenerationCancellation?.Cancel();
+        // Do not leave a destructive privacy job running invisibly after
+        // Settings is removed from the visual tree.
+        _privacyCleanupCancellation?.Cancel();
     }
 
     private void OnViewModelPropertyChanged(
@@ -576,7 +579,7 @@ public sealed partial class SettingsPanel : UserControl
 
     private async void OnRunJpegConversion(object sender, RoutedEventArgs e)
     {
-        if (_jpegConversionBusy || _clearAlbumBusy || _thumbnailGenerationBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
+        if (_jpegConversionBusy || _clearAlbumBusy || _privacyCleanupBusy || _thumbnailGenerationBusy || _jpegPreview is null || _jpegPreview.PendingCount == 0 ||
             !EnsureAlbumOpen(JpegConversionStatusText))
             return;
 
@@ -715,7 +718,7 @@ public sealed partial class SettingsPanel : UserControl
 
     private async Task ClearAlbumMetadataAsync(bool retryFailedOnly)
     {
-        if (_clearAlbumBusy || _jpegConversionBusy || _thumbnailGenerationBusy ||
+        if (_clearAlbumBusy || _privacyCleanupBusy || _jpegConversionBusy || _thumbnailGenerationBusy ||
             App.ViewModel is null ||
             !EnsureAlbumOpen(ClearAlbumStatusText))
             return;
@@ -871,12 +874,153 @@ public sealed partial class SettingsPanel : UserControl
         _clearAlbumCancellation?.Cancel();
     }
 
+    private CancellationTokenSource? _privacyCleanupCancellation;
+    private bool _privacyCleanupBusy;
+
+    private async void OnAnonymizeAlbum(object sender, RoutedEventArgs e)
+    {
+        if (_privacyCleanupBusy || _jpegConversionBusy || _clearAlbumBusy ||
+            _thumbnailGenerationBusy || _cacheClearBusy ||
+            App.ViewModel is null ||
+            !EnsureAlbumOpen(AnonymizeAlbumStatusText))
+            return;
+
+        var root = App.CurrentAlbumPath!;
+        int count = 0;
+        try
+        {
+            AnonymizeAlbumButton.IsEnabled = false;
+            AnonymizeAlbumStatusText.Text = "Scanning photos for privacy cleanup…";
+            using var scanner = new FolderScannerService();
+            await foreach (var file in scanner.ScanFolderAsync(root, includeSubfolders: true))
+                count++; // Unsupported video/RAW is still shown as skipped in results.
+        }
+        catch (Exception ex)
+        {
+            AnonymizeAlbumStatusText.Text = "Privacy scan failed: " + ex.Message;
+            return;
+        }
+        finally
+        {
+            AnonymizeAlbumButton.IsEnabled = true;
+        }
+
+        if (!string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
+        {
+            AnonymizeAlbumStatusText.Text = "Active album changed; run cancelled.";
+            return;
+        }
+
+        var retain = KeepPrivacyBackupsCheckBox.IsChecked != false;
+        var dialog = CreateAlbumMaintenanceDialog(
+            "ANONYMIZE ENTIRE ALBUM?",
+            $"Strip embedded EXIF/IPTC/XMP, GPS, ratings, dates, comments and " +
+            $"local photo tag/face records from {count:N0} media files?\n\n" +
+            "JPEG/PNG/WebP compressed pixels are preserved. Some images are " +
+            "re-encoded; unsupported files are SKIPPED, not silently cleaned. " +
+            "All original XMP sidecars of successfully processed images are removed. " +
+            "Automated recognition/tagging will be switched OFF.\n\n" +
+            (retain
+                ? "Backups containing the original identifying metadata will remain under .album/privacy-backups. "
+                : "NO RETAINED BACKUPS: successfully cleaned files cannot be restored. ") +
+            "Filename, visible content, OS caches, and older backups remain. " +
+            "Cancelling does not undo already completed photos.",
+            "ANONYMIZE ALBUM", destructive: true);
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            return;
+        if (!string.Equals(root, App.CurrentAlbumPath, StringComparison.OrdinalIgnoreCase))
+        {
+            AnonymizeAlbumStatusText.Text = "Album changed; operation cancelled.";
+            return;
+        }
+
+        _privacyCleanupBusy = true;
+        _privacyCleanupCancellation = new CancellationTokenSource();
+        AnonymizeAlbumButton.IsEnabled = false;
+        CancelAnonymizeAlbumButton.IsEnabled = true;
+        ClearAlbumMetadataButton.IsEnabled = false;
+        RetryFailedAlbumMetadataButton.IsEnabled = false;
+        RunJpegConversionButton.IsEnabled = false;
+        PreviewJpegConversionButton.IsEnabled = false;
+        AnonymizeAlbumProgressBar.Visibility = Visibility.Visible;
+        AnonymizeAlbumProgressBar.Value = 0;
+        try
+        {
+            var progress = new Progress<PhotoPrivacyProgress>(status =>
+            {
+                AnonymizeAlbumProgressBar.Value = status.Total == 0
+                    ? 100 : 100.0 * status.Processed / status.Total;
+                AnonymizeAlbumStatusText.Text =
+                    $"PRIVACY // {status.Processed:N0}/{status.Total:N0}" +
+                    $" // {status.Cleaned:N0} cleaned, {status.Skipped:N0} skipped, " +
+                    $"{status.Failed:N0} failed // {status.FileName}";
+            });
+
+            var result = await App.ViewModel.AnonymizePhotoMetadataAsync(
+                null, progress, _privacyCleanupCancellation.Token,
+                keepBackups: retain);
+            AnonymizeAlbumStatusText.Text =
+                $"Complete: {result.Cleaned:N0} cleaned, {result.Skipped:N0} skipped, " +
+                $"{result.Failed:N0} failed." +
+                (result.Cancelled ? " Cancelled early; previous changes remain." : "") +
+                (result.Skipped > 0 || result.Failed > 0
+                    ? " PARTIAL ANONYMIZATION — do not assume the entire album is private. "
+                    : " All supported photos completed. ") +
+                (retain ? $"Backups: {result.BackupDirectory}" :
+                    $"Report: {result.BackupDirectory}") +
+                (result.Errors.Count > 0
+                    ? "\nFirst issues: " + string.Join("; ", result.Errors.Take(3))
+                    : "");
+
+            var report = CinematicDialogShowcase.Create(
+                XamlRoot,
+                result.Skipped > 0 || result.Failed > 0 || result.Cancelled
+                    ? CinematicDialogShowcase.Variant.Warning
+                    : CinematicDialogShowcase.Variant.Complete,
+                subjectOverride: result.Skipped > 0 || result.Failed > 0 || result.Cancelled
+                    ? "PRIVACY CLEANUP PARTIAL"
+                    : "ALBUM METADATA ANONYMIZED",
+                detailOverride: AnonymizeAlbumStatusText.Text,
+                preview: false);
+            await report.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            AnonymizeAlbumStatusText.Text = "Privacy cleanup failed: " + ex.Message;
+            var error = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Error,
+                subjectOverride: "ALBUM PRIVACY CLEANUP FAILED",
+                detailOverride: ex.Message,
+                preview: false);
+            await error.ShowAsync();
+        }
+        finally
+        {
+            _privacyCleanupCancellation?.Dispose();
+            _privacyCleanupCancellation = null;
+            _privacyCleanupBusy = false;
+            CancelAnonymizeAlbumButton.IsEnabled = false;
+            AnonymizeAlbumButton.IsEnabled = true;
+            ClearAlbumMetadataButton.IsEnabled = true;
+            RetryFailedAlbumMetadataButton.IsEnabled = true;
+            PreviewJpegConversionButton.IsEnabled = true;
+            RunJpegConversionButton.IsEnabled = false;
+        }
+    }
+
+    private void OnCancelAnonymizeAlbum(object sender, RoutedEventArgs e)
+    {
+        CancelAnonymizeAlbumButton.IsEnabled = false;
+        _privacyCleanupCancellation?.Cancel();
+    }
+
     private CancellationTokenSource? _thumbnailGenerationCancellation;
     private bool _thumbnailGenerationBusy;
 
     private async void OnGenerateMissingThumbnails(object sender, RoutedEventArgs e)
     {
-        if (_thumbnailGenerationBusy || _cacheClearBusy || _jpegConversionBusy || _clearAlbumBusy ||
+        if (_thumbnailGenerationBusy || _cacheClearBusy || _jpegConversionBusy || _clearAlbumBusy || _privacyCleanupBusy ||
             !EnsureAlbumOpen(ThumbnailGenerationStatusText))
             return;
 

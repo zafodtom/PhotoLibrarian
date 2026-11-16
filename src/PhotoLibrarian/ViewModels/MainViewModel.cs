@@ -1484,6 +1484,115 @@ public partial class MainViewModel : ObservableObject
               string.Join("; ", errors.Take(3));
     }
 
+    /// <summary>
+    /// One privacy cleanup pipeline for a selection or the complete active album.
+    /// Image bytes and XMP must be cleared before the SQLite privacy columns.
+    /// Does not alter unsupported RAW, HEIC, animated GIF or video media.
+    /// </summary>
+    public async Task<PhotoPrivacyResult> AnonymizePhotoMetadataAsync(
+        IReadOnlyCollection<ImageEntry>? selection = null,
+        IProgress<PhotoPrivacyProgress>? progress = null,
+        CancellationToken cancellationToken = default,
+        bool keepBackups = true)
+    {
+        if (!App.HasActiveAlbum || string.IsNullOrWhiteSpace(App.CurrentAlbumPath))
+            throw new InvalidOperationException("Open an album before anonymizing photos.");
+        var root = App.CurrentAlbumPath;
+        var allAlbum = selection is null;
+
+        // Prevent in-flight face exports, automatic keyword writers, or folder
+        // scans from reintroducing data during the privacy operation.
+        PauseBackgroundIndexing();
+        Settings.IsAutoTaggingEnabled = false;
+        _autoTaggingEnabled = false;
+        _faceDetectionEnabled = false;
+        await StopRecognitionAsync();
+
+        IReadOnlyList<ImageEntry> photos;
+        if (allAlbum)
+        {
+            var indexed = (await _imageRepo.GetAllAsync())
+                .Where(e => FolderScannerService.IsPathOwnedByAlbumRoot(root, e.FilePath))
+                .ToDictionary(e => e.FilePath, StringComparer.OrdinalIgnoreCase);
+            var found = new List<ImageEntry>();
+            using var scanner = new FolderScannerService();
+            await foreach (var filePath in scanner.ScanFolderAsync(
+                root, includeSubfolders: true, cancellationToken))
+            {
+                // Count videos as unsupported rather than silently report a
+                // complete privacy purge of a mixed-media album.
+                if (indexed.TryGetValue(filePath, out var item))
+                    found.Add(item);
+                else
+                    found.Add(new ImageEntry
+                    {
+                        FilePath = filePath,
+                        FileName = Path.GetFileName(filePath),
+                        MediaType = FolderScannerService.IsVideoFile(filePath)
+                            ? MediaType.Video : MediaType.Image
+                    });
+            }
+            photos = found;
+        }
+        else photos = selection!
+            .DistinctBy(e => e.FilePath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        // Paths are captured before replacement because the portable cache
+        // key includes the file size and write timestamp.
+        var stalePreviews = photos.SelectMany(photo =>
+                WindowsThumbnailService.CaptureThumbnailPathsForDeletion(photo.FilePath))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var job = BeginStatusJob(
+            $"PRIVACY // ANONYMIZE 0/{photos.Count}");
+        try
+        {
+            var result = await PhotoPrivacyCleanupService.RunAsync(
+                root, photos,
+                (photo, size, modified, width, height) =>
+                {
+                    if (!string.Equals(root, App.CurrentAlbumPath,
+                            StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException(
+                            "The active album changed during privacy cleanup. Restore original photo.");
+                    return _imageRepo.ClearPhotoPrivacyAsync(
+                        photo.Id, size, modified, width, height);
+                },
+                progress, cancellationToken, keepBackups);
+            if (allAlbum && result.Failed == 0 && result.Skipped == 0 &&
+                !result.Cancelled)
+            {
+                // Only clear album-wide vocabularies when EVERY image has been
+                // successfully processed; otherwise remaining media can still
+                // rely on those person/tag definitions.
+                var catalog = AlbumService.LoadTagCatalog(root);
+                var catalogFile = Path.Combine(root, ".album", AlbumService.AlbumTagsName);
+                if (keepBackups && File.Exists(catalogFile))
+                {
+                    Directory.CreateDirectory(result.BackupDirectory);
+                    File.Copy(catalogFile,
+                        Path.Combine(result.BackupDirectory, "tags.json"), overwrite: false);
+                }
+                catalog.SelectedTags.Clear();
+                AlbumService.SaveTagCatalog(root, catalog);
+                await _imageRepo.ClearAlbumPersonIdentitiesAsync();
+                RecentTagHistoryService.Clear(root);
+            }
+
+            await WindowsThumbnailService.DeleteCapturedThumbnailsAsync(stalePreviews);
+            return result;
+        }
+        finally
+        {
+            EndStatusJob(job);
+            await RefreshKnownLibraryStateAsync();
+            await MetadataPanel.ReloadTagsAsync();
+            await MetadataPanel.ReloadAvailableTagsAsync();
+        }
+    }
+
     /// <summary>Clear tags and user flags across the active album.</summary>
     public async Task<AlbumMetadataClearResult> ClearActiveAlbumTagsAndFlagsAsync(
         IProgress<AlbumMetadataClearProgress>? progress = null,

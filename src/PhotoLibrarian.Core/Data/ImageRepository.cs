@@ -337,6 +337,117 @@ public sealed class ImageRepository
         return missing.Count;
     }
 
+    /// <summary>
+    /// Removes all cached personal annotations for one photo transactionally,
+    /// including tags, face regions/embeddings, flags, dates, camera/GPS/rating
+    /// and any sidecar bookkeeping. Call ONLY after the on-disk image and XMP
+    /// have been sanitized; if this transaction fails the caller restores files.
+    /// </summary>
+    /// <summary>After a wholly successful album-wide privacy purge, remove
+    /// the remaining person identities and their stored representative images.
+    /// Never run this for an individual selection or partial album result.</summary>
+    public async Task ClearAlbumPersonIdentitiesAsync()
+    {
+        using var connection = _db.CreateConnection();
+        using var transaction = connection.BeginTransaction();
+        using (var dangling = connection.CreateCommand())
+        {
+            dangling.Transaction = transaction;
+            dangling.CommandText = "DELETE FROM persons WHERE NOT EXISTS " +
+                "(SELECT 1 FROM face_regions WHERE person_id = persons.id)";
+            await dangling.ExecuteNonQueryAsync();
+        }
+        transaction.Commit();
+    }
+
+    public async Task ClearPhotoPrivacyAsync(
+        long imageId, long fileSize, DateTime lastWriteUtc, int width, int height)
+    {
+        if (imageId <= 0) return;
+        using var conn = _db.CreateConnection();
+        using var transaction = conn.BeginTransaction();
+        // A person can have faces in other photos yet still use this image
+        // as their representative thumbnail. Drop that stored crop before
+        // deleting the originating face-region row.
+        using (var representatives = conn.CreateCommand())
+        {
+            representatives.Transaction = transaction;
+            representatives.CommandText = """
+                UPDATE persons SET
+                    thumbnail = NULL,
+                    representative_face_region_id = NULL
+                WHERE representative_face_region_id IN
+                    (SELECT id FROM face_regions WHERE image_id = $id)
+                """;
+            representatives.Parameters.AddWithValue("$id", imageId);
+            await representatives.ExecuteNonQueryAsync();
+        }
+        using (var faces = conn.CreateCommand())
+        {
+            faces.Transaction = transaction;
+            faces.CommandText = "DELETE FROM face_regions WHERE image_id = $id";
+            faces.Parameters.AddWithValue("$id", imageId);
+            await faces.ExecuteNonQueryAsync();
+        }
+        using (var tags = conn.CreateCommand())
+        {
+            tags.Transaction = transaction;
+            tags.CommandText = "DELETE FROM tags WHERE image_id = $id";
+            tags.Parameters.AddWithValue("$id", imageId);
+            await tags.ExecuteNonQueryAsync();
+        }
+        // Remove orphan identities and their cached representative face images
+        // when the anonymized photo supplied their last remaining face.
+        using (var persons = conn.CreateCommand())
+        {
+            persons.Transaction = transaction;
+            persons.CommandText = "DELETE FROM persons WHERE NOT EXISTS " +
+                "(SELECT 1 FROM face_regions WHERE person_id = persons.id)";
+            await persons.ExecuteNonQueryAsync();
+        }
+        using (var image = conn.CreateCommand())
+        {
+            image.Transaction = transaction;
+            image.CommandText = """
+                UPDATE images SET
+                    file_hash = NULL,
+                    file_size = $size,
+                    width = $width,
+                    height = $height,
+                    date_taken = NULL,
+                    date_modified = $modified,
+                    camera_make = NULL,
+                    camera_model = NULL,
+                    lens_model = NULL,
+                    focal_length = NULL,
+                    aperture = NULL,
+                    exposure_time = NULL,
+                    iso = NULL,
+                    gps_latitude = NULL,
+                    gps_longitude = NULL,
+                    rating = NULL,
+                    orientation = 1,
+                    is_flagged = 0,
+                    face_scan_version = NULL,
+                    auto_tag_scan_version = NULL,
+                    face_metadata_imported = 1,
+                    face_sidecar_path = NULL,
+                    face_sidecar_size = NULL,
+                    face_sidecar_modified = NULL,
+                    face_metadata_export_required = 0
+                WHERE id = $id
+                """;
+            image.Parameters.AddWithValue("$id", imageId);
+            image.Parameters.AddWithValue("$size", fileSize);
+            image.Parameters.AddWithValue("$width", width);
+            image.Parameters.AddWithValue("$height", height);
+            image.Parameters.AddWithValue("$modified", lastWriteUtc.ToString("O"));
+            if (await image.ExecuteNonQueryAsync() != 1)
+                throw new InvalidOperationException("The selected photo is missing from the album database.");
+        }
+        transaction.Commit();
+    }
+
     public async Task UpdateRatingAsync(long imageId, int? rating)
     {
         using var conn = _db.CreateConnection();
