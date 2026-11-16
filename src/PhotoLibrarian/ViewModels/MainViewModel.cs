@@ -1325,7 +1325,13 @@ public partial class MainViewModel : ObservableObject
         if (entry.MediaType != MediaType.Image)
             throw new NotSupportedException("Only photos can be copied for editing.");
 
+        var inheritedTags = await GetPhotoTagsForCropAsync(entry);
         var copyPath = await Services.PhotoOperationsService.MakeCopyForEditingAsync(entry.FilePath);
+        // The byte copy includes embedded XMP, but the source album can also
+        // hold authoritative tag assignments whose last file write fell back
+        // to an XMP sidecar. Persist that complete set on the new copy.
+        if (inheritedTags.Count > 0)
+            await TagWriterService.WriteTagsToSidecarAsync(copyPath, inheritedTags);
         var folderPath = System.IO.Path.GetDirectoryName(copyPath)
             ?? throw new InvalidOperationException("The copied photo has no parent folder.");
         await _indexingService.IndexFolderAsync(folderPath, includeSubfolders: false);
