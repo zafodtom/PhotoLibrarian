@@ -160,6 +160,13 @@ public sealed partial class ImageGridView : UserControl
                 "Building visual feed from the local index. Incoming assets will appear automatically.";
             EmptyStateCode.Text = "STATE / ACQUIRING";
         }
+        else if (!string.IsNullOrWhiteSpace(ViewModel.Refinement.FileNameQuery))
+        {
+            EmptyStateTitle.Text = "NO MATCHING FILES";
+            EmptyStateSubtitle.Text =
+                "No filenames match this search within the selected folders and tags. Clear SEARCH to see all results.";
+            EmptyStateCode.Text = "SEARCH / NO RESULTS";
+        }
         else
         {
             EmptyStateTitle.Text = "ARCHIVE EMPTY";
