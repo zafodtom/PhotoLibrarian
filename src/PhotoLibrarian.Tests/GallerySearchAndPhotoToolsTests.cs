@@ -25,6 +25,18 @@ public sealed class GallerySearchAndPhotoToolsTests
     }
 
     [Fact]
+    public void EmptyGalleryFooterStaysInBottomRow()
+    {
+        var document = XDocument.Parse(Read("ImageGridView.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var footerText = Assert.Single(document.Descendants()
+            .Where(element => (string?)element.Attribute(xaml + "Name") == "EmptyStateCode"));
+        var footerRow = Assert.IsType<XElement>(footerText.Parent);
+        Assert.Equal("Grid", footerRow.Name.LocalName);
+        Assert.Equal("2", (string?)footerRow.Attribute("Grid.Row"));
+    }
+
+    [Fact]
     public void CropRibbonExposesSeparateSaveAsAndExistingApply()
     {
         var ribbon = Read("TopRibbon.xaml");
