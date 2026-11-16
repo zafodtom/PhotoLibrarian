@@ -22,7 +22,8 @@ internal static class CinematicDialogShowcase
     internal static ContentDialog Create(XamlRoot root, Variant variant,
         string? subjectOverride = null, string? detailOverride = null,
         string? confirmLabel = null, bool preview = true, string? context = null,
-        string? captionOverride = null, string? operationLabel = null)
+        string? captionOverride = null, string? operationLabel = null,
+        string? footerOverride = null)
     {
         var fatal = variant == Variant.Fatal;
         var warning = variant == Variant.Warning;
@@ -212,7 +213,9 @@ internal static class CinematicDialogShowcase
 
         var footer = new StackPanel { Spacing = 7 };
         footer.Children.Add(new Rectangle { Height = 3, Fill = accent, Opacity = 0.85 });
-        footer.Children.Add(Label(preview ? "SHOWCASE ONLY  //  NO FILES OR DATA ARE MODIFIED" : "REVIEW THE OPERATION BEFORE CONFIRMING", 10,
+        footer.Children.Add(Label(footerOverride ??
+            (preview ? "SHOWCASE ONLY  //  NO FILES OR DATA ARE MODIFIED"
+                     : "REVIEW THE OPERATION BEFORE CONFIRMING"), 10,
             Brush(162, 178, 185), false));
         stack.Children.Add(footer);
 
