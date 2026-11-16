@@ -1456,14 +1456,12 @@ public sealed partial class FolderNavigationPanel : UserControl
         }
         catch (Exception ex)
         {
-            var dialog = new ContentDialog
-            {
-                Title = "Could not open album",
-                Content = ex.Message,
-                CloseButtonText = "OK",
-                XamlRoot = this.XamlRoot
-            };
-            CinematicDialogStyling.Apply(dialog);
+            var dialog = CinematicDialogShowcase.Create(
+                XamlRoot,
+                CinematicDialogShowcase.Variant.Error,
+                subjectOverride: "COULD NOT OPEN ALBUM",
+                detailOverride: ex.Message,
+                preview: false);
             await dialog.ShowAsync();
         }
     }
