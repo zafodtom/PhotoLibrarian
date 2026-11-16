@@ -396,7 +396,8 @@ public sealed partial class SettingsPanel : UserControl
         string description,
         string acceptLabel,
         CinematicDialogShowcase.Variant variant,
-        string context)
+        string context,
+        string caption)
     {
         if (_activeUpdateDialog is not null)
             throw new InvalidOperationException("An update confirmation is already visible.");
@@ -408,7 +409,9 @@ public sealed partial class SettingsPanel : UserControl
             detailOverride: description,
             confirmLabel: acceptLabel,
             preview: false,
-            context: context);
+            context: context,
+            captionOverride: caption,
+            operationLabel: "UPDATE CONTROL");
         _activeUpdateDialog = dialog;
         try
         {
@@ -466,7 +469,8 @@ public sealed partial class SettingsPanel : UserControl
                 release.IsDevelopment
                     ? CinematicDialogShowcase.Variant.Warning
                     : CinematicDialogShowcase.Variant.Information,
-                $"RELEASE {release.Tag}  //  {(release.IsDevelopment ? "DEVELOPMENT" : "STABLE")}"))
+                $"RELEASE {release.Tag}  //  {(release.IsDevelopment ? "DEVELOPMENT" : "STABLE")}",
+                release.IsDevelopment ? "UPDATE CONTROL // DEVELOPMENT" : "UPDATE CONTROL // STABLE"))
                 return;
 
             UpdateDownloadProgress.Value = 0;
@@ -490,7 +494,8 @@ public sealed partial class SettingsPanel : UserControl
                 "Save any outstanding changes before continuing. Windows may ask for administrator approval.",
                 "INSTALL & RESTART",
                 CinematicDialogShowcase.Variant.Warning,
-                $"VERIFIED INSTALLER  //  {release.Tag}"))
+                $"VERIFIED INSTALLER  //  {release.Tag}",
+                "UPDATE CONTROL // INSTALL"))
                 return;
 
             // Start the helper before closing the app. It waits for this process
@@ -957,7 +962,9 @@ public sealed partial class SettingsPanel : UserControl
                     "Previews regenerate when needed; opening photos may temporarily be slower.",
                 confirmLabel: "CLEAR THUMBNAILS",
                 preview: false,
-                context: ViewModel.CacheLocation);
+                context: ViewModel.CacheLocation,
+                captionOverride: "CACHE MAINTENANCE // CONFIRMATION",
+                operationLabel: "CACHE OPERATION");
             if (await dialog.ShowAsync() != ContentDialogResult.Primary)
                 return;
 
