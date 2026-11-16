@@ -137,7 +137,13 @@ public sealed class MetadataReaderService
     /// <summary>
     /// Reads tags (dc:subject keywords) from an image file's XMP metadata.
     /// </summary>
-    public List<string> ReadTags(string filePath)
+    /// <summary>
+    /// Reads ONLY XMP keywords embedded in the image itself. Do not fall back
+    /// to a sidecar: destructive metadata maintenance must be able to check
+    /// and clear the two stores independently without mistaking sidecar tags
+    /// for embedded tags.
+    /// </summary>
+    public List<string> ReadEmbeddedTags(string filePath)
     {
         var tags = new List<string>();
         try
@@ -156,21 +162,27 @@ public sealed class MetadataReaderService
                 }
             }
         }
-        catch { /* File may not have XMP */ }
+        catch { /* File may not contain supported embedded XMP. */ }
 
-        // Metadata writes can fall back to a portable .xmp file (e.g. BMP or
-        // a Windows property-handler failure). If both copies exist, the newest
-        // one is authoritative: an older fallback must not resurrect stale
-        // tags after a crop has updated the embedded metadata.
+        return tags.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>
+    /// Reads the effective keywords from the photo or its XMP fallback for
+    /// normal indexing. Use ReadEmbeddedTags for independent verification of
+    /// the image during metadata clearing.
+    /// </summary>
+    public List<string> ReadTags(string filePath)
+    {
+        var embeddedTags = ReadEmbeddedTags(filePath);
         var sidecarTags = TagWriterService.ReadTagsFromSidecar(filePath);
         var sidecarPath = Path.ChangeExtension(filePath, ".xmp");
         var useSidecar = sidecarTags.Count > 0 &&
-            (tags.Count == 0 ||
+            (embeddedTags.Count == 0 ||
              (File.Exists(sidecarPath) &&
               File.GetLastWriteTimeUtc(sidecarPath) >= File.GetLastWriteTimeUtc(filePath)));
-        return (useSidecar ? sidecarTags : tags)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return useSidecar ? sidecarTags.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                          : embeddedTags;
     }
 
     /// <summary>
