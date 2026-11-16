@@ -807,14 +807,14 @@ public sealed partial class VirtualizingPhotoGrid : UserControl
         });
         grid.Children.Add(image);
         
-        var loader = new ProgressRing
+        var loader = new CinematicProgressBar
         {
-            Width = 24,
-            Height = 24,
+            Width = 94,
+            IsIndeterminate = true,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        loader.SetBinding(ProgressRing.IsActiveProperty, new Microsoft.UI.Xaml.Data.Binding
+        loader.SetBinding(CinematicProgressBar.IsActiveProperty, new Microsoft.UI.Xaml.Data.Binding
         {
             Path = new PropertyPath("IsLoading"),
             Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay
