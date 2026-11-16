@@ -343,6 +343,23 @@ public sealed class ImageRepository
     /// and any sidecar bookkeeping. Call ONLY after the on-disk image and XMP
     /// have been sanitized; if this transaction fails the caller restores files.
     /// </summary>
+    /// <summary>After a wholly successful album-wide privacy purge, remove
+    /// the remaining person identities and their stored representative images.
+    /// Never run this for an individual selection or partial album result.</summary>
+    public async Task ClearAlbumPersonIdentitiesAsync()
+    {
+        using var connection = _db.CreateConnection();
+        using var transaction = connection.BeginTransaction();
+        using (var dangling = connection.CreateCommand())
+        {
+            dangling.Transaction = transaction;
+            dangling.CommandText = "DELETE FROM persons WHERE NOT EXISTS " +
+                "(SELECT 1 FROM face_regions WHERE person_id = persons.id)";
+            await dangling.ExecuteNonQueryAsync();
+        }
+        transaction.Commit();
+    }
+
     public async Task ClearPhotoPrivacyAsync(
         long imageId, long fileSize, DateTime lastWriteUtc, int width, int height)
     {
