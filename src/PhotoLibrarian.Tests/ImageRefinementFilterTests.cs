@@ -103,6 +103,17 @@ public sealed class ImageRefinementFilterTests
         Assert.False(filter.Matches(afterRange));
     }
 
+    [Theory]
+    [InlineData("IMAG", true)]
+    [InlineData("image.jpg", true)]
+    [InlineData("photo", false)]
+    [InlineData("", true)]
+    public void Matches_SearchesFileNameWithoutChangingTags(string query, bool expected)
+    {
+        var filter = new ImageRefinementFilter { FileNameQuery = query };
+        Assert.Equal(expected, filter.Matches(CreateImage()));
+    }
+
     private static ImageEntry CreateImage() => new()
     {
         FilePath = @"C:\Photos\image.jpg",
