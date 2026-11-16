@@ -129,12 +129,7 @@
                                 Padding="12,10"
                                 ToolTipService.ToolTip="Version and updates"
                                 Style="{StaticResource HiTechRailButtonStyle}" />
-                        <Button Content="05  UI SHOWCASE"
-                                Click="OnNavigateUiShowcase"
-                                HorizontalContentAlignment="Left"
-                                Padding="12,10"
-                                ToolTipService.ToolTip="Cinematic dialog previews"
-                                Style="{StaticResource HiTechRailButtonStyle}" />
+                        
                     </StackPanel>
 
                     <StackPanel Grid.Row="2" Spacing="5">
@@ -643,84 +638,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Preview-only dialog style audit: no database or file mutations. -->
-                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16" Margin="0,10,0,0">
-                        <StackPanel Spacing="10">
-                            <TextBlock Text="DIAGNOSTICS // DIALOG PREVIEW"
-                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
-                            <TextBlock Text="Inspect application dialog styles in sequence. Preview buttons never execute their original operations."
-                                       TextWrapping="Wrap"
-                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
-                            <Button x:Name="PreviewAllDialogsButton"
-                                    Content="PREVIEW ALL DIALOGS"
-                                    AutomationProperties.AutomationId="PreviewAllDialogsButton"
-                                    HorizontalAlignment="Left"
-                                    Click="OnPreviewAllDialogsClick"
-                                    Style="{StaticResource HiTechPrimaryButtonStyle}" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Cinematic UI 2.0 / isolated design lab. No application operations. -->
-                    <Grid x:Name="UiShowcaseSectionHeader" Height="34" Margin="0,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Rectangle Width="4" Height="22" Fill="#E73B43"
-                                   VerticalAlignment="Center" />
-                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                            <TextBlock Text="SYSTEM // UI SHOWCASE"
-                                       Style="{StaticResource HiTechPanelHeadingStyle}" />
-                            <TextBlock Text="CINEMATIC UI 2.0 / DESIGN LAB"
-                                       Style="{StaticResource HiTechTinyLabelStyle}" />
-                        </StackPanel>
-                        <TextBlock Grid.Column="2" Text="SEC // 05"
-                                   Style="{StaticResource HiTechTinyLabelStyle}"
-                                   VerticalAlignment="Center" />
-                    </Grid>
-                    <Border Style="{StaticResource HiTechModuleStyle}" Padding="16">
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="LARGE CINEMATIC PANELS // 650–800 PX DESIGN TARGET"
-                                       FontFamily="Consolas" FontSize="13"
-                                       Foreground="{StaticResource HiTechTextPrimaryBrush}" />
-                            <TextBlock Text="Design-only specimens. No file writes, database changes, album deletion or update installation. The buttons below open isolated previews."
-                                       TextWrapping="Wrap"
-                                       Foreground="{StaticResource HiTechTextSecondaryBrush}" />
-                            <StackPanel Orientation="Horizontal" Spacing="9">
-                                <Button Content="FATAL ERROR" Click="OnShowcaseFatal"
-                                        AutomationProperties.AutomationId="ShowcaseFatalButton"
-                                        Foreground="#FF4C57" Style="{StaticResource HiTechSectionActionStyle}" />
-                                <Button Content="WARNING" Click="OnShowcaseWarning"
-                                        AutomationProperties.AutomationId="ShowcaseWarningButton"
-                                        Foreground="#FFC341" Style="{StaticResource HiTechSectionActionStyle}" />
-                                <Button Content="PROCESS COMPLETE" Click="OnShowcaseComplete"
-                                        AutomationProperties.AutomationId="ShowcaseCompleteButton"
-                                        Foreground="#53D7E8" Style="{StaticResource HiTechSectionActionStyle}" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="9">
-                                <Button Content="ERROR" Click="OnShowcaseError"
-                                        AutomationProperties.AutomationId="ShowcaseErrorButton"
-                                        Foreground="#FF4C57" Style="{StaticResource HiTechSectionActionStyle}" />
-                                <Button Content="INFORMATION" Click="OnShowcaseInformation"
-                                        AutomationProperties.AutomationId="ShowcaseInfoButton"
-                                        Foreground="#9AB0BF" Style="{StaticResource HiTechSectionActionStyle}" />
-                                <Button Content="PROCESSING" Click="OnShowcaseProgress"
-                                        AutomationProperties.AutomationId="ShowcaseProgressButton"
-                                        Foreground="#54A1CE" Style="{StaticResource HiTechSectionActionStyle}" />
-                            </StackPanel>
-                            <Button x:Name="CinematicShowcaseSequenceButton"
-                                    Content="PREVIEW CINEMATIC SEQUENCE"
-                                    Click="OnShowcaseSequence"
-                                    HorizontalAlignment="Left"
-                                    Style="{StaticResource HiTechPrimaryButtonStyle}" />
-                            <TextBlock Text="Preview panels are isolated and cannot modify data. The previous PREVIEW ALL DIALOGS audit remains available above."
-                                       TextWrapping="Wrap"
-                                       Style="{StaticResource HiTechTinyLabelStyle}" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Allow even the final ABOUT header to align at the top of
+<!-- Allow even the final ABOUT header to align at the top of
                          the viewport when navigated to from the left panel. -->
                     <Border x:Name="SettingsNavigationEndSpacer"
                             Height="0"
