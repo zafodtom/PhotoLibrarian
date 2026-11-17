@@ -19,14 +19,14 @@ public sealed class PhotoOperationsService
     // The gate is instance-scoped so independent albums do not share state.
     private readonly SemaphoreSlim _transferGate = new(1, 1);
 
-    private readonly OriginalBackupService _backupService;
-
     public PhotoOperationsService(
         ImageRepository imageRepo,
         OriginalBackupService backupService)
     {
         _imageRepo = imageRepo;
-        _backupService = backupService;
+        // Keep this argument for existing dependency injection and callers.
+        // No retained backup is created for single-photo operations.
+        ArgumentNullException.ThrowIfNull(backupService);
     }
 
     /// <summary>
@@ -166,7 +166,9 @@ public sealed class PhotoOperationsService
         if (!ImageEditRenderer.IsSupported(entry.FilePath))
             throw new NotSupportedException($"Editing not supported for {Path.GetExtension(entry.FilePath)}");
 
-        await _backupService.BackupOriginalAsync(entry.FilePath);
+        // Single-photo operations do not retain originals. The renderer
+        // stages the encoded output in the same directory and only replaces
+        // the source after encoding has completed successfully.
         var size = await ImageEditRenderer.RenderRotatedAsync(entry.FilePath, clockwise);
 
         entry.Width = (int)size.Width;

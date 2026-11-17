@@ -1499,6 +1499,10 @@ public partial class MainViewModel : ObservableObject
             throw new InvalidOperationException("Open an album before anonymizing photos.");
         var root = App.CurrentAlbumPath;
         var allAlbum = selection is null;
+        // Enforce the backup policy centrally: an explicit photo selection
+        // (including multi-selection in the context menu) must never retain
+        // private originals. Only album-wide maintenance may keep backups.
+        var retainBackups = allAlbum && keepBackups;
 
         // Prevent in-flight face exports, automatic keyword writers, or folder
         // scans from reintroducing data during the privacy operation.
@@ -1560,7 +1564,7 @@ public partial class MainViewModel : ObservableObject
                     return _imageRepo.ClearPhotoPrivacyAsync(
                         photo.Id, size, modified, width, height);
                 },
-                progress, cancellationToken, keepBackups);
+                progress, cancellationToken, retainBackups);
             if (allAlbum && result.Failed == 0 && result.Skipped == 0 &&
                 !result.Cancelled)
             {
@@ -1569,7 +1573,7 @@ public partial class MainViewModel : ObservableObject
                 // rely on those person/tag definitions.
                 var catalog = AlbumService.LoadTagCatalog(root);
                 var catalogFile = Path.Combine(root, ".album", AlbumService.AlbumTagsName);
-                if (keepBackups && File.Exists(catalogFile))
+                if (retainBackups && File.Exists(catalogFile))
                 {
                     Directory.CreateDirectory(result.BackupDirectory);
                     File.Copy(catalogFile,

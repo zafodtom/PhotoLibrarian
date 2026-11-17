@@ -966,10 +966,14 @@ public sealed partial class SettingsPanel : UserControl
                 (result.Skipped > 0 || result.Failed > 0
                     ? " PARTIAL ANONYMIZATION — do not assume the entire album is private. "
                     : " All supported photos completed. ") +
-                (retain ? $"Backups: {result.BackupDirectory}" :
-                    $"Report: {result.BackupDirectory}") +
+                (result.Cleaned == 0
+                    ? "No photos were anonymized."
+                    : retain
+                        ? $"Backups: {result.BackupDirectory}"
+                        : "No retained original backups.") +
                 (result.Errors.Count > 0
-                    ? "\nFirst issues: " + string.Join("; ", result.Errors.Take(3))
+                    ? "\nAnonymization was incomplete. First issues: " +
+                      string.Join("; ", result.Errors.Take(3))
                     : "");
 
             var report = CinematicDialogShowcase.Create(
@@ -981,7 +985,10 @@ public sealed partial class SettingsPanel : UserControl
                     ? "PRIVACY CLEANUP PARTIAL"
                     : "ALBUM METADATA ANONYMIZED",
                 detailOverride: AnonymizeAlbumStatusText.Text,
-                preview: false);
+                preview: false,
+                captionOverride: "PRIVACY REPORT // ALBUM",
+                operationLabel: "RESULTS",
+                footerOverride: "OPERATION FINISHED // REVIEW CLEANED AND SKIPPED FILES");
             await report.ShowAsync();
         }
         catch (Exception ex)

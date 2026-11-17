@@ -124,8 +124,9 @@ public partial class ImageEditorViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Bakes the current adjustments into the image file on disk. The original is backed up
-    /// first, then the sliders reset because the values now live in the pixels.
+    /// Bakes the current adjustments into the image file on disk without
+    /// creating a permanent backup. The sliders then reset because the values
+    /// now live in the pixels.
     /// Returns true when the file was written.
     /// </summary>
     public async Task<bool> SaveAsync(ImageEditService.PixelRenderer renderer)
@@ -142,7 +143,8 @@ public partial class ImageEditorViewModel : ObservableObject
                 _currentEntry.FilePath, parameters, renderer);
 
             ResetAll();
-            HasBackup = true;
+            // Retain visibility of Revert only when a legacy original backup
+            // already exists. Saving a single photo creates no new backup.
             EditsApplied?.Invoke(this, new EditsAppliedEventArgs(_currentEntry.FilePath, width, height));
             return true;
         }

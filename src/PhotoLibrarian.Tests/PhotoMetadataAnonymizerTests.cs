@@ -28,16 +28,57 @@ public sealed class PhotoMetadataAnonymizerTests
     }
 
     [Fact]
-    public void MultiImageOrAppendedPayloadJpegsAreSkippedWithoutDataLoss()
+    public void JpegScrubDiscardsProprietaryMetadataTrailerWithoutReencodingScan()
+    {
+        // Camera JPEG with EXIF, a normal image and vendor data after EOI.
+        // This is exactly the previously skipped privacy-cleanup case.
+        var picture = new byte[]
+        {
+            0xff, 0xd8,
+            0xff, 0xe1, 0, 8, (byte)'E', (byte)'x', (byte)'i', (byte)'f', 0, 0,
+            0xff, 0xda, 0, 2,
+            0x12, 0x13, 0xff, 0x00, 0x14, 0xff, 0xd9
+        };
+        var cameraTrailer = "KODAK vendor photo metadata: name, date, GPS"u8.ToArray();
+        var padded = picture.Concat(cameraTrailer).Concat(new byte[] { 0, 0xff }).ToArray();
+
+        var clean = PhotoMetadataAnonymizer.StripJpeg(padded);
+
+        Assert.Equal(new byte[]
+        {
+            0xff, 0xd8, 0xff, 0xda, 0, 2,
+            0x12, 0x13, 0xff, 0x00, 0x14, 0xff, 0xd9
+        }, clean);
+        Assert.DoesNotContain("KODAK", Encoding.ASCII.GetString(clean));
+    }
+
+    [Fact]
+    public void MultiPictureJpegAndAppendedVideoRemainUnsupported()
     {
         var ordinary = new byte[]
         {
             0xff, 0xd8, 0xff, 0xda, 0, 2,
             1, 2, 3, 0xff, 0xd9
         };
-        var withTrailer = ordinary.Concat("second-image"u8.ToArray()).ToArray();
+        var appendedJpeg = ordinary.Concat(new byte[]
+        {
+            0xff, 0xd8, 0xff, 0xda, 0, 2, 0x22, 0xff, 0xd9
+        }).ToArray();
         Assert.Throws<NotSupportedException>(() =>
-            PhotoMetadataAnonymizer.StripJpeg(withTrailer));
+            PhotoMetadataAnonymizer.StripJpeg(appendedJpeg));
+
+        var appendedMp4 = ordinary.Concat(new byte[]
+        {
+            0, 0, 0, 20, (byte)'f', (byte)'t', (byte)'y', (byte)'p',
+            (byte)'i', (byte)'s', (byte)'o', (byte)'m'
+        }).ToArray();
+        Assert.Throws<NotSupportedException>(() =>
+            PhotoMetadataAnonymizer.StripJpeg(appendedMp4));
+
+        var largeUnknownPayload = ordinary.Concat(
+            Enumerable.Repeat((byte)0x31, 256 * 1024 + 1)).ToArray();
+        Assert.Throws<NotSupportedException>(() =>
+            PhotoMetadataAnonymizer.StripJpeg(largeUnknownPayload));
 
         var mpf = new byte[]
         {
@@ -47,6 +88,53 @@ public sealed class PhotoMetadataAnonymizerTests
         };
         Assert.Throws<NotSupportedException>(() =>
             PhotoMetadataAnonymizer.StripJpeg(mpf));
+    }
+
+    [Fact]
+    public void JpegTrailingVendorBytesDoNotTriggerFalseMediaDetection()
+    {
+        var jpeg = new byte[]
+        {
+            0xff, 0xd8, 0xff, 0xda, 0, 2, 1, 2, 3, 0xff, 0xd9
+        };
+        // Previously any FF D8, RIFF/WEBP or 'ftyp' bytes anywhere
+        // caused the image to be skipped without checking container validity.
+        var vendorTrailer = new List<byte>("Camera vendor metadata; ftyp here is only text."u8.ToArray());
+        vendorTrailer.AddRange(new byte[] { 0xff, 0xd8, 0x11, 0x22, 0xff, 0xd9 });
+        vendorTrailer.AddRange("RIFFrandomWEBP"u8.ToArray());
+        vendorTrailer.AddRange(new byte[] { 1, 2, 3, 4, (byte)'f', (byte)'t',
+            (byte)'y', (byte)'p', 0, 0, 0, 0 });
+        var clean = PhotoMetadataAnonymizer.StripJpeg(
+            jpeg.Concat(vendorTrailer).ToArray());
+        Assert.Equal(jpeg, clean);
+    }
+
+    [Fact]
+    public void JpegTrailingMediaReportsItsActualType()
+    {
+        var jpeg = new byte[]
+        {
+            0xff, 0xd8, 0xff, 0xda, 0, 2, 1, 2, 3, 0xff, 0xd9
+        };
+        var secondJpeg = jpeg.Concat(new byte[]
+        {
+            0xff, 0xd8, 0xff, 0xda, 0, 2, 0x22, 0xff, 0xd9
+        }).ToArray();
+        Assert.Contains("additional JPEG picture", Assert.Throws<NotSupportedException>(
+            () => PhotoMetadataAnonymizer.StripJpeg(secondJpeg)).Message);
+
+        var media = jpeg.Concat(new byte[]
+        {
+            0, 0, 0, 20, (byte)'f', (byte)'t', (byte)'y', (byte)'p',
+            (byte)'i', (byte)'s', (byte)'o', (byte)'m'
+        }).ToArray();
+        Assert.Contains("MP4/MOV/HEIF", Assert.Throws<NotSupportedException>(
+            () => PhotoMetadataAnonymizer.StripJpeg(media)).Message);
+
+        var oversized = jpeg.Concat(
+            Enumerable.Repeat((byte)0x31, 256 * 1024 + 1)).ToArray();
+        Assert.Contains("exceeds the safe metadata limit", Assert.Throws<NotSupportedException>(
+            () => PhotoMetadataAnonymizer.StripJpeg(oversized)).Message);
     }
 
     [Fact]

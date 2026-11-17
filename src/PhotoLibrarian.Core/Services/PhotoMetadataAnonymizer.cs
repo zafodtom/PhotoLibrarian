@@ -178,15 +178,118 @@ public static class PhotoMetadataAnonymizer
         }
         if (!sawEoi || !sawScan)
             throw new InvalidDataException("JPEG SOS/EOI marker missing.");
-        // Unknown non-padding content after EOI may be another picture or
-        // proprietary payload. Never silently truncate such files.
-        for (var tail = position; tail < input.Length; tail++)
-        {
-            if (input[tail] is not (0x00 or 0xff))
-                throw new NotSupportedException(
-                    "JPEG has nonstandard appended data. Its original contents were preserved.");
-        }
+        // Camera software (including some older digital cameras) can append
+        // proprietary metadata after the JPEG End-Of-Image marker. It is not
+        // part of the encoded picture and may contain identifying information.
+        // Drop it, preserving the JPEG scan data byte-for-byte. Do NOT discard
+        // a recognizable second picture, Live Photo video or huge unknown
+        // payload: those are separate media and need dedicated handling.
+        var trailer = input[position..];
+        var unsafeReason = GetUnsafeJpegTrailerReason(trailer);
+        if (unsafeReason is not null)
+            throw new NotSupportedException(
+                $"JPEG trailer: {unsafeReason}. The original photo was not changed.");
         return output.ToArray();
+    }
+
+    /// <summary>
+    /// Confirm an actual media container, rather than matching four bytes
+    /// anywhere in vendor-specific metadata. Report a specific reason for
+    /// files that cannot be safely flattened into a single JPEG.
+    /// </summary>
+    private static string? GetUnsafeJpegTrailerReason(ReadOnlySpan<byte> trailer)
+    {
+        const int MaxMetadataTrailerBytes = 256 * 1024;
+        // Scan a bounded prefix for recognisable secondary containers. Larger
+        // unknown trailers remain unsupported, irrespective of marker matches.
+        var maxScan = Math.Min(trailer.Length, MaxMetadataTrailerBytes);
+        for (var index = 0; index < maxScan; index++)
+        {
+            var remaining = trailer[index..];
+            if (LooksLikeEmbeddedJpeg(remaining))
+                return "an additional JPEG picture was detected";
+            if (LooksLikeEmbeddedPng(remaining))
+                return "an additional PNG picture was detected";
+            if (LooksLikeEmbeddedRiffMedia(remaining, out var riffType))
+                return $"an additional {riffType} container was detected";
+            if (LooksLikeEmbeddedIsoMedia(remaining))
+                return "an additional MP4/MOV/HEIF-style media container was detected";
+        }
+        if (trailer.Length > MaxMetadataTrailerBytes)
+            return $"unknown appended data ({trailer.Length:N0} bytes) exceeds the " +
+                   $"safe metadata limit ({MaxMetadataTrailerBytes:N0} bytes)";
+
+        return null;
+    }
+
+    private static bool LooksLikeEmbeddedJpeg(ReadOnlySpan<byte> data)
+    {
+        // SOI followed by a syntactically valid first marker and segment.
+        // A stray FF D8 in vendor metadata is NOT enough to prove a second
+        // image. Require both a plausible header and its closing EOI.
+        if (data.Length < 9 || data[0] != 0xff || data[1] != 0xd8 ||
+            data[2] != 0xff || data[3] is 0x00 or 0xff or 0xd8 or 0xd9)
+            return false;
+        var length = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(4, 2));
+        if (length < 2 || length > data.Length - 4) return false;
+        return data[(4 + length)..].IndexOf(new byte[] { 0xff, 0xd9 }) >= 0;
+    }
+
+    private static bool LooksLikeEmbeddedPng(ReadOnlySpan<byte> data) =>
+        data.Length >= 33 &&
+        data[..8].SequenceEqual(PngSignature) &&
+        BinaryPrimitives.ReadUInt32BigEndian(data.Slice(8, 4)) == 13 &&
+        data.Slice(12, 4).SequenceEqual("IHDR"u8);
+
+    private static bool LooksLikeEmbeddedRiffMedia(
+        ReadOnlySpan<byte> data, out string mediaType)
+    {
+        mediaType = string.Empty;
+        if (data.Length < 12 || !data[..4].SequenceEqual("RIFF"u8))
+            return false;
+        var bytes = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(4, 4));
+        if (bytes < 4) return false;
+        if (data.Slice(8, 4).SequenceEqual("WEBP"u8)) mediaType = "WebP";
+        else if (data.Slice(8, 4).SequenceEqual("AVI "u8)) mediaType = "AVI";
+        else return false;
+        // Even a truncated payload with a valid RIFF header must be treated
+        // as an embedded/auxiliary media object rather than stripped blindly.
+        return true;
+    }
+
+    private static bool LooksLikeEmbeddedIsoMedia(ReadOnlySpan<byte> data)
+    {
+        if (data.Length < 12 || !data.Slice(4, 4).SequenceEqual("ftyp"u8))
+            return false;
+        var boxSize = BinaryPrimitives.ReadUInt32BigEndian(data[..4]);
+        // Real ftyp boxes are tiny (typically 16–32 bytes). The four ASCII
+        // bytes preceding the word 'ftyp' in free-form text otherwise decode
+        // to a huge length and can falsely trigger media detection.
+        const uint MaxPlausibleFtypBoxSize = 1024 * 1024;
+        if (boxSize < 16 || boxSize > MaxPlausibleFtypBoxSize) return false;
+        var brand = data.Slice(8, 4);
+        foreach (var c in brand)
+        {
+            if (c is not (>= (byte)'0' and <= (byte)'9' or
+                          >= (byte)'A' and <= (byte)'Z' or
+                          >= (byte)'a' and <= (byte)'z' or (byte)' '))
+                return false;
+        }
+        var recognizedBrand = brand.SequenceEqual("isom"u8) ||
+            brand.SequenceEqual("iso2"u8) ||
+            brand.SequenceEqual("mp41"u8) ||
+            brand.SequenceEqual("mp42"u8) ||
+            brand.SequenceEqual("qt  "u8) ||
+            brand.SequenceEqual("M4V "u8) ||
+            brand.SequenceEqual("heic"u8) ||
+            brand.SequenceEqual("heix"u8) ||
+            brand.SequenceEqual("mif1"u8) ||
+            brand.SequenceEqual("msf1"u8) ||
+            brand.SequenceEqual("avif"u8) ||
+            brand.SequenceEqual("avis"u8);
+        // Incomplete known media headers are unsafe too. Unknown brands
+        // must at least have a complete, plausibly sized ftyp box.
+        return recognizedBrand || boxSize <= data.Length;
     }
 
     private static bool HasApngAnimation(ReadOnlySpan<byte> input)

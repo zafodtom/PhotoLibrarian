@@ -51,6 +51,7 @@ public static class PhotoPrivacyCleanupService
             string? staged = null;
             var stage = "validating source";
             var modified = false;
+            var recoveryCompleted = false;
             var backups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             try
             {
@@ -138,19 +139,44 @@ public static class PhotoPrivacyCleanupService
                     checked((int)width), checked((int)height));
 
                 cleaned++;
-                if (!keepBackups)
-                    TryDeleteBackups(backups.Values);
+                recoveryCompleted = true; // Success: rollback copies may be discarded.
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 if (modified)
-                    RestoreBackups(backups);
+                {
+                    try
+                    {
+                        RestoreBackups(backups);
+                        recoveryCompleted = true;
+                    }
+                    catch (Exception restoreError)
+                    {
+                        failed++;
+                        errors.Add($"{Path.GetRelativePath(root, source)}: CRITICAL: " +
+                            $"cancelled operation could not be restored. Original recovery copies " +
+                            $"remain at {rollback}. {restoreError.Message}");
+                    }
+                }
                 cancelled = true;
                 break;
             }
             catch (NotSupportedException ex)
             {
-                if (modified) RestoreBackups(backups);
+                if (modified)
+                {
+                    try
+                    {
+                        RestoreBackups(backups);
+                        recoveryCompleted = true;
+                    }
+                    catch (Exception restoreError)
+                    {
+                        failed++;
+                        errors.Add($"{Path.GetRelativePath(root, source)}: CRITICAL: " +
+                            $"restore failed; originals remain at {rollback}. {restoreError.Message}");
+                    }
+                }
                 skipped++;
                 errors.Add($"{Path.GetRelativePath(root, source)}: skipped ({ex.Message})");
             }
@@ -159,7 +185,11 @@ public static class PhotoPrivacyCleanupService
                 var detail = ex.Message;
                 if (modified)
                 {
-                    try { RestoreBackups(backups); }
+                    try
+                    {
+                        RestoreBackups(backups);
+                        recoveryCompleted = true;
+                    }
                     catch (Exception recovery)
                     {
                         detail += " CRITICAL: restore failed; original backups remain at " +
@@ -176,13 +206,32 @@ public static class PhotoPrivacyCleanupService
                     try { if (File.Exists(staged)) File.Delete(staged); }
                     catch (IOException) { /* Preserve failed temp on a sharing violation. */ }
                 }
-                if (!keepBackups && !modified)
-                    TryDeleteBackups(backups.Values);
+                // In no-backup mode, keep the temporary originals only if a
+                // rollback itself failed. Otherwise delete them even after
+                // errors or cancellation, so privacy cleanup leaves no retained
+                // backup copies when recovery succeeded.
+                if (!keepBackups && (!modified || recoveryCompleted))
+                {
+                    var left = TryDeleteBackups(backups.Values);
+                    if (left.Count > 0)
+                    {
+                        failed++;
+                        errors.Add($"{Path.GetRelativePath(root, source)}: " +
+                            $"CRITICAL: temporary rollback copies could not be deleted: " +
+                            string.Join("; ", left));
+                    }
+                }
                 processed++;
                 progress?.Report(new PhotoPrivacyProgress(
                     processed, items.Length, cleaned, skipped, failed,
                     Path.GetFileName(source)));
             }
+        }
+
+        if (!keepBackups)
+        {
+            TryRemoveEmptyDirectories(rollback);
+            TryRemoveEmptyDirectories(Path.GetDirectoryName(rollback)!);
         }
 
         if (errors.Count > 0)
@@ -206,13 +255,32 @@ public static class PhotoPrivacyCleanupService
             File.Copy(backup, original, overwrite: true);
     }
 
-    private static void TryDeleteBackups(IEnumerable<string> backupPaths)
+    private static IReadOnlyList<string> TryDeleteBackups(IEnumerable<string> backupPaths)
     {
+        var remaining = new List<string>();
         foreach (var path in backupPaths)
         {
             try { if (File.Exists(path)) File.Delete(path); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
+            if (File.Exists(path)) remaining.Add(path);
         }
+        return remaining;
+    }
+
+    private static void TryRemoveEmptyDirectories(string root)
+    {
+        if (!Directory.Exists(root)) return;
+        foreach (var path in Directory.GetDirectories(
+                     root, "*", SearchOption.AllDirectories)
+                 .OrderByDescending(path => path.Length))
+        {
+            try { Directory.Delete(path); }
+            catch (IOException) { /* Another copy may need recovery. */ }
+            catch (UnauthorizedAccessException) { }
+        }
+        try { Directory.Delete(root); }
+        catch (IOException) { /* Do not remove a run containing backups. */ }
+        catch (UnauthorizedAccessException) { }
     }
 }

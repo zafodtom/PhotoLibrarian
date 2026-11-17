@@ -618,8 +618,9 @@ public sealed partial class ImageGridView : UserControl
                     "JPEG, PNG and WebP are processed without recompressing image pixels; " +
                     "TIFF/BMP and orientation-bearing files are re-encoded. " +
                     "Unsupported media are skipped and reported. " +
-                    "Originals and XMP are backed up under .album/privacy-backups. " +
-                    "Those backups still contain identifying information. " +
+                    "No permanent backup is retained. A temporary rollback copy " +
+                    "is used only while processing and removed after success. " +
+                    "If restoration fails, a recovery copy may remain. " +
                     "File names, visible people in photos, OS thumbnails and earlier backups " +
                     "are NOT anonymized.",
                 confirmLabel: "ANONYMIZE METADATA",
@@ -631,10 +632,13 @@ public sealed partial class ImageGridView : UserControl
             try
             {
                 var result = await App.ViewModel.AnonymizePhotoMetadataAsync(
-                    selected.Select(vm => vm.Entry).ToArray(), keepBackups: true);
+                    selected.Select(vm => vm.Entry).ToArray(), keepBackups: false);
                 var description =
                     $"Cleaned: {result.Cleaned:N0}. Skipped: {result.Skipped:N0}. " +
-                    $"Failed: {result.Failed:N0}. Backups: {result.BackupDirectory}. " +
+                    $"Failed: {result.Failed:N0}. " +
+                    (result.Cleaned > 0
+                        ? "No permanent backups retained. "
+                        : "No photographs were anonymized. ") +
                     (result.Errors.Count > 0
                         ? "First issues: " + string.Join("; ", result.Errors.Take(3))
                         : "File metadata and album photo assignments were cleared.");
@@ -647,7 +651,10 @@ public sealed partial class ImageGridView : UserControl
                         ? "PRIVACY CLEANUP PARTIAL"
                         : "PHOTO METADATA REMOVED",
                     detailOverride: description,
-                    preview: false);
+                    preview: false,
+                    captionOverride: "PRIVACY REPORT // PHOTO",
+                    operationLabel: "RESULTS",
+                    footerOverride: "OPERATION FINISHED // REVIEW CLEANED AND SKIPPED FILES");
                 await report.ShowAsync();
             }
             catch (Exception ex)
